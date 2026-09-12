@@ -1,0 +1,23 @@
+# Build output
+bin/
+obj/
+dist/
+publish/
+artifacts/
+*.binlog
+
+# .NET
+*.user
+*.suo
+.vs/
+project.lock.json
+*.nupkg
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Logs / local state
+*.log
+%LOCALAPPDATA%/

@@ -1,0 +1,241 @@
+using System.Runtime.InteropServices;
+using System.Windows.Forms;
+using Anode.Core.Util;
+
+namespace Anode.Daemon;
+
+/// <summary>
+/// Hosts the Remote Desktop ActiveX control and points it at a child session.
+///
+/// This control is the only thing in Anode that can create a seat: Windows exposes no
+/// API to spawn a child session directly. You host the RDP client, set
+/// "ConnectToChildSession", connect to localhost, and Windows signs the seat in with
+/// your existing credentials, without a password prompt and without the seat ever
+/// appearing on a physical display.
+/// </summary>
+internal sealed class RdpViewer : AxHost
+{
+    /// <summary>MsRdpClient10NotSafeForScripting: the non-scriptable control shipped with Windows 10 and 11.</summary>
+    private const string ControlClsid = "A0C63C30-F08D-4AB4-907C-34905D770C7D";
+
+    private ConnectionPointCookie? _cookie;
+    private EventSink? _sink;
+
+    public RdpViewer() : base(ControlClsid)
+    {
+        Dock = DockStyle.Fill;
+    }
+
+    public event Action? Connecting;
+    public event Action? Connected;
+    public event Action? LoginComplete;
+    public event Action<int>? Disconnected;
+    public event Action<int>? LogonError;
+    public event Action<int>? FatalError;
+    public event Action<int, int>? RemoteSizeChanged;
+    public event Action? AuthenticationPrompt;
+
+    /// <summary>0 = disconnected, 1 = connected, 2 = connecting.</summary>
+    public int ConnectionState
+    {
+        get
+        {
+            if (!IsHandleCreated) return 0;
+            try { return Convert.ToInt32(Dispatch.Get(GetOcx(), "Connected") ?? 0); }
+            catch { return 0; }
+        }
+    }
+
+    protected override void CreateSink()
+    {
+        base.CreateSink();
+        try
+        {
+            _sink = new EventSink(this);
+            _cookie = new ConnectionPointCookie(GetOcx(), _sink, typeof(IMsTscAxEvents));
+        }
+        catch (Exception ex)
+        {
+            Log.Error("could not subscribe to Remote Desktop control events", ex);
+        }
+    }
+
+    protected override void DetachSink()
+    {
+        try { _cookie?.Disconnect(); }
+        catch { }
+        finally
+        {
+            _cookie = null;
+            _sink = null;
+            base.DetachSink();
+        }
+    }
+
+    /// <summary>Applies every setting the seat needs and starts connecting.</summary>
+    public void ConnectToChildSession(SeatOptions options)
+    {
+        if (ConnectionState != 0) return;
+
+        object control = GetOcx();
+
+        Dispatch.Set(control, "Server", "localhost");
+        Dispatch.Set(control, "DesktopWidth", Math.Clamp(options.Width, 640, 8192));
+        Dispatch.Set(control, "DesktopHeight", Math.Clamp(options.Height, 480, 8192));
+        Dispatch.TrySet(control, "ColorDepth", 32);
+        Dispatch.TrySet(control, "ConnectingText", "Bringing the Anode seat up...");
+        Dispatch.TrySet(control, "DisconnectedText", "The Anode seat is not connected.");
+
+        object advanced = Dispatch.Get(control, "AdvancedSettings9")
+            ?? throw new InvalidOperationException("The Remote Desktop control did not return AdvancedSettings9.");
+
+        // A loopback connection to our own machine: CredSSP supplies the current
+        // user's credentials, so the seat signs in without a prompt.
+        Dispatch.TrySet(advanced, "EnableCredSspSupport", true);
+        Dispatch.TrySet(advanced, "AuthenticationLevel", 0);
+        Dispatch.TrySet(advanced, "RDPPort", RdpPort());
+        Dispatch.TrySet(advanced, "SmartSizing", options.SmartSizing);
+        Dispatch.TrySet(advanced, "DisplayConnectionBar", false);
+        Dispatch.TrySet(advanced, "PinConnectionBar", false);
+        Dispatch.TrySet(advanced, "ContainerHandledFullScreen", 1);
+        Dispatch.TrySet(advanced, "EnableAutoReconnect", true);
+        Dispatch.TrySet(advanced, "MaxReconnectAttempts", 8);
+        Dispatch.TrySet(advanced, "Compress", 0);
+        Dispatch.TrySet(advanced, "EnableWindowsKey", 1);
+        Dispatch.TrySet(advanced, "GrabFocusOnConnect", false);
+
+        // Isolation defaults: the seat gets no view of the user's clipboard, drives,
+        // printers, ports or smart cards unless it is asked for explicitly.
+        Dispatch.TrySet(advanced, "RedirectClipboard", options.ShareClipboard);
+        Dispatch.TrySet(advanced, "RedirectDrives", false);
+        Dispatch.TrySet(advanced, "RedirectPrinters", false);
+        Dispatch.TrySet(advanced, "RedirectPorts", false);
+        Dispatch.TrySet(advanced, "RedirectSmartCards", false);
+
+        object secured = Dispatch.Get(control, "SecuredSettings2")
+            ?? throw new InvalidOperationException("The Remote Desktop control did not return SecuredSettings2.");
+
+        // 2 = Windows-key shortcuts reach the seat only while the viewer is full screen,
+        // so Alt+Tab keeps working normally on the user's own desktop.
+        Dispatch.TrySet(secured, "KeyboardHookMode", options.CaptureWindowsKeys ? 1 : 2);
+        // 0 = play the seat's audio here, 2 = the seat stays silent.
+        Dispatch.TrySet(secured, "AudioRedirectionMode", options.Audio ? 0 : 2);
+
+        var extended = (IMsRdpExtendedSettings)control;
+        extended["ConnectToChildSession"] = true;
+        TryExtended(extended, "EnableHardwareMode", true);
+        TryExtended(extended, "DisableCredentialsDelegation", false);
+
+        if (options.ScaleFactor is int scale && scale > 100)
+        {
+            TryExtended(extended, "DesktopScaleFactor", (uint)Math.Min(500, scale));
+            TryExtended(extended, "DeviceScaleFactor", 100u);
+        }
+
+        Log.Info($"connecting the viewer to a child session at {options.Width}x{options.Height}");
+        Dispatch.Call(control, "Connect");
+    }
+
+    public void Disconnect()
+    {
+        if (!IsHandleCreated || ConnectionState == 0) return;
+        try { Dispatch.Call(GetOcx(), "Disconnect"); }
+        catch (Exception ex) { Log.Warn($"viewer disconnect failed: {ex.Message}"); }
+    }
+
+    public void SetSmartSizing(bool enabled)
+    {
+        if (!IsHandleCreated) return;
+        try
+        {
+            object advanced = Dispatch.Get(GetOcx(), "AdvancedSettings9")!;
+            Dispatch.Set(advanced, "SmartSizing", enabled);
+        }
+        catch (Exception ex) { Log.Warn($"could not change scaling: {ex.Message}"); }
+    }
+
+    private static void TryExtended(IMsRdpExtendedSettings settings, string name, object value)
+    {
+        try { settings[name] = value; }
+        catch { /* not every build supports every extended property */ }
+    }
+
+    private static int RdpPort()
+    {
+        try
+        {
+            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                @"SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp");
+            return key?.GetValue("PortNumber") is int port and > 0 and <= ushort.MaxValue ? port : 3389;
+        }
+        catch { return 3389; }
+    }
+
+    /// <summary>Blocks or restores mouse and keyboard input to the control without hiding the picture.</summary>
+    public void SetInputEnabled(bool enabled)
+    {
+        if (!IsHandleCreated) return;
+        EnableWindow(Handle, enabled);
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool EnableWindow(IntPtr hWnd, [MarshalAs(UnmanagedType.Bool)] bool enable);
+
+    /// <summary>Receives the control's events and re-raises them as ordinary .NET events.</summary>
+    [ComVisible(true)]
+    [ClassInterface(ClassInterfaceType.None)]
+    private sealed class EventSink : IMsTscAxEvents
+    {
+        private readonly RdpViewer _owner;
+        public EventSink(RdpViewer owner) => _owner = owner;
+
+        public void OnConnecting() => _owner.Connecting?.Invoke();
+        public void OnConnected() => _owner.Connected?.Invoke();
+        public void OnLoginComplete() => _owner.LoginComplete?.Invoke();
+        public void OnDisconnected(int discReason) => _owner.Disconnected?.Invoke(discReason);
+        public void OnEnterFullScreenMode() { }
+        public void OnLeaveFullScreenMode() { }
+        public void OnChannelReceivedData(string channelName, string data) { }
+        public void OnRequestGoFullScreen() { }
+        public void OnRequestLeaveFullScreen() { }
+        public void OnFatalError(int errorCode) => _owner.FatalError?.Invoke(errorCode);
+        public void OnWarning(int warningCode) => Log.Warn($"Remote Desktop warning {warningCode}");
+        public void OnRemoteDesktopSizeChange(int width, int height) => _owner.RemoteSizeChanged?.Invoke(width, height);
+        public void OnIdleTimeoutNotification() { }
+        public void OnRequestContainerMinimize() { }
+        public void OnConfirmClose(ref bool allowClose) => allowClose = true;
+        public void OnReceivedTSPublicKey(string publicKey, ref bool allowConnect) => allowConnect = true;
+        public void OnAutoReconnecting(int disconnectReason, int attemptCount, ref int continueStatus) => continueStatus = 0;
+        public void OnAuthenticationWarningDisplayed() => _owner.AuthenticationPrompt?.Invoke();
+        public void OnAuthenticationWarningDismissed() { }
+        public void OnRemoteProgramResult(string remoteProgramName, int result, bool displayErrorDialog) { }
+        public void OnRemoteProgramDisplayed(bool displayed, uint exeStyle) { }
+        public void OnLogonError(int errorCode) => _owner.LogonError?.Invoke(errorCode);
+        public void OnFocusReleased(int direction) { }
+        public void OnUserNameAcquired(string userName) { }
+        public void OnMouseInputModeChanged(bool absoluteMouseMode) { }
+        public void OnServiceMessageReceived(string serviceMessage) { }
+        public void OnRemoteWindowDisplayed(bool displayed, IntPtr hwnd, int windowState) { }
+        public void OnConnectionBarPullDown() { }
+        public void OnNetworkStatusChanged(uint quality, int bandwidth, int rtt) { }
+        public void OnAutoReconnected() => _owner.Connected?.Invoke();
+        public void OnAutoReconnecting2(int disconnectReason, bool networkAvailable, int attemptCount, int maxAttempts) { }
+        public void OnDevicesButtonPressed() { }
+    }
+}
+
+/// <summary>How a seat should be created. Set once at `anode up` and kept for reconnects.</summary>
+internal sealed record SeatOptions
+{
+    public int Width { get; init; } = 1280;
+    public int Height { get; init; } = 720;
+    public bool SmartSizing { get; init; } = true;
+    public bool Audio { get; init; }
+    public bool ShareClipboard { get; init; }
+    public bool CaptureWindowsKeys { get; init; }
+    public int? ScaleFactor { get; init; }
+    public bool StartViewOnly { get; init; } = true;
+    public bool ShowWindow { get; init; } = true;
+    public bool KeepSeatOnExit { get; init; }
+}

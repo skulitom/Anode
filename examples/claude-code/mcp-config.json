@@ -1,0 +1,9 @@
+{
+  "$comment": "Correct the command path to wherever anode.exe lives, then merge this into your MCP client's config. Claude Desktop reads claude_desktop_config.json; Claude Code accepts `claude mcp add anode -- C:\\Tools\\anode\\anode.exe mcp`.",
+  "mcpServers": {
+    "anode": {
+      "command": "C:\\Tools\\anode\\anode.exe",
+      "args": ["mcp"]
+    }
+  }
+}
