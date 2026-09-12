@@ -143,4 +143,20 @@ internal static class Preconditions
     }
 
     public static bool AnyFailed(IReadOnlyList<Check> checks) => checks.Any(c => c.State == CheckLevel.Fail);
+
+    /// <summary>
+    /// One paragraph naming every blocking problem and its fix, or null when a seat can
+    /// start. Callers use this to fail immediately instead of launching a daemon that is
+    /// certain to exit, and then blaming the timeout.
+    /// </summary>
+    public static string? BlockingSummary()
+    {
+        var failures = Run().Where(c => c.State == CheckLevel.Fail).ToArray();
+        if (failures.Length == 0) return null;
+
+        var lines = failures.Select(c => c.Fix is null
+            ? $"{c.Name}: {c.Detail}"
+            : $"{c.Name}: {c.Detail}. {c.Fix}");
+        return "This machine cannot host a seat yet. " + string.Join(" | ", lines);
+    }
 }

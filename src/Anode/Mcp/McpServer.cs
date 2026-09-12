@@ -23,6 +23,7 @@ internal static class McpServer
     private const string DefaultProtocol = "2024-11-05";
 
     private static JsonPipeClient? _daemon;
+    private static string? _blockedReason;
     private static readonly SemaphoreSlim ConnectGate = new(1, 1);
 
     public static async Task<int> Run()
@@ -125,11 +126,13 @@ internal static class McpServer
         var client = await DaemonAsync(startsDaemon).ConfigureAwait(false);
         if (client is null)
         {
-            return TextResult(startsDaemon
-                    ? "Anode is not running and could not be started. Run `anode doctor` in a terminal: the machine "
-                      + "most likely still needs `anode setup`, which asks for one administrator approval."
-                    : $"Anode is not running, so there is no seat for '{toolName}' to act on. Call seat_start first.",
-                isError: true);
+            string reason = _blockedReason is not null
+                ? _blockedReason + " Tell the user to run `anode setup` in a terminal and approve the administrator prompt; "
+                  + "this cannot be done from here."
+                : startsDaemon
+                    ? "Anode is not running and could not be started. Run `anode doctor` in a terminal to see why."
+                    : $"Anode is not running, so there is no seat for '{toolName}' to act on. Call seat_start first.";
+            return TextResult(reason, isError: true);
         }
 
         int timeout = toolName is "steam_launch" or "seat_start" ? 180_000 : 60_000;
@@ -179,6 +182,13 @@ internal static class McpServer
             _daemon?.Dispose();
             _daemon = await JsonPipeClient.TryConnectAsync(Env.ControlPipe, 1000).ConfigureAwait(false);
             if (_daemon is not null || !mayStart) return _daemon;
+
+            if (Core.Session.Preconditions.BlockingSummary() is { } blocked)
+            {
+                Log.Warn($"not starting a daemon: {blocked}");
+                _blockedReason = blocked;
+                return null;
+            }
 
             Log.Info("no daemon; starting one");
             var info = new ProcessStartInfo

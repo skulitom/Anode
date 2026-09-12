@@ -185,11 +185,18 @@ internal static class Cli
             return 0;
         }
 
+        if (Preconditions.BlockingSummary() is { } blocked)
+        {
+            Console.Error.WriteLine(blocked);
+            Console.Error.WriteLine("Run `anode doctor` for the full picture.");
+            return 3;
+        }
+
         Launch(args);
         var client = await WaitForDaemon(TimeSpan.FromSeconds(30));
         if (client is null)
         {
-            Console.Error.WriteLine("Anode did not start. Run `anode doctor`, or `anode up` to see the error.");
+            Console.Error.WriteLine("Anode did not start. Run `anode up` to see the error directly.");
             return 1;
         }
 
@@ -460,6 +467,12 @@ internal static class Cli
         var client = await JsonPipeClient.TryConnectAsync(Env.ControlPipe, 800);
         if (client is not null || !autoStart) return client;
 
+        if (Preconditions.BlockingSummary() is { } blocked)
+        {
+            Console.Error.WriteLine(blocked);
+            return null;
+        }
+
         Console.Error.WriteLine("Anode is not running; starting it...");
         Launch(Array.Empty<string>());
         client = await WaitForDaemon(TimeSpan.FromSeconds(30));
@@ -482,8 +495,35 @@ internal static class Cli
         return client;
     }
 
+    /// <summary>
+    /// Starts the daemon detached from whoever asked for it.
+    ///
+    /// This matters for agent CLIs. Claude Code and Codex put their subprocesses in a
+    /// job object, so a daemon started as an ordinary child of the MCP server would be
+    /// killed the moment the agent exits, stranding a child session with no owner.
+    /// Handing the launch to the Task Scheduler makes the daemon a child of the
+    /// scheduler service instead, so it outlives the agent and the seat stays under the
+    /// control of the person at the machine. Falls back to a plain child process if the
+    /// scheduler refuses.
+    /// </summary>
     private static void Launch(string[] extra)
     {
+        string arguments = string.Join(' ', new[] { "up" }.Concat(extra).Select(Quote));
+
+        try
+        {
+            Core.Launch.SeatLauncher.LaunchInSession(
+                Core.Session.ChildSession.CurrentSessionId(),
+                Env.ExecutablePath,
+                arguments,
+                AppContext.BaseDirectory);
+            return;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"could not start the daemon through the Task Scheduler ({ex.Message}); starting it as a child process");
+        }
+
         var info = new ProcessStartInfo
         {
             FileName = Env.ExecutablePath,
@@ -495,6 +535,11 @@ internal static class Cli
         foreach (string argument in extra) info.ArgumentList.Add(argument);
         Process.Start(info);
     }
+
+    private static string Quote(string argument) =>
+        argument.Contains(' ') || argument.Contains('"')
+            ? '"' + argument.Replace("\"", "\\\"") + '"'
+            : argument;
 
     private static async Task<JsonPipeClient?> WaitForDaemon(TimeSpan timeout)
     {

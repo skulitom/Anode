@@ -206,12 +206,19 @@ stops.
 
 `anode mcp` speaks the Model Context Protocol on stdin and stdout. It owns nothing; every call goes
 to the running daemon, so you and the agent point at the same seat and your stop button still wins.
-It starts the daemon on the first call if it is not up.
+It starts the daemon on the first call if it is not up, detached through the Task Scheduler so the
+seat outlives the agent that asked for it.
 
 **Claude Code**
 
 ```powershell
-claude mcp add anode -- "C:\path\to\anode.exe" mcp
+claude mcp add -s user anode -- "%USERPROFILE%\.local\bin\anode.exe" mcp
+```
+
+**Codex CLI**
+
+```powershell
+codex mcp add anode -- "%USERPROFILE%\.local\bin\anode.exe" mcp
 ```
 
 **Claude Desktop** (`claude_desktop_config.json`), or any MCP client:
@@ -220,7 +227,7 @@ claude mcp add anode -- "C:\path\to\anode.exe" mcp
 {
   "mcpServers": {
     "anode": {
-      "command": "C:\\path\\to\\anode.exe",
+      "command": "C:\\Users\\you\\.local\\bin\\anode.exe",
       "args": ["mcp"]
     }
   }
@@ -237,8 +244,11 @@ Twenty-two tools, grouped:
 | Input | `seat_click` `seat_move` `seat_drag` `seat_scroll` `seat_key` `seat_type` |
 | Gamepad | `gamepad_attach` `gamepad_detach` `gamepad_set` `gamepad_tap` `gamepad_reset` |
 
-`seat_screenshot` returns a real image block, so a model can look at the seat. See
-[examples/claude-code](examples/claude-code) for a worked session.
+`seat_screenshot` returns a real image block, so a model can look at the seat.
+
+Full setup for both terminal agents, what to put in `CLAUDE.md` or `AGENTS.md`, and the alternative
+of running the agent *inside* the seat: [docs/CONNECTING-AGENTS.md](docs/CONNECTING-AGENTS.md).
+A worked session: [examples/claude-code](examples/claude-code).
 
 ---
 
