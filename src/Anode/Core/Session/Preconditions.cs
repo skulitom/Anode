@@ -110,6 +110,8 @@ internal static class Preconditions
             : new Check("Remote Desktop host", CheckLevel.Fail, "fDenyTSConnections = 1 (Remote Desktop is off)",
                 "Run: anode setup   (this sets fDenyTSConnections to 0; it does not open any firewall port)"));
 
+        checks.Add(RdpListener.Check());
+
         bool childEnabled;
         try { childEnabled = ChildSession.IsFeatureEnabled(); }
         catch { childEnabled = false; }
@@ -136,8 +138,14 @@ internal static class Preconditions
                 "Only needed for gamepad control. Install ViGEmBus from https://github.com/nefarius/ViGEmBus/releases"));
 
         uint? existing = ChildSession.TryGetId();
-        checks.Add(new Check("Existing seat", CheckLevel.Pass,
-            existing is null ? "none" : $"child session {existing.Value} is already up"));
+        bool? sessionExists = existing is { } id ? ChildSession.Exists(id) : false;
+        checks.Add(new Check("Existing seat", sessionExists is null ? CheckLevel.Warn : CheckLevel.Pass,
+            existing is null ? "none" : sessionExists switch
+            {
+                false => $"none (Windows retained child ID {existing.Value}, but that session is absent)",
+                true => $"child session {existing.Value} exists; use `anode status` to check sign-in and agent readiness",
+                null => $"Windows reports child ID {existing.Value}; could not verify whether that session exists"
+            }));
 
         return checks;
     }

@@ -4,6 +4,8 @@ obj/
 dist/
 publish/
 artifacts/
+output/playwright/
+.playwright-cli/
 *.binlog
 
 # .NET

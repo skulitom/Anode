@@ -300,6 +300,13 @@ internal sealed class SeatWindow : Form
 
     protected override void WndProc(ref Message m)
     {
+        // Hiding keeps the ActiveX client out of its minimized-window path.
+        // The per-user RDP rendering preference also prevents display suppression.
+        if (m.Msg == 0x0112 && (m.WParam.ToInt64() & 0xFFF0) == 0xF020)
+        {
+            HideViewer();
+            return;
+        }
         if (m.Msg == Native.WM_HOTKEY && m.WParam.ToInt32() == HotkeyId)
         {
             StopSeatRequested?.Invoke();

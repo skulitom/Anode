@@ -89,29 +89,62 @@ internal static class SelfTest
             return "request and response over a named pipe";
         });
 
-        if (includeEnvironment) Check(results, "task scheduler hand-off", () =>
+        Check(results, "pipe queue deadline", () => TransportChecks.QueueDeadline().GetAwaiter().GetResult());
+        Check(results, "pipe late reply", () => TransportChecks.LateReply().GetAwaiter().GetResult());
+        Check(results, "pipe reply identity", () => TransportChecks.ReplyId().GetAwaiter().GetResult());
+        Check(results, "pipe close during request", () => TransportChecks.CloseDuringRequest().GetAwaiter().GetResult());
+        Check(results, "pipe server shutdown", () => TransportChecks.ServerShutdown().GetAwaiter().GetResult());
+        Check(results, "pipe access control", () => TransportChecks.PipeAccess().GetAwaiter().GetResult());
+        Check(results, "pipe connect cancellation", () =>
         {
-            // Launching into our own session proves the same COM path the daemon uses to
-            // place the seat host inside the child session, without needing a seat.
-            string marker = Path.Combine(Path.GetTempPath(), $"anode-selftest-{Guid.NewGuid():N}.txt");
+            using var cancel = new CancellationTokenSource(100);
             try
             {
-                Core.Launch.SeatLauncher.LaunchInSession(
-                    ChildSession.CurrentSessionId(),
-                    Path.Combine(System.Environment.SystemDirectory, "cmd.exe"),
-                    $"/c > \"{marker}\" echo ok",
-                    Path.GetTempPath());
-
-                var deadline = DateTime.UtcNow.AddSeconds(15);
-                while (DateTime.UtcNow < deadline && !File.Exists(marker)) Thread.Sleep(200);
-                if (!File.Exists(marker)) throw new InvalidOperationException("the scheduled task never ran");
-                return $"started a process in session {ChildSession.CurrentSessionId()}";
+                using var client = JsonPipeClient.TryConnectAsync($"anode-selftest-{Guid.NewGuid():N}", 5000, cancel.Token)
+                    .WaitAsync(TimeSpan.FromSeconds(2)).GetAwaiter().GetResult();
+                throw new InvalidOperationException("connection attempt ignored cancellation");
             }
-            finally
-            {
-                try { if (File.Exists(marker)) File.Delete(marker); } catch { }
-            }
+            catch (OperationCanceledException) when (cancel.IsCancellationRequested) { }
+            return "startup connection attempts can be interrupted by stop";
         });
+        Check(results, "launch arguments", TransportChecks.LaunchArguments);
+        Check(results, "Steam launch guard", DiagnosticsChecks.SteamLaunchGuard);
+        Check(results, "desktop references", DesktopChecks.References);
+        Check(results, "desktop dispatch", () => DesktopChecks.Dispatch().GetAwaiter().GetResult());
+        Check(results, "desktop worker deadline", () => DesktopChecks.WorkerTimeout().GetAwaiter().GetResult());
+        Check(results, "desktop report escaping", DesktopChecks.Presentation);
+        Check(results, "RDP extended settings", DiagnosticsChecks.RdpSettings);
+        Check(results, "RDP event callbacks", DiagnosticsChecks.RdpCallbacks);
+        Check(results, "RDP handshake diagnostics", DiagnosticsChecks.RdpHandshakeFailure);
+        Check(results, "RDP listener probe", () => DiagnosticsChecks.Listener().GetAwaiter().GetResult());
+        Check(results, "setup listener repair", DiagnosticsChecks.SetupListener);
+        Check(results, "startup disconnect", () => DiagnosticsChecks.StartupFailure().GetAwaiter().GetResult());
+        Check(results, "seat cleanup", () => DiagnosticsChecks.SeatCleanup().GetAwaiter().GetResult());
+        Check(results, "startup status polling", () => DiagnosticsChecks.StartupPolling().GetAwaiter().GetResult());
+        Check(results, "log diagnostics", () => DiagnosticsChecks.Logging().GetAwaiter().GetResult());
+        Check(results, "MCP stdio", () => TransportChecks.McpStdio().GetAwaiter().GetResult());
+        Check(results, "MCP validation", () => McpChecks.Validation().GetAwaiter().GetResult());
+        Check(results, "MCP stop and cancellation", () => McpChecks.StopAndCancellation().GetAwaiter().GetResult());
+        Check(results, "MCP disconnect", () => McpChecks.Disconnect().GetAwaiter().GetResult());
+        Check(results, "MCP busy daemon", () => McpChecks.BusyDaemon().GetAwaiter().GetResult());
+        Check(results, "MCP command ordering", () => McpChecks.OrderedCommands().GetAwaiter().GetResult());
+        Check(results, "seat identity guard", () =>
+        {
+            JsonObject Identity(int? child, int? parent) => JsonLine.Ok(new JsonObject
+            {
+                ["session"] = child, ["parentSession"] = parent
+            });
+            if (!Seat.SeatHost.MatchesSeat(3, Identity(3, 1)))
+                throw new InvalidOperationException("the daemon's child session was rejected");
+            foreach (var identity in new JsonObject?[] { null, JsonLine.Fail("unavailable"), Identity(null, 1), Identity(2, 1), Identity(3, 3), Identity(3, null), Identity(3, 0) })
+                if (Seat.SeatHost.MatchesSeat(3, identity))
+                    throw new InvalidOperationException("an unverified or parent session was accepted");
+            if (Seat.SeatHost.MatchesSeat(0, Identity(0, 1)) || Seat.SeatHost.MatchesSeat(uint.MaxValue, Identity(-1, 1)))
+                throw new InvalidOperationException("an invalid session id was accepted");
+            return "only the child session identified by a different parent session is accepted";
+        });
+
+        if (includeEnvironment) Check(results, "task scheduler logging", DiagnosticsChecks.ScheduledLogging);
 
         if (includeGamepad)
         {

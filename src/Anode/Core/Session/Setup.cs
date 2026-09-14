@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.ServiceProcess;
 using Microsoft.Win32;
 using Anode.Core.Util;
@@ -7,11 +9,12 @@ namespace Anode.Core.Session;
 
 /// <summary>
 /// The one part of Anode that changes machine state. It runs elevated, touches
-/// exactly three things, and says out loud what it did:
+/// the following things, and says out loud what it did:
 ///
 ///   1. fDenyTSConnections -> 0, so the machine has a Remote Desktop host at all.
 ///      Child sessions are loopback RDP; without a host there is nothing to connect to.
-///      This does NOT open a firewall port, so nothing on the network can reach it.
+///      Starts or restarts TermService when needed to create the listener.
+///      This does not add a firewall rule; existing rules determine network access.
 ///   2. WTSEnableChildSessions(TRUE), the documented switch for the feature.
 ///   3. Optionally DWMFRAMEINTERVAL = 15, which raises the remote-session frame cap
 ///      from 30 fps to 60 fps. Needed for anything that moves; costs a reboot.
@@ -37,6 +40,7 @@ internal static class Setup
         var skipped = new List<string>();
         var failed = new List<string>();
         bool reboot = false;
+        bool hostChanged = false;
 
         if (undo)
         {
@@ -64,18 +68,19 @@ internal static class Setup
                 using var key = Registry.LocalMachine.OpenSubKey(TerminalServerKey, writable: true)
                     ?? throw new InvalidOperationException($@"HKLM\{TerminalServerKey} is missing.");
                 key.SetValue("fDenyTSConnections", 0, RegistryValueKind.DWord);
-                return "fDenyTSConnections = 0 (loopback only; no firewall rule was added)";
+                hostChanged = true;
+                return "fDenyTSConnections = 0 (no firewall rule was added; existing rules determine network access)";
             });
-            reboot = true;
         }
 
-        TryStep(failed, done, "Start the Remote Desktop Services service", () =>
+        TryStep(failed, done, "Make the Remote Desktop listener available", () =>
         {
             using var service = new ServiceController("TermService");
-            if (service.Status == ServiceControllerStatus.Running) return "TermService was already running";
-            service.Start();
-            service.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(20));
-            return "TermService started";
+            return EnsureListener(
+                () => service.Status == ServiceControllerStatus.Running,
+                RdpListener.Check,
+                () => RestartService(service),
+                () => StartService(service), forceRestart: hostChanged);
         });
 
         if (ChildSession.IsFeatureEnabledSafe())
@@ -130,6 +135,117 @@ internal static class Setup
         }
 
         return new Result(done, skipped, failed, reboot);
+    }
+
+    internal static string EnsureListener(Func<bool> isRunning, Func<Check> probe, Action restart, Action start,
+        TimeSpan? timeout = null, bool forceRestart = false)
+    {
+        bool running = isRunning();
+        if (running && !forceRestart && probe().State == CheckLevel.Pass) return "TermService and its loopback listener were already ready";
+        if (running) restart();
+        else start();
+
+        var watch = Stopwatch.StartNew();
+        Check listener;
+        do
+        {
+            listener = probe();
+            if (listener.State == CheckLevel.Pass)
+                return $"TermService {(running ? "restarted" : "started")}; {listener.Detail}";
+            if (watch.Elapsed >= (timeout ?? TimeSpan.FromSeconds(20))) break;
+            Thread.Sleep(250);
+        } while (true);
+        throw new InvalidOperationException($"TermService is running, but {listener.Detail}. {listener.Fix}");
+    }
+
+    private static void StartService(ServiceController service)
+    {
+        service.Refresh();
+        if (service.Status == ServiceControllerStatus.StopPending)
+            service.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(20));
+        if (service.Status == ServiceControllerStatus.Paused) service.Continue();
+        else if (service.Status == ServiceControllerStatus.Stopped)
+        {
+            try { service.Start(); }
+            // A COM activation can start the service between Refresh and Start.
+            catch (InvalidOperationException ex) when (ex.InnerException is Win32Exception { NativeErrorCode: 1056 }) { }
+        }
+        service.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(20));
+    }
+
+    private static void RestartService(ServiceController service)
+    {
+        // Stop also stops dependent services. Restore those that were running,
+        // even when restarting TermService fails partway through.
+        var dependents = new Dictionary<string, ServiceController>(StringComparer.OrdinalIgnoreCase);
+        var failures = new List<string>();
+        try
+        {
+            CollectDependents(service, dependents);
+            var running = dependents.Values.Where(s => s.Status == ServiceControllerStatus.Running).ToArray();
+            try
+            {
+                uint previousProcess = ReadServiceState(service).ProcessId;
+                service.Stop();
+                WaitForServiceStop(() => ReadServiceState(service), previousProcess);
+            }
+            catch (Exception ex) { failures.Add($"stopping TermService: {ex.Message}"); }
+            try { StartService(service); }
+            catch (Exception ex) { failures.Add($"starting TermService: {ex.Message}"); }
+            foreach (var dependent in running)
+            {
+                try { StartService(dependent); }
+                catch (Exception ex) { failures.Add($"restoring {dependent.ServiceName}: {ex.Message}"); }
+            }
+        }
+        finally { foreach (var dependent in dependents.Values) dependent.Dispose(); }
+        if (failures.Count > 0) throw new InvalidOperationException(string.Join("; ", failures));
+    }
+
+    internal static void WaitForServiceStop(Func<(ServiceControllerStatus Status, uint ProcessId)> readState,
+        uint previousProcess, TimeSpan? timeout = null)
+    {
+        var watch = Stopwatch.StartNew();
+        do
+        {
+            var state = readState();
+            // DCOM may immediately reactivate TermService. A replacement process
+            // proves that the old instance stopped even if polling missed Stopped.
+            if (state.Status == ServiceControllerStatus.Stopped
+                || (previousProcess != 0 && state.ProcessId != 0 && state.ProcessId != previousProcess)) return;
+            if (watch.Elapsed >= (timeout ?? TimeSpan.FromSeconds(20)))
+                throw new System.TimeoutException("TermService did not stop or restart within the deadline.");
+            Thread.Sleep(100);
+        } while (true);
+    }
+
+    private static (ServiceControllerStatus Status, uint ProcessId) ReadServiceState(ServiceController service)
+    {
+        if (!QueryServiceStatusEx(service.ServiceHandle, 0, out var status,
+            Marshal.SizeOf<ServiceStatusProcess>(), out _))
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+        return ((ServiceControllerStatus)status.CurrentState, status.ProcessId);
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ServiceStatusProcess
+    {
+        public uint ServiceType, CurrentState, ControlsAccepted, Win32ExitCode,
+            ServiceSpecificExitCode, CheckPoint, WaitHint, ProcessId, ServiceFlags;
+    }
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool QueryServiceStatusEx(SafeHandle service, int infoLevel,
+        out ServiceStatusProcess status, int bufferSize, out uint bytesNeeded);
+
+    private static void CollectDependents(ServiceController service, Dictionary<string, ServiceController> dependents)
+    {
+        foreach (var dependent in service.DependentServices)
+        {
+            if (!dependents.TryAdd(dependent.ServiceName, dependent)) dependent.Dispose();
+            else CollectDependents(dependent, dependents);
+        }
     }
 
     /// <summary>True when Remote Desktop sessions are already set to prefer a real GPU.</summary>

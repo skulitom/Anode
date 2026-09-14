@@ -103,10 +103,14 @@ else, is listed in [docs/SECURITY.md](docs/SECURITY.md):
 
 | Setting | Value | Why |
 | --- | --- | --- |
-| `fDenyTSConnections` | `0` | The machine needs a Remote Desktop host for a loopback session to connect to. **No firewall rule is added**, so only loopback can reach it. |
+| `fDenyTSConnections` | `0` | The machine needs a Remote Desktop host for a loopback session to connect to. **No firewall rule is added**; network access depends on your existing firewall rules. |
 | `WTSEnableChildSessions` | `TRUE` | The documented switch for the feature. |
 | `DWMFRAMEINTERVAL` | `15` (with `--fps 60`) | Raises the remote-session frame cap from 30 fps to 60. Needs a reboot. |
 | `bEnumerateHWBeforeSW` | `1` (with `--gpu`) | Lets the seat render on your real GPU instead of the software adapter. Needs a reboot. |
+
+Setup starts or restarts Remote Desktop Services when needed and verifies the loopback listener.
+A service restart may disconnect existing Remote Desktop sessions. `anode doctor` also checks the
+listener: an enabled registry setting alone does not mean the machine is ready.
 
 `anode setup --undo` turns child sessions back off. It deliberately leaves Remote Desktop enabled,
 because other software may depend on it; turn that off yourself in Settings if you want it off.
@@ -147,17 +151,24 @@ anode gamepad tap a
 anode shot game.png          # see what the seat sees
 ```
 
-**Read this before you try it.** Steam allows one instance per Windows user, and the seat runs as
+**Read this before you try it.** Steam normally reuses one client per Windows user, and the seat runs as
 the same user as your desktop. Whichever session Steam started in is the session its games open in.
 So:
 
 - **Steam not running anywhere:** `anode steam <appid>` starts Steam inside the seat first, and the
   game opens in the seat. This is the case you want.
 - **Steam already running on your desktop:** the command refuses and tells you why, because the game
-  would open on your screen. Close Steam, then launch from the seat. Pass `force: true` to override.
+  can open on your screen or the existing client can be disrupted. Keep Steam there if you need it on
+  your desktop. Moving it into the seat means giving up that desktop access. `force: true` overrides
+  the check; it does not create two independent clients.
 
-`anode steam status` says which case you are in, in one line. A game that is not on Steam has no such
-problem: `anode run "D:\Games\thing\game.exe"` always starts in the seat.
+`anode steam status` says which case you are in, in one line. The generic `anode run` command also
+refuses direct Steam clients and `steam://` URLs while Steam is running outside the seat. Starting
+another client can disrupt the existing client; it does not reliably provide two independent ones.
+
+`anode run "D:\Games\thing\game.exe"` starts the process inside the seat. Some applications hand
+work to an existing instance in another session, so verify the resulting application's session.
+This direct Steam check does not inspect the contents of shortcuts or wrapper scripts.
 
 For a game, `anode setup --fps 60 --gpu` and a borderless-window (not exclusive fullscreen) display
 mode make the difference between unplayable and fine.
@@ -165,6 +176,19 @@ mode make the difference between unplayable and fine.
 ---
 
 ## Drive the seat
+
+Anode also exposes window discovery, accessible controls, text and direct control
+actions. These run inside the seat without a foreground computer-use overlay:
+
+```powershell
+anode windows --query notepad
+anode inspect <windowId> --html inspection.html
+anode element <snapshotId> <elementId> invoke
+```
+
+Inspection produces a readable tree or structured JSON, and can save a searchable
+HTML report with a screenshot. Use the returned identifiers and offered actions.
+See [Desktop tools](docs/DESKTOP-TOOLS.md) for the complete CLI/MCP workflow and limits.
 
 ```powershell
 anode shot [file] [--width 1000] [--jpeg]
@@ -177,8 +201,8 @@ anode ps                     # what is running in the seat
 anode ps kill notepad
 ```
 
-Coordinates are pixels on the seat's screen. A screenshot pixel and a click coordinate are the same
-pixel, even when you scale the screenshot down.
+Coordinates are pixels on the seat's original screen. If you scale a screenshot down, convert image
+coordinates back to that screen size: `x * sourceWidth / width` and `y * sourceHeight / height`.
 
 Keys go in as **scan codes**, so games that read raw input or DirectInput actually see them.
 
@@ -212,13 +236,13 @@ seat outlives the agent that asked for it.
 **Claude Code**
 
 ```powershell
-claude mcp add -s user anode -- "%USERPROFILE%\.local\bin\anode.exe" mcp
+claude mcp add -s user anode -- "$env:USERPROFILE\.local\bin\anode.exe" mcp
 ```
 
 **Codex CLI**
 
 ```powershell
-codex mcp add anode -- "%USERPROFILE%\.local\bin\anode.exe" mcp
+codex mcp add anode -- "$env:USERPROFILE\.local\bin\anode.exe" mcp
 ```
 
 **Claude Desktop** (`claude_desktop_config.json`), or any MCP client:
@@ -269,9 +293,9 @@ your session (session 1)                      the seat (child session, session N
 ```
 
 1. The daemon hosts the Remote Desktop ActiveX control, sets `ConnectToChildSession`, and connects to
-   `localhost`. Windows signs a child session in with your existing credentials. No password prompt,
-   no display, no network.
-2. It waits for `WTSGetChildSessionId`, then uses the Task Scheduler's `RunEx` with
+   `localhost`. Windows signs a child session in with your existing credentials when delegation is
+   available. `--sign-in` requests the native Windows credential dialog when needed.
+2. It waits for completed Windows login and `WTSGetChildSessionId`, then uses the Task Scheduler's `RunEx` with
    `TASK_RUN_USE_SESSION_ID` to place one process, the seat host, inside that session. This is the
    only way a process in one session can start a process in another, and it needs no elevation.
 3. From then on the seat host is an ordinary interactive process in the seat. **This is where the
@@ -293,8 +317,10 @@ More in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/PROTOCOL.md](docs
   sessions at once. Browsers work if you give the seat its own profile directory.
 - **Startup programs run in the seat too.** Anything in your Run key or Startup folder launches when
   the seat signs in, which can mean two copies of a tray app.
-- **PIN sign-in.** If you sign in to Windows with a PIN, the seat may ask for a password the first
-  time. Sign in with your password once and it stops asking.
+- **PIN sign-in.** If automatic seat sign-in fails after PIN/Windows Hello login, start a new daemon
+  with `anode start --sign-in`. Windows asks for the seat credentials in its own dialog while your
+  current desktop stays signed in. Anode does not retrieve or save the password; a new seat may
+  require the prompt again.
 - **Exclusive fullscreen and protected video** do not capture. Use borderless windowed.
 - **Performance is a remote-session pipeline**, not a monitor cable. Without `--gpu` the seat renders
   on a software adapter. With it, and with `--fps 60`, ordinary games are fine; competitive twitch
@@ -311,10 +337,10 @@ Something wrong? [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md), and the log
 ## Build and test
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\build.ps1   # -> dist\anode.exe
+powershell -ExecutionPolicy Bypass -File scripts\build.ps1 -QuickTest   # publish and verify dist\anode.exe
 dotnet build Anode.sln
 anode selftest          # everything that does not need a seat
-anode selftest --quick  # only the environment-independent checks (what CI runs)
+anode selftest --quick  # includes MCP discovery, pipe deadlines and identity checks (what CI runs)
 ```
 
 CI builds on `windows-latest` and runs the quick self-test on every push and pull request.

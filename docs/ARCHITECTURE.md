@@ -15,20 +15,22 @@ The unit of isolation on Windows is the **session**, not the display. Anode uses
 A child session is a loopback Remote Desktop session tied to the signed-in user's session,
 [documented since Windows 8](https://learn.microsoft.com/en-us/windows/win32/termserv/child-sessions).
 It is created by hosting the Remote Desktop ActiveX control, setting the `ConnectToChildSession`
-extended property, and connecting to `localhost`. Windows signs it in with the current user's
-credentials without prompting, gives it no lock screen and no screen saver, and terminates it when
+extended property, and connecting to `localhost`. Windows attempts to reuse the current user's
+credentials; when delegation fails, explicit `--sign-in` allows a native credential prompt without
+signing out the parent. Windows gives the child no lock screen or screen saver and terminates it when
 the parent session terminates. Exactly one may be connected at a time. Because it is a real session,
 it has its own everything: desktop, input queue, focus, window list, processes.
 
 ## Processes
 
-Anode is one executable in four roles. One binary means the seat host is always the same build as
-the daemon that launched it.
+Anode uses one executable for its runtime roles. The daemon launches the seat host
+from its own executable path; upgrading the file does not replace already running processes.
 
 | Role | Command | Session | Job |
 | --- | --- | --- | --- |
 | Daemon | `anode up` | yours | Own the seat's lifecycle, host the viewer, serve the control pipe |
 | Seat host | `anode __seat-host` | the seat | Input, capture, launching, gamepad, process control |
+| Desktop worker | `anode __desktop-worker` | the seat | Bounded window inspection and UI Automation on an MTA thread |
 | CLI | `anode <cmd>` | yours | Thin client of the control pipe |
 | MCP server | `anode mcp` | yours | Thin client of the control pipe, speaking JSON-RPC on stdio |
 | Elevated setup | `anode __apply-setup` | yours, elevated | The only code that changes machine state |
@@ -57,7 +59,7 @@ the daemon that launched it.
 ## Bring-up sequence
 
 1. **Preconditions.** `anode up` refuses to start if Remote Desktop is off, child sessions are off,
-   or the edition is Home. It prints the exact command that fixes each one.
+   or the edition is Home, or the actual loopback RDP listener is unavailable. It prints diagnostic guidance.
 2. **Viewer connects.** `RdpViewer.ConnectToChildSession` sets `Server = localhost`,
    `ConnectToChildSession = true`, CredSSP on, redirection of clipboard, drives, printers, ports and
    smart cards all **off** by default, then calls `Connect()`.
@@ -81,8 +83,9 @@ calling process's desktop. `Process.Start` creates a child in the calling proces
 one of those calls lives in the seat host, and the seat host runs inside the child session. There is
 no cross-session injection primitive anywhere in Anode, so there is nothing to get wrong at runtime.
 
-As a belt-and-braces check, `SeatHost.Run` compares its own session id against `WTSGetChildSessionId`
-and exits with a diagnostic if they differ. If the Task Scheduler hand-off ever misfired, the worst
+The parent daemon resolves `WTSGetChildSessionId`, which is relative to its calling session.
+The seat host and desktop workers request that identity over the control pipe and refuse
+desktop access unless it matches their own session and differs from the parent's. If the Task Scheduler hand-off ever misfired, the worst
 case is a process that refuses to start, not one that types onto your screen.
 
 The daemon, in your session, holds no input primitives at all. It can start a seat, forward a
@@ -112,8 +115,9 @@ end on purpose.
 
 Newline-delimited JSON over named pipes, request then response, on one connection. Two hops:
 CLI or MCP to daemon over `anode-control`, daemon to seat host over `anode-seat`. Named pipes are
-machine-global and the default ACL grants the creating user, which is what lets the two sessions of
-one user talk without any extra rights.
+machine-global. Clients and servers use `PipeOptions.CurrentUserOnly`, restricting
+connections to the same Windows identity and elevation level. Deadlines include
+queue time; timed-out requests close their connection and are never replayed.
 
 The daemon handles the handful of operations it owns (`status`, `seat.stop`, `seat.start`,
 `seat.show`, `seat.hide`, `seat.control`, `doctor`, `quit`) and **forwards everything else** to the
@@ -123,7 +127,7 @@ and MCP server never diverge because there is only one implementation. Full oper
 
 ## Design decisions worth defending
 
-**One executable, five roles.** The seat host is launched by path from the daemon. If they were
+**One executable for runtime roles.** The seat host is launched by path from the daemon. If they were
 separate binaries, a partial upgrade would pair a new daemon with an old host across a pipe protocol.
 
 **The viewer does not own the seat.** An agent should be able to work whether or not anyone is
@@ -143,7 +147,14 @@ clicks behave normally.
 that cannot read your clipboard is a seat an agent cannot accidentally exfiltrate it from. `--clipboard`
 turns sharing on when you want it.
 
-**Late-bound COM, hand-written interfaces.** Only `IMsRdpExtendedSettings` and `IMsTscAxEvents` are
-declared by hand; the rest of the control is reached through `IDispatch`. That keeps the build free of
+**Late-bound COM, hand-written interfaces.** Extended settings, credential prompt settings and
+the RDP event interface are declared by hand; other properties use `IDispatch`. That keeps the build free of
 `tlbimp` and a Visual Studio dependency, and lets settings that differ between Windows builds fail
 softly instead of failing the connection.
+
+**Disposable accessibility workers.** Each window/UI Automation operation runs in
+a short-lived child-session worker with a ten-second deadline. The host retains
+bounded, expiring references; actions verify the window and control identities
+again. Input and inspection serialize through one host gate, while status and Stop
+remain independent. MCP returns readable summaries, structured data and optional
+images. The CLI can also produce a standalone HTML report. See [Desktop tools](DESKTOP-TOOLS.md).

@@ -4,10 +4,9 @@ using Microsoft.Win32;
 namespace Anode.Core.Steam;
 
 /// <summary>
-/// Locating and starting Steam games. Read the caveat: Steam is one instance per
-/// Windows user, and the seat runs as the same user as the parent session. Whichever
-/// session Steam started in is the session its games open in. So a game launched from
-/// the seat lands in the seat only when Steam is not already running outside it.
+/// Locating and starting Steam games. The seat shares the parent's Windows user;
+/// starting another Steam client can affect the existing client in another session.
+/// Steam launches are refused by default while a client runs outside the seat.
 /// <see cref="Describe"/> reports which case you are in so callers can say so plainly
 /// instead of silently launching a game onto the user's own screen.
 /// </summary>
@@ -47,6 +46,26 @@ internal static class Steam
 
     private static string Normalize(string path) => Path.GetFullPath(path.Replace('/', '\\'));
 
+    internal static string? DirectLaunchFailure(string path, uint seatSession, Func<int[]>? readSessions = null)
+    {
+        string target = path.Trim();
+        if (Uri.TryCreate(target, UriKind.Absolute, out var uri))
+        {
+            if (uri.IsFile) target = uri.LocalPath;
+            else if (uri.Scheme.Equals("steam", StringComparison.OrdinalIgnoreCase)) target = "steam.exe";
+        }
+        string fileName = Path.GetFileName(target);
+        bool steam = fileName.Equals("steam", StringComparison.OrdinalIgnoreCase)
+            || fileName.Equals("steam.exe", StringComparison.OrdinalIgnoreCase);
+        if (!steam) return null;
+
+        int[] elsewhere = (readSessions ?? RunningSessions)().Where(id => id != (int)seatSession).Distinct().ToArray();
+        return elsewhere.Length == 0 ? null
+            : $"Steam is already running outside the seat in session {string.Join(", ", elsewhere)}. "
+            + "Launching another Steam client or Steam URL can affect that existing client. "
+            + "The launch was refused. Leave Steam there, or explicitly close it before starting it inside the seat.";
+    }
+
     /// <summary>The session ids Steam is currently running in, if any.</summary>
     public static int[] RunningSessions()
     {
@@ -60,7 +79,7 @@ internal static class Steam
     }
 
     /// <summary>
-    /// A one-line, truthful account of where a game launched right now would open.
+    /// Reports Steam's session and the consequences of launching from the seat.
     /// </summary>
     public static string Describe(uint seatSession)
     {
@@ -70,8 +89,8 @@ internal static class Steam
         if (sessions.All(id => id == (int)seatSession))
             return $"Steam is running inside the seat (session {seatSession}). Games will open in the seat.";
         return $"Steam is already running in session {string.Join(", ", sessions)}, outside the seat. "
-             + "Steam allows one instance per Windows user, so a game launched now opens on your own screen, not in the seat. "
-             + "Close Steam first, then launch it from the seat.";
+             + "Launching from the seat can affect that client or open the game in its session. "
+             + "Anode refuses conflicting Steam launches by default. Keep the existing client running if you need it on that desktop.";
     }
 
     /// <summary>

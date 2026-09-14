@@ -7,6 +7,7 @@ using Anode.Core.Input;
 using Anode.Core.Processes;
 using Anode.Core.Session;
 using Anode.Core.Util;
+using Anode.Core.Desktop;
 
 namespace Anode.Seat;
 
@@ -17,7 +18,8 @@ namespace Anode.Seat;
 /// ordinary interactive process in that session, which is precisely what makes the
 /// isolation real: the programs it starts are children of a process in the seat, the
 /// input it injects goes to the seat's input queue, and the screen it captures is the
-/// seat's desktop. Nothing it does can reach the user's session.
+/// seat's desktop. Applications can still hand work to their existing instances
+/// elsewhere; process placement alone does not isolate shared application state.
 ///
 /// It serves one named pipe and speaks the same newline-delimited JSON as everything
 /// else. It dies when the seat is logged off, which is the intended way to stop it.
@@ -27,6 +29,9 @@ internal static class SeatHost
     private static readonly GamepadManager Gamepads = new();
     private static readonly ManualResetEventSlim Stopping = new(false);
     private static readonly Stopwatch Uptime = Stopwatch.StartNew();
+    private static readonly DesktopTools Desktop = new();
+    private static readonly SemaphoreSlim InteractionGate = new(1, 1);
+    private static readonly CancellationTokenSource DesktopStopping = new();
 
     public static int Run()
     {
@@ -37,10 +42,13 @@ internal static class SeatHost
         // Refuse to run in the parent session. If the Task Scheduler hand-off ever
         // misfires, injecting input here would type onto the user's screen, which is
         // the one thing this project exists to prevent.
-        uint? child = ChildSession.TryGetId();
-        if (child is null || child.Value != session)
+        // WTSGetChildSessionId is relative to the caller's session. Ask the daemon
+        // in the parent session to resolve it, rather than looking for a child of
+        // the child session from here.
+        try { VerifyCurrentSession(); }
+        catch (InvalidOperationException)
         {
-            Log.Error($"seat host refuses to run: session {session} is not the child session ({(child?.ToString() ?? "none")})");
+            Log.Error($"seat host refuses to run: the parent daemon did not identify session {session} as its child");
             Console.Error.WriteLine(
                 $"anode seat host must run inside the child session. This process is in session {session}.");
             return 3;
@@ -58,10 +66,39 @@ internal static class SeatHost
         return 0;
     }
 
-    private static Task<JsonObject> HandleAsync(JsonObject request)
+    internal static void VerifyCurrentSession()
+    {
+        uint session = ChildSession.CurrentSessionId();
+        using var daemon = JsonPipeClient.TryConnectAsync(Env.ControlPipe, 5000).GetAwaiter().GetResult();
+        var identity = daemon?.RequestAsync("seat.identity", timeoutMs: 5000).GetAwaiter().GetResult();
+        if (!MatchesSeat(session, identity))
+            throw new InvalidOperationException($"Refusing desktop access: the parent daemon did not verify session {session} as its child.");
+    }
+
+    internal static bool MatchesSeat(uint session, JsonObject? identity)
+    {
+        var result = identity?.Obj("result");
+        return session is > 0 and < int.MaxValue
+            && identity?.Bool("ok") == true
+            && result?.Int("session") == (int)session
+            && result.Int("parentSession") is int parent and > 0
+            && parent != (int)session;
+    }
+
+    private static async Task<JsonObject> HandleAsync(JsonObject request)
     {
         string op = request.Str("op") ?? string.Empty;
-        return Task.FromResult(Dispatch(op, request));
+        if (op == "shutdown") DesktopStopping.Cancel();
+        bool desktop = DesktopTools.ToolName(op) is not null;
+        bool changesUi = op.StartsWith("input.", StringComparison.Ordinal) || op is "run" or "steam.launch" or "ps.kill";
+        if (!desktop && !changesUi) return Dispatch(op, request);
+        await InteractionGate.WaitAsync(DesktopStopping.Token).ConfigureAwait(false);
+        try
+        {
+            if (changesUi) Desktop.InvalidateObservations();
+            return desktop ? await Desktop.HandleAsync(op, request, DesktopStopping.Token).ConfigureAwait(false) : Dispatch(op, request);
+        }
+        finally { InteractionGate.Release(); }
     }
 
     private static JsonObject Dispatch(string op, JsonObject r)
@@ -178,29 +215,7 @@ internal static class SeatHost
                 return JsonLine.Ok();
 
             case "run":
-            {
-                string path = r.Str("path") ?? throw new ArgumentException("run needs 'path'.");
-                var info = new ProcessStartInfo
-                {
-                    FileName = path,
-                    UseShellExecute = true,
-                    WorkingDirectory = r.Str("cwd") ?? SafeWorkingDirectory(path)
-                };
-                if (r["args"] is JsonArray args)
-                {
-                    foreach (var argument in args)
-                        if (argument is not null) info.ArgumentList.Add(argument.ToString());
-                }
-
-                using var started = Process.Start(info);
-                Log.Info($"seat launched: {path}");
-                return JsonLine.Ok(new JsonObject
-                {
-                    ["pid"] = started?.Id,
-                    ["path"] = path,
-                    ["session"] = ChildSession.CurrentSessionId()
-                });
-            }
+                return RunProgram(r, ChildSession.CurrentSessionId());
 
             case "steam.status":
                 return JsonLine.Ok(new JsonObject
@@ -294,6 +309,28 @@ internal static class SeatHost
             default:
                 return JsonLine.Fail($"Unknown seat operation '{op}'.");
         }
+    }
+
+    internal static JsonObject RunProgram(JsonObject request, uint session,
+        Func<ProcessStartInfo, Process?>? launch = null, Func<int[]>? steamSessions = null)
+    {
+        string path = request.Str("path") ?? throw new ArgumentException("run needs 'path'.");
+        if (Core.Steam.Steam.DirectLaunchFailure(path, session, steamSessions) is { } error)
+            return JsonLine.Fail(error);
+
+        var info = new ProcessStartInfo
+        {
+            FileName = path,
+            UseShellExecute = true,
+            WorkingDirectory = request.Str("cwd") ?? SafeWorkingDirectory(path)
+        };
+        if (request["args"] is JsonArray args)
+            foreach (var argument in args)
+                if (argument is not null) info.ArgumentList.Add(argument.ToString());
+
+        using var started = (launch ?? Process.Start)(info);
+        Log.Info($"seat launched: {path}");
+        return JsonLine.Ok(new JsonObject { ["pid"] = started?.Id, ["path"] = path, ["session"] = session });
     }
 
     private static string SafeWorkingDirectory(string path)

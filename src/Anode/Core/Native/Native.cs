@@ -46,6 +46,22 @@ internal static class Native
         uint sessionId,
         [MarshalAs(UnmanagedType.Bool)] bool wait);
 
+    [DllImport("wtsapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool WTSEnumerateSessions(IntPtr server, uint reserved, uint version,
+        out IntPtr sessions, out uint count);
+
+    [DllImport("wtsapi32.dll")]
+    public static extern void WTSFreeMemory(IntPtr memory);
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct WtsSessionInfo
+    {
+        public uint SessionId;
+        public IntPtr WinStationName;
+        public int State;
+    }
+
     // ---------------------------------------------------------------- kernel32
 
     [DllImport("kernel32.dll", SetLastError = true)]

@@ -1,8 +1,8 @@
-using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Anode.Core.Bridge;
+using Anode.Core.Launch;
 using Anode.Core.Util;
 
 namespace Anode.Mcp;
@@ -16,114 +16,38 @@ namespace Anode.Mcp;
 /// agent and a person can both be pointed at the same seat, and the person's stop button
 /// still wins.
 /// </summary>
-internal static class McpServer
+internal sealed class McpServer : IDisposable
 {
-    private const string ServerName = "anode";
-    private const string ServerVersion = "0.1.0";
-    private const string DefaultProtocol = "2024-11-05";
+    private JsonPipeClient? _daemon;
+    private string? _blockedReason;
+    private bool _launchPending;
+    private readonly string _controlPipe;
+    private readonly SemaphoreSlim ConnectGate = new(1, 1);
 
-    private static JsonPipeClient? _daemon;
-    private static string? _blockedReason;
-    private static readonly SemaphoreSlim ConnectGate = new(1, 1);
+    internal McpServer(string controlPipe = Env.ControlPipe) => _controlPipe = controlPipe;
 
     public static async Task<int> Run()
     {
         Log.SetRole("mcp");
         Log.Info("MCP server starting");
-
-        var stdin = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false));
-        var stdout = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true };
-
-        while (true)
+        using var server = new McpServer();
+        using var stdin = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false));
+        using var stdout = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true };
+        try { await new McpSession(server.CallAsync).RunAsync(stdin, stdout).ConfigureAwait(false); }
+        finally
         {
-            string? line;
-            try { line = await stdin.ReadLineAsync().ConfigureAwait(false); }
-            catch (IOException) { break; }
-            if (line is null) break;
-            if (line.Trim().Length == 0) continue;
-
-            JsonObject? message = JsonLine.Parse(line);
-            if (message is null)
-            {
-                await WriteAsync(stdout, Error(null, -32700, "Parse error")).ConfigureAwait(false);
-                continue;
-            }
-
-            JsonObject? response;
-            try
-            {
-                response = await HandleAsync(message).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                Log.Error("MCP dispatch failed", ex);
-                response = Error(message["id"], -32603, $"{ex.GetType().Name}: {ex.Message}");
-            }
-
-            if (response is not null) await WriteAsync(stdout, response).ConfigureAwait(false);
+            Log.Info("MCP server stopped");
         }
-
-        Log.Info("MCP server stopped");
-        _daemon?.Dispose();
         return 0;
     }
 
-    private static async Task WriteAsync(TextWriter writer, JsonObject message) =>
-        await writer.WriteLineAsync(message.ToJsonString(new JsonSerializerOptions { WriteIndented = false })).ConfigureAwait(false);
-
-    private static async Task<JsonObject?> HandleAsync(JsonObject message)
-    {
-        string method = message.Str("method") ?? string.Empty;
-        JsonNode? id = message["id"];
-
-        switch (method)
-        {
-            case "initialize":
-            {
-                string protocol = message.Obj("params")?.Str("protocolVersion") ?? DefaultProtocol;
-                return Result(id, new JsonObject
-                {
-                    ["protocolVersion"] = protocol,
-                    ["capabilities"] = new JsonObject { ["tools"] = new JsonObject() },
-                    ["serverInfo"] = new JsonObject { ["name"] = ServerName, ["version"] = ServerVersion },
-                    ["instructions"] =
-                        "Anode gives you a seat: a second Windows session on this machine with its own screen, "
-                        + "mouse pointer, keyboard focus and programs. Your input never reaches the user's own desktop. "
-                        + "Start with seat_status, take a seat_screenshot to see the seat, and use seat_run or "
-                        + "steam_launch to start something in it. The user can watch the seat and can stop it at any "
-                        + "moment, which closes everything running in it."
-                });
-            }
-
-            case "notifications/initialized":
-            case "notifications/cancelled":
-                return null;
-
-            case "ping":
-                return Result(id, new JsonObject());
-
-            case "tools/list":
-                return Result(id, new JsonObject { ["tools"] = Tools.Definitions() });
-
-            case "tools/call":
-            {
-                var parameters = message.Obj("params");
-                string name = parameters?.Str("name") ?? string.Empty;
-                var arguments = parameters?.Obj("arguments") ?? new JsonObject();
-                return Result(id, await CallAsync(name, arguments).ConfigureAwait(false));
-            }
-
-            default:
-                return id is null ? null : Error(id, -32601, $"Method '{method}' is not implemented.");
-        }
-    }
-
-    private static async Task<JsonObject> CallAsync(string toolName, JsonObject arguments)
+    internal async Task<JsonObject> CallAsync(string toolName, JsonObject arguments, CancellationToken cancel)
     {
         if (!Tools.TryResolve(toolName, out string op, out bool startsDaemon))
             return TextResult($"Unknown tool '{toolName}'.", isError: true);
 
-        var client = await DaemonAsync(startsDaemon).ConfigureAwait(false);
+        if (toolName == "seat_stop") return await StopAsync(arguments, cancel).ConfigureAwait(false);
+        var client = await DaemonAsync(startsDaemon, cancel).ConfigureAwait(false);
         if (client is null)
         {
             string reason = _blockedReason is not null
@@ -136,12 +60,25 @@ internal static class McpServer
         }
 
         int timeout = toolName is "steam_launch" or "seat_start" ? 180_000 : 60_000;
-        var response = await client.RequestAsync(op, arguments, timeout).ConfigureAwait(false);
+        var response = await client.RequestAsync(op, arguments, timeout, cancel).ConfigureAwait(false);
 
         if (response.Bool("ok") != true)
             return TextResult(response.Str("error") ?? "The request failed.", isError: true);
 
         var result = response.Obj("result");
+
+        if (toolName is "seat_windows" or "seat_observe" or "seat_window" or "seat_element" && result is not null)
+        {
+            var content = new JsonArray(new JsonObject { ["type"] = "text", ["text"] = result.Str("summary") ?? Core.Desktop.DesktopPresentation.Summary(result) });
+            var structured = (JsonObject)result.DeepClone();
+            if (structured.Obj("screenshot") is { } screenshot)
+            {
+                if (screenshot.Str("data") is { } image)
+                    content.Add(new JsonObject { ["type"] = "image", ["data"] = image, ["mimeType"] = screenshot.Str("mimeType") ?? "image/png" });
+                screenshot.Remove("data");
+            }
+            return new JsonObject { ["content"] = content, ["structuredContent"] = structured };
+        }
 
         // A screenshot comes back as an image block so the model can actually look at it.
         if (toolName == "seat_screenshot" && result?.Str("data") is { } base64)
@@ -171,16 +108,16 @@ internal static class McpServer
         return TextResult(text);
     }
 
-    private static async Task<JsonPipeClient?> DaemonAsync(bool mayStart)
+    private async Task<JsonPipeClient?> DaemonAsync(bool mayStart, CancellationToken cancel)
     {
         if (_daemon is { IsConnected: true }) return _daemon;
 
-        await ConnectGate.WaitAsync().ConfigureAwait(false);
+        await ConnectGate.WaitAsync(cancel).ConfigureAwait(false);
         try
         {
             if (_daemon is { IsConnected: true }) return _daemon;
             _daemon?.Dispose();
-            _daemon = await JsonPipeClient.TryConnectAsync(Env.ControlPipe, 1000).ConfigureAwait(false);
+            _daemon = await JsonPipeClient.TryConnectAsync(_controlPipe, 1000, cancel).ConfigureAwait(false);
             if (_daemon is not null || !mayStart) return _daemon;
 
             if (Core.Session.Preconditions.BlockingSummary() is { } blocked)
@@ -190,36 +127,26 @@ internal static class McpServer
                 return null;
             }
 
+            _blockedReason = null;
             Log.Info("no daemon; starting one");
-            var info = new ProcessStartInfo
-            {
-                FileName = Env.ExecutablePath,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                WorkingDirectory = AppContext.BaseDirectory
-            };
-            info.ArgumentList.Add("up");
-            Process.Start(info);
+            cancel.ThrowIfCancellationRequested();
+            _launchPending = true;
+            try { DaemonLauncher.Launch(new[] { "--hidden" }); }
+            catch { _launchPending = false; throw; }
 
             var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(40);
             while (DateTime.UtcNow < deadline && _daemon is null)
             {
-                await Task.Delay(400).ConfigureAwait(false);
-                _daemon = await JsonPipeClient.TryConnectAsync(Env.ControlPipe, 500).ConfigureAwait(false);
+                await Task.Delay(400, cancel).ConfigureAwait(false);
+                _daemon = await JsonPipeClient.TryConnectAsync(_controlPipe, 500, cancel).ConfigureAwait(false);
             }
 
             if (_daemon is null) return null;
+            _launchPending = false;
 
             // Let the seat finish signing in, so the agent's first real call does not
             // land on a session that is still starting Explorer.
-            var ready = DateTime.UtcNow + TimeSpan.FromSeconds(150);
-            while (DateTime.UtcNow < ready)
-            {
-                var status = await _daemon.RequestAsync("status").ConfigureAwait(false);
-                string state = status.Obj("result")?.Str("state") ?? "?";
-                if (state is "ready" or "error" or "logon-error") break;
-                await Task.Delay(500).ConfigureAwait(false);
-            }
+            await SeatStartup.WaitAsync(_daemon, cancel).ConfigureAwait(false);
 
             return _daemon;
         }
@@ -229,27 +156,29 @@ internal static class McpServer
         }
     }
 
-    private static JsonObject TextResult(string text, bool isError = false)
+    private async Task<JsonObject> StopAsync(JsonObject arguments, CancellationToken cancel)
     {
-        var result = new JsonObject
+        // McpSession cancels normal requests first. Wait for any scheduler hand-off
+        // to finish, then use a separate connection so Stop bypasses busy pipe I/O.
+        await ConnectGate.WaitAsync(cancel).ConfigureAwait(false);
+        try
         {
-            ["content"] = new JsonArray(new JsonObject { ["type"] = "text", ["text"] = text })
-        };
-        if (isError) result["isError"] = true;
-        return result;
+            int waitMs = _launchPending ? 40_000 : 1000;
+            using var client = await JsonPipeClient.TryConnectAsync(_controlPipe, waitMs, cancel).ConfigureAwait(false);
+            if (client is null)
+                return TextResult(_launchPending
+                    ? "The daemon was launched but did not answer Stop. Run `anode status` and `anode kill` to check it."
+                    : "Anode is not running; there is no seat to stop.", _launchPending);
+            _launchPending = false;
+            var response = await client.RequestAsync("seat.stop", arguments, 60_000, cancel).ConfigureAwait(false);
+            return response.Bool("ok") == true
+                ? TextResult(response.Obj("result")?.ToJsonString() ?? "ok")
+                : TextResult(response.Str("error") ?? "Could not stop the seat.", true);
+        }
+        finally { ConnectGate.Release(); }
     }
 
-    private static JsonObject Result(JsonNode? id, JsonObject result) => new()
-    {
-        ["jsonrpc"] = "2.0",
-        ["id"] = id?.DeepClone(),
-        ["result"] = result
-    };
+    private static JsonObject TextResult(string text, bool isError = false) => McpSession.TextResult(text, isError);
 
-    private static JsonObject Error(JsonNode? id, int code, string message) => new()
-    {
-        ["jsonrpc"] = "2.0",
-        ["id"] = id?.DeepClone(),
-        ["error"] = new JsonObject { ["code"] = code, ["message"] = message }
-    };
+    public void Dispose() => _daemon?.Dispose();
 }

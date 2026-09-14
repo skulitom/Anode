@@ -25,20 +25,22 @@ jobs:
         run: dotnet build Anode.sln -c Release --no-restore --nologo
 
       - name: Publish
-        run: >
-          dotnet publish src/Anode/Anode.csproj
-          -c Release -r win-x64 --self-contained true
-          -o dist --no-restore --nologo
+        run: ./scripts/build.ps1
 
       # The quick self-test covers only environment-independent behaviour: key-name
-      # resolution, gamepad name mapping, the named-pipe round trip and that the
-      # child-session APIs are readable. Screen capture, the Task Scheduler hand-off and
+      # resolution, gamepad name mapping, pipe deadlines/cancellation, MCP stdio,
+      # launch quoting, session identity, desktop reference/worker limits, report
+      # escaping and readable child-session APIs. Live accessibility uses the
+      # opt-in scripts/test-desktop.ps1 fixture inside an existing seat.
+      # Screen capture, the Task Scheduler hand-off and
       # the ViGEm gamepad need a real interactive desktop and a driver, so they are left
       # to `anode selftest` on a developer machine.
       - name: Self-test
         run: |
-          ./dist/anode.exe version
-          ./dist/anode.exe selftest --quick
+          ./dist/anode.exe version | Out-Host
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./dist/anode.exe selftest --quick | Out-Host
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Report machine readiness
         continue-on-error: true
@@ -51,4 +53,5 @@ jobs:
             dist/anode.exe
             dist/README.md
             dist/LICENSE.txt
+            dist/docs/**
           if-no-files-found: error

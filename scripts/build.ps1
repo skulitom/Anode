@@ -11,7 +11,8 @@ param(
     [string]$OutputDirectory = 'dist',
     [ValidateSet('Release', 'Debug')]
     [string]$Configuration = 'Release',
-    [switch]$Test
+    [switch]$Test,
+    [switch]$QuickTest
 )
 
 $ErrorActionPreference = 'Stop'
@@ -34,13 +35,16 @@ if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
 
 Copy-Item -LiteralPath README.md  -Destination (Join-Path $OutputDirectory 'README.md')  -Force
 Copy-Item -LiteralPath LICENSE    -Destination (Join-Path $OutputDirectory 'LICENSE.txt') -Force
+Copy-Item -LiteralPath (Join-Path $projectRoot 'docs') -Destination $OutputDirectory -Recurse -Force
 
 $exe = Join-Path $OutputDirectory 'anode.exe'
 if (-not (Test-Path $exe)) { throw "Expected $exe to exist." }
 
-if ($Test) {
+if ($Test -or $QuickTest) {
     Write-Host "`nSelf-test" -ForegroundColor Cyan
-    & $exe selftest
+    $testArguments = @('selftest')
+    if ($QuickTest) { $testArguments += '--quick' }
+    & $exe @testArguments | Out-Host
     if ($LASTEXITCODE -ne 0) { throw 'Self-test failed.' }
 }
 

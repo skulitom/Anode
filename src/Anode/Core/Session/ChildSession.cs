@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Runtime.InteropServices;
 using Anode.Core.Native;
 using Anode.Core.Util;
 
@@ -48,7 +49,7 @@ internal static class ChildSession
             throw Native.Native.LastError("WTSEnableChildSessions(FALSE) failed");
     }
 
-    /// <summary>The id of the connected child session, or null when there is none.</summary>
+    /// <summary>The calling session's child id, or null when there is none. Resolve this in the parent daemon.</summary>
     public static uint? TryGetId()
     {
         if (!Native.Native.WTSGetChildSessionId(out uint id)) return null;
@@ -61,13 +62,6 @@ internal static class ChildSession
         return Native.Native.ProcessIdToSessionId((uint)System.Environment.ProcessId, out uint id)
             ? id
             : uint.MaxValue;
-    }
-
-    /// <summary>True when this process is itself running inside the child session.</summary>
-    public static bool RunningInsideChildSession()
-    {
-        uint? child = TryGetId();
-        return child.HasValue && child.Value == CurrentSessionId();
     }
 
     /// <summary>
@@ -95,20 +89,48 @@ internal static class ChildSession
     {
         uint? id = TryGetId();
         if (id is null) return null;
+        if (id == 0 || id == CurrentSessionId())
+            throw new InvalidOperationException("Refusing to log off a system or parent session as the child.");
 
         if (!Native.Native.WTSLogoffSession(Native.Native.CurrentServer, id.Value, wait))
         {
             var error = Native.Native.LastError($"Could not log off child session {id.Value}");
-            Log.Warn(error.Message + " - falling back to terminating its processes directly");
-
-            // Logoff can fail if the session is already tearing down or is wedged
-            // hard enough that the service will not service the request. Killing
-            // the processes in that session by hand achieves the same end state.
-            int killed = Processes.ProcessControl.KillSessionProcesses(id.Value);
-            Log.Info($"terminated {killed} process(es) in session {id.Value}");
-            if (killed == 0) throw error;
+            return HandleLogoffFailure(id.Value, error, () => Exists(id.Value),
+                () => Processes.ProcessControl.KillSessionProcesses(id.Value));
         }
 
         return id;
+    }
+
+    internal static uint? HandleLogoffFailure(uint id, Win32Exception error, Func<bool?> exists, Func<int> killProcesses)
+    {
+        // WTSGetChildSessionId can retain a reserved ID after authentication fails.
+        // Only ignore a not-found error when enumeration confirms it is absent.
+        if (error.NativeErrorCode is 2 or 1168 or 7022 && exists() is false)
+        {
+            Log.Info($"child session {id} is already absent; nothing to log off");
+            return null;
+        }
+        Log.Warn(error.Message + " - falling back to terminating its processes directly");
+        int killed = killProcesses();
+        Log.Info($"terminated {killed} process(es) in session {id}");
+        if (killed == 0) throw error;
+        return id;
+    }
+
+    /// <summary>Null means enumeration failed, not that the session is absent.</summary>
+    internal static bool? Exists(uint id)
+    {
+        if (!Native.Native.WTSEnumerateSessions(Native.Native.CurrentServer, 0, 1, out var sessions, out uint count))
+            return null;
+        try
+        {
+            int size = Marshal.SizeOf<Native.Native.WtsSessionInfo>();
+            for (int i = 0; i < count; i++)
+                if (Marshal.PtrToStructure<Native.Native.WtsSessionInfo>(IntPtr.Add(sessions, checked(i * size))).SessionId == id)
+                    return true;
+            return false;
+        }
+        finally { Native.Native.WTSFreeMemory(sessions); }
     }
 }

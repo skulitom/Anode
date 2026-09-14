@@ -23,7 +23,13 @@ internal static class ScreenCapture
         using var raw = new Bitmap(source.Width, source.Height, PixelFormat.Format32bppArgb);
         using (var graphics = Graphics.FromImage(raw))
         {
-            graphics.CopyFromScreen(source.Location, Point.Empty, source.Size, CopyPixelOperation.SourceCopy);
+            try { graphics.CopyFromScreen(source.Location, Point.Empty, source.Size, CopyPixelOperation.SourceCopy); }
+            catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode is 6 or 5)
+            {
+                throw new InvalidOperationException("The seat's display is unavailable for capture. RDP may have suspended rendering while its viewer was hidden or minimized, "
+                    + "or the seat may be locked. Restarting the updated Anode daemon applies its background-rendering preference. "
+                    + "No foreground capture or viewer activation was attempted. Use seat_observe with includeScreenshot=false for accessible controls; do not guess screen coordinates.", ex);
+            }
         }
 
         Bitmap output = raw;

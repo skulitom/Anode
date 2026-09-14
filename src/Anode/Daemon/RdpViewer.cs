@@ -10,8 +10,8 @@ namespace Anode.Daemon;
 /// This control is the only thing in Anode that can create a seat: Windows exposes no
 /// API to spawn a child session directly. You host the RDP client, set
 /// "ConnectToChildSession", connect to localhost, and Windows signs the seat in with
-/// your existing credentials, without a password prompt and without the seat ever
-/// appearing on a physical display.
+/// your existing credentials when Windows can delegate them. An explicit sign-in
+/// option lets Windows request credentials without signing out the parent desktop.
 /// </summary>
 internal sealed class RdpViewer : AxHost
 {
@@ -20,6 +20,7 @@ internal sealed class RdpViewer : AxHost
 
     private ConnectionPointCookie? _cookie;
     private EventSink? _sink;
+    private bool _inputEnabled;
 
     public RdpViewer() : base(ControlClsid)
     {
@@ -34,6 +35,13 @@ internal sealed class RdpViewer : AxHost
     public event Action<int>? FatalError;
     public event Action<int, int>? RemoteSizeChanged;
     public event Action? AuthenticationPrompt;
+    internal bool LoginCompleted { get; private set; }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        EnableWindow(Handle, _inputEnabled);
+    }
 
     /// <summary>0 = disconnected, 1 = connected, 2 = connecting.</summary>
     public int ConnectionState
@@ -89,11 +97,11 @@ internal sealed class RdpViewer : AxHost
         object advanced = Dispatch.Get(control, "AdvancedSettings9")
             ?? throw new InvalidOperationException("The Remote Desktop control did not return AdvancedSettings9.");
 
-        // A loopback connection to our own machine: CredSSP supplies the current
-        // user's credentials, so the seat signs in without a prompt.
-        Dispatch.TrySet(advanced, "EnableCredSspSupport", true);
+        // Child-session mode supplies the existing interactive identity itself;
+        // the control requires CredSSP support for that connection mode.
+        Dispatch.Set(advanced, "EnableCredSspSupport", true);
         Dispatch.TrySet(advanced, "AuthenticationLevel", 0);
-        Dispatch.TrySet(advanced, "RDPPort", RdpPort());
+        Dispatch.TrySet(advanced, "RDPPort", Anode.Core.Session.RdpListener.Port);
         Dispatch.TrySet(advanced, "SmartSizing", options.SmartSizing);
         Dispatch.TrySet(advanced, "DisplayConnectionBar", false);
         Dispatch.TrySet(advanced, "PinConnectionBar", false);
@@ -122,9 +130,13 @@ internal sealed class RdpViewer : AxHost
         Dispatch.TrySet(secured, "AudioRedirectionMode", options.Audio ? 0 : 2);
 
         var extended = (IMsRdpExtendedSettings)control;
-        extended["ConnectToChildSession"] = true;
+        object childMode = true;
+        extended.SetProperty("ConnectToChildSession", ref childMode);
+        if (extended.GetProperty("ConnectToChildSession") is not true)
+            throw new InvalidOperationException("The Remote Desktop control did not enable child-session mode.");
         TryExtended(extended, "EnableHardwareMode", true);
-        TryExtended(extended, "DisableCredentialsDelegation", false);
+
+        ConfigureCredentialPrompt((IMsRdpCredentialPrompt)control, options.PromptForCredentials);
 
         if (options.ScaleFactor is int scale && scale > 100)
         {
@@ -134,6 +146,34 @@ internal sealed class RdpViewer : AxHost
 
         Log.Info($"connecting the viewer to a child session at {options.Width}x{options.Height}");
         Dispatch.Call(control, "Connect");
+    }
+
+    internal string? DescribeDisconnect(int reason)
+    {
+        try
+        {
+            object control = GetOcx();
+            int extended = Convert.ToInt32(Dispatch.Get(control, "ExtendedDisconnectReason") ?? 0);
+            string? description = Dispatch.Call(control, "GetErrorDescription", reason, extended) as string;
+            if (string.IsNullOrWhiteSpace(description)) return null;
+            return $"{description.Replace('\r', ' ').Replace('\n', ' ').Trim()} (extended reason {extended})";
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"could not read the Remote Desktop disconnect description: {ex.Message}");
+            return null;
+        }
+    }
+
+    internal static void ConfigureCredentialPrompt(IMsRdpCredentialPrompt prompt, bool enabled)
+    {
+        // Unattended starts must not open authentication dialogs on the parent
+        // desktop. Only an explicit --sign-in enables Windows' own prompt.
+        // Never retrieve the password or pass it through CLI, pipes, or logs.
+        prompt.SetAllowCredentialSaving(false);
+        prompt.SetAllowPromptingForCredentials(enabled);
+        prompt.SetPromptForCredsOnClient(enabled);
+        prompt.SetPromptForCredentials(enabled);
     }
 
     public void Disconnect()
@@ -156,24 +196,14 @@ internal sealed class RdpViewer : AxHost
 
     private static void TryExtended(IMsRdpExtendedSettings settings, string name, object value)
     {
-        try { settings[name] = value; }
+        try { settings.SetProperty(name, ref value); }
         catch { /* not every build supports every extended property */ }
-    }
-
-    private static int RdpPort()
-    {
-        try
-        {
-            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
-                @"SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp");
-            return key?.GetValue("PortNumber") is int port and > 0 and <= ushort.MaxValue ? port : 3389;
-        }
-        catch { return 3389; }
     }
 
     /// <summary>Blocks or restores mouse and keyboard input to the control without hiding the picture.</summary>
     public void SetInputEnabled(bool enabled)
     {
+        _inputEnabled = enabled;
         if (!IsHandleCreated) return;
         EnableWindow(Handle, enabled);
     }
@@ -185,15 +215,27 @@ internal sealed class RdpViewer : AxHost
     /// <summary>Receives the control's events and re-raises them as ordinary .NET events.</summary>
     [ComVisible(true)]
     [ClassInterface(ClassInterfaceType.None)]
-    private sealed class EventSink : IMsTscAxEvents
+    internal sealed class EventSink : IMsTscAxEvents
     {
         private readonly RdpViewer _owner;
         public EventSink(RdpViewer owner) => _owner = owner;
 
-        public void OnConnecting() => _owner.Connecting?.Invoke();
+        public void OnConnecting()
+        {
+            _owner.LoginCompleted = false;
+            _owner.Connecting?.Invoke();
+        }
         public void OnConnected() => _owner.Connected?.Invoke();
-        public void OnLoginComplete() => _owner.LoginComplete?.Invoke();
-        public void OnDisconnected(int discReason) => _owner.Disconnected?.Invoke(discReason);
+        public void OnLoginComplete()
+        {
+            _owner.LoginCompleted = true;
+            _owner.LoginComplete?.Invoke();
+        }
+        public void OnDisconnected(int discReason)
+        {
+            _owner.LoginCompleted = false;
+            _owner.Disconnected?.Invoke(discReason);
+        }
         public void OnEnterFullScreenMode() { }
         public void OnLeaveFullScreenMode() { }
         public void OnChannelReceivedData(string channelName, string data) { }
@@ -204,9 +246,9 @@ internal sealed class RdpViewer : AxHost
         public void OnRemoteDesktopSizeChange(int width, int height) => _owner.RemoteSizeChanged?.Invoke(width, height);
         public void OnIdleTimeoutNotification() { }
         public void OnRequestContainerMinimize() { }
-        public void OnConfirmClose(ref bool allowClose) => allowClose = true;
-        public void OnReceivedTSPublicKey(string publicKey, ref bool allowConnect) => allowConnect = true;
-        public void OnAutoReconnecting(int disconnectReason, int attemptCount, ref int continueStatus) => continueStatus = 0;
+        public bool OnConfirmClose() => true;
+        public bool OnReceivedTSPublicKey(string publicKey) => true;
+        public int OnAutoReconnecting(int disconnectReason, int attemptCount) => 0;
         public void OnAuthenticationWarningDisplayed() => _owner.AuthenticationPrompt?.Invoke();
         public void OnAuthenticationWarningDismissed() { }
         public void OnRemoteProgramResult(string remoteProgramName, int result, bool displayErrorDialog) { }
@@ -219,7 +261,13 @@ internal sealed class RdpViewer : AxHost
         public void OnRemoteWindowDisplayed(bool displayed, IntPtr hwnd, int windowState) { }
         public void OnConnectionBarPullDown() { }
         public void OnNetworkStatusChanged(uint quality, int bandwidth, int rtt) { }
-        public void OnAutoReconnected() => _owner.Connected?.Invoke();
+        public void OnAutoReconnected()
+        {
+            _owner.Connected?.Invoke();
+            // Automatic transport recovery can retain the logged-in session and
+            // does not necessarily emit a second OnLoginComplete event.
+            if (_owner.LoginCompleted) _owner.LoginComplete?.Invoke();
+        }
         public void OnAutoReconnecting2(int disconnectReason, bool networkAvailable, int attemptCount, int maxAttempts) { }
         public void OnDevicesButtonPressed() { }
     }
@@ -238,4 +286,6 @@ internal sealed record SeatOptions
     public bool StartViewOnly { get; init; } = true;
     public bool ShowWindow { get; init; } = true;
     public bool KeepSeatOnExit { get; init; }
+    public bool PromptForCredentials { get; init; }
+    public bool ConfigureBackgroundRendering { get; init; } = true;
 }

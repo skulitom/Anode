@@ -16,6 +16,11 @@ Decline the prompt and nothing changes.
 | Frame cap (`--fps 60`) | `...\Terminal Server\WinStations` → `DWMFRAMEINTERVAL` | unset (30 fps) | `15` (60 fps) | Remote sessions are capped at 30 fps otherwise. |
 | GPU (`--gpu`) | `HKLM\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services` → `bEnumerateHWBeforeSW` | unset | `1` | Lets the seat render on a real GPU instead of the software adapter. |
 
+Setup also starts `TermService`, or restarts it when the host setting changed or its loopback
+listener is missing. Restarting can disconnect existing Remote Desktop sessions. Previously running
+dependent services are restored. Setup verifies the listener and reports failure when it remains
+unavailable; it does not repair certificate stores or change system crypto-folder permissions.
+
 **`fDenyTSConnections = 0` is the one to think about.** It enables the Remote Desktop listener on this
 machine. Anode does **not** add a Windows Firewall rule, and Windows does not filter loopback, so a
 child session works while inbound Remote Desktop from the network stays blocked by the firewall's
@@ -36,6 +41,31 @@ anode setup --undo    # turns child sessions off
 It deliberately leaves Remote Desktop enabled, because other software on your machine may now depend
 on it and silently disabling someone's RDP is worse than leaving a setting they can see. Turn it off
 yourself in **Settings → System → Remote Desktop**, or set `fDenyTSConnections` back to `1`.
+
+## Per-user background rendering
+
+Before creating its RDP viewer, the daemon sets the DWORD
+`HKCU\Software\Microsoft\Terminal Server Client\RemoteDesktop_SuppressWhenMinimized`
+to `2`. This affects other RDP clients launched by the same user as well as Anode.
+It changes rendering behaviour, not authentication or firewall settings. Anode saves
+the previous value in `rdp-rendering-backup.json` in its state directory. Unexpected
+registry types are left unchanged and logged. To restore the saved value after
+stopping Anode, run `anode rendering --restore` with the same `--state-dir` if used.
+The next daemon startup configures rendering again unless `--no-background-rendering`
+is supplied. A configured value alone does not prove that capture works.
+
+## Desktop inspection
+
+Window enumeration and UI Automation execute inside a worker that first verifies
+its child-session identity with the parent daemon. Every target is checked against
+the worker's session, process identity and observed control identity. Actions never
+fall back to the parent desktop. Workers have a deadline and are terminated if an
+app's accessibility provider hangs; an interrupted action may already have happened.
+
+App titles and control text are untrusted content. Reports HTML-escape those values,
+and terminal summaries strip control characters. Password control values are omitted
+and password element actions are refused. Other visible text and screenshots may
+contain private information; reports remain local until you choose to share them.
 
 ## What the seat is isolated from
 

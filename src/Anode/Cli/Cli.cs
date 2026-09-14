@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
 using Anode.Core.Bridge;
+using Anode.Core.Launch;
 using Anode.Core.Session;
 using Anode.Core.Util;
 using Anode.Daemon;
@@ -17,11 +18,28 @@ internal static class Cli
         string command = args.Length > 0 ? args[0].ToLowerInvariant() : "help";
         var rest = args.Skip(1).ToArray();
 
+        // Resolve before any role logs, including scheduled and elevated launches.
+        if (command is "up" or "start" or "rendering" or "__seat-host" or "__apply-setup" or "__log-probe")
+        {
+            try
+            {
+                if (new Args(rest).Value("state-dir") is { } directory) Env.SetStateDirectory(directory);
+                if (command != "__log-probe") Env.ResolveStateDirectory();
+            }
+            catch (Exception ex) { Console.Error.WriteLine(ex.Message); return 2; }
+        }
+
         // Internal roles run before anything touches the console.
         switch (command)
         {
             case "__seat-host":
                 return Seat.SeatHost.Run();
+            case "__desktop-worker":
+                return Core.Desktop.DesktopWorker.Run();
+            case "__desktop-fixture":
+                return DesktopFixture.Run();
+            case "__log-probe":
+                return DiagnosticsChecks.LogProbe(rest);
             case "__apply-setup":
                 return ApplySetupElevated(rest);
             case "mcp":
@@ -38,6 +56,7 @@ internal static class Cli
                 "help" or "--help" or "-h" or "/?" => Help(rest.FirstOrDefault()),
                 "version" or "--version" or "-v" => Version(),
                 "doctor" => Doctor(),
+                "rendering" => Rendering(rest),
                 "selftest" or "self-test" => SelfTest.Run(rest),
                 "setup" => Setup(rest),
                 "up" => Up(rest),
@@ -58,6 +77,7 @@ internal static class Cli
                 "type" => TypeText(rest).GetAwaiter().GetResult(),
                 "ps" => Processes(rest).GetAwaiter().GetResult(),
                 "gamepad" or "pad" => Gamepad(rest).GetAwaiter().GetResult(),
+                "windows" or "inspect" or "window" or "element" => DesktopCommand(command, rest).GetAwaiter().GetResult(),
                 _ => Unknown(command)
             };
         }
@@ -70,6 +90,88 @@ internal static class Cli
     }
 
     // ------------------------------------------------------------------ commands
+
+    private static int Rendering(string[] args)
+    {
+        if (new Args(args).Flag("restore")) Console.WriteLine(BackgroundRendering.Restore());
+        else Console.WriteLine("Per-user RDP background rendering: " + (BackgroundRendering.Current() == 2 ? "configured" : "not configured")
+            + ". The daemon configures this before creating its viewer; an already running daemon must be restarted.");
+        return 0;
+    }
+
+    private static async Task<int> DesktopCommand(string command, string[] args)
+    {
+        var options = new Args(args);
+        string? At(int index) => args.Length > index && !args[index].StartsWith("--", StringComparison.Ordinal) ? args[index] : null;
+        int? Integer(string name)
+        {
+            string? value = options.Value(name);
+            if (value is null && !options.Flag(name)) return null;
+            if (!int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int parsed))
+                throw new ArgumentException($"--{name} requires an integer.");
+            return parsed;
+        }
+        var payload = new JsonObject();
+        string tool;
+        switch (command)
+        {
+            case "windows":
+                tool = "seat_windows";
+                if (options.Value("query") is { } query) payload["query"] = query;
+                if (Integer("pid") is int pid) payload["pid"] = pid;
+                break;
+            case "inspect":
+                tool = "seat_observe";
+                if (At(0) is { } window) payload["windowId"] = window;
+                payload["includeScreenshot"] = options.Value("html") is not null || options.Value("image") is not null;
+                if (Integer("max-elements") is int count) payload["maxElements"] = count;
+                if (Integer("max-depth") is int depth) payload["maxDepth"] = depth;
+                if (Integer("max-text") is int text) payload["maxTextChars"] = text;
+                if (options.Flag("offscreen")) payload["includeOffscreen"] = true;
+                break;
+            case "window":
+                tool = "seat_window";
+                if (At(0) is { } id) payload["windowId"] = id;
+                if (At(1) is { } action) payload["action"] = action;
+                foreach (string field in new[] { "x", "y", "width", "height" })
+                    if (Integer(field) is int value) payload[field] = value;
+                break;
+            default:
+                tool = "seat_element";
+                if (At(0) is { } snapshot) payload["snapshotId"] = snapshot;
+                if (At(1) is { } element) payload["elementId"] = element;
+                if (At(2) is { } operation) payload["action"] = operation;
+                foreach (string field in new[] { "value", "direction", "amount" })
+                    if (options.Value(field) is { } value) payload[field] = value;
+                if (options.Value("number") is { } number)
+                {
+                    if (!double.TryParse(number, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double parsed) || !double.IsFinite(parsed))
+                        throw new ArgumentException("--number must be a finite number using a decimal point.");
+                    payload["number"] = parsed;
+                }
+                break;
+        }
+        if (Mcp.Tools.ValidateArguments(tool, payload) is { } error) { Console.Error.WriteLine(error); return 2; }
+        Mcp.Tools.TryResolve(tool, out string op, out _);
+        using var client = await Connect(autoStart: false);
+        if (client is null) { Console.Error.WriteLine("Anode is not running."); return 1; }
+        var response = await client.RequestAsync(op, payload, 20_000);
+        if (response.Bool("ok") != true) return Report(response);
+        var result = response.Obj("result")!;
+        if (options.Value("html") is { } html)
+        {
+            File.WriteAllText(html, Core.Desktop.DesktopPresentation.Html(result));
+            Console.Error.WriteLine("Report: " + Path.GetFullPath(html));
+        }
+        if (options.Value("image") is { } image && result.Obj("screenshot")?.Str("data") is { } data)
+        {
+            File.WriteAllBytes(image, Convert.FromBase64String(data));
+            Console.Error.WriteLine("Screenshot: " + Path.GetFullPath(image));
+        }
+        if (options.Flag("json")) Console.WriteLine(result.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        else Console.WriteLine(result.Str("summary") ?? Core.Desktop.DesktopPresentation.Summary(result));
+        return 0;
+    }
 
     private static int Version()
     {
@@ -100,7 +202,7 @@ internal static class Cli
         Console.WriteLine();
         Console.WriteLine(failed
             ? "Not ready. Fix the FAIL lines above, then run `anode doctor` again."
-            : "Ready. Run `anode up` to bring a seat up.");
+            : "Prerequisites passed. Run `anode up` to test seat startup and sign-in.");
         return failed ? 1 : 0;
     }
 
@@ -120,7 +222,8 @@ internal static class Cli
             }
             else
             {
-                Console.WriteLine("  - enable the Remote Desktop host (fDenyTSConnections = 0, loopback only, no firewall rule)");
+                Console.WriteLine("  - enable the Remote Desktop host (fDenyTSConnections = 0; no firewall rule added)");
+                Console.WriteLine("  - start or restart TermService if its listener is missing (may disconnect Remote Desktop sessions)");
                 Console.WriteLine("  - turn on child sessions (WTSEnableChildSessions)");
                 if (fps) Console.WriteLine("  - raise the seat frame cap to 60 fps (DWMFRAMEINTERVAL = 15, needs a reboot)");
                 if (gpu) Console.WriteLine("  - let the seat use the hardware graphics adapter (bEnumerateHWBeforeSW = 1, needs a reboot)");
@@ -128,11 +231,13 @@ internal static class Cli
             Console.WriteLine("\nApprove the prompt Windows is about to show.\n");
 
             string forwarded = "__apply-setup" + (undo ? " --undo" : string.Empty)
-                + (fps ? " --fps 60" : string.Empty) + (gpu ? " --gpu" : string.Empty);
+                + (fps ? " --fps 60" : string.Empty) + (gpu ? " --gpu" : string.Empty)
+                + " --state-dir " + DaemonLauncher.Quote(Env.StateDirectory);
             int code = Core.Session.Setup.RelaunchElevated(forwarded);
             if (code == 1223) return code;
             Console.WriteLine();
-            return Doctor();
+            int readiness = undo ? 0 : Doctor();
+            return code != 0 ? code : readiness;
         }
 
         return ApplySetupElevated(args);
@@ -141,6 +246,7 @@ internal static class Cli
     private static int ApplySetupElevated(string[] args)
     {
         ConsoleBridge.Attach();
+        Log.SetRole("setup");
         var options = new Args(args);
         var result = Core.Session.Setup.Apply(
             setFrameRate: options.Value("fps") == "60" || options.Flag("fps60"),
@@ -160,6 +266,7 @@ internal static class Cli
     private static int Up(string[] args)
     {
         var options = new Args(args);
+        ValidateSignInOptions(options);
         var seat = new SeatOptions
         {
             Width = options.Int("width") ?? 1280,
@@ -171,18 +278,28 @@ internal static class Cli
             ScaleFactor = options.Int("scale"),
             StartViewOnly = !options.Flag("control"),
             ShowWindow = !options.Flag("hidden"),
-            KeepSeatOnExit = options.Flag("keep")
+            KeepSeatOnExit = options.Flag("keep"),
+            PromptForCredentials = options.Flag("sign-in"),
+            ConfigureBackgroundRendering = !options.Flag("no-background-rendering")
         };
         return AnodeDaemon.Run(seat);
     }
 
     private static async Task<int> StartDetached(string[] args)
     {
+        var options = new Args(args);
+        ValidateSignInOptions(options);
         if (await Connect(autoStart: false) is { } already)
         {
-            already.Dispose();
-            Console.WriteLine("Anode is already running.");
-            return 0;
+            using (already)
+            {
+                if (options.Flag("sign-in"))
+                {
+                    Console.Error.WriteLine("Anode is already running. To change its sign-in mode, run `anode quit`, then `anode start --sign-in`.");
+                    return 2;
+                }
+                return Report(await already.RequestAsync("seat.start", timeoutMs: 180_000));
+            }
         }
 
         if (Preconditions.BlockingSummary() is { } blocked)
@@ -192,7 +309,9 @@ internal static class Cli
             return 3;
         }
 
-        Launch(args);
+        DaemonLauncher.Launch(args);
+        if (options.Flag("sign-in"))
+            Console.WriteLine("Complete the Windows credential dialog in Anode. Your current desktop stays signed in.");
         var client = await WaitForDaemon(TimeSpan.FromSeconds(30));
         if (client is null)
         {
@@ -203,27 +322,16 @@ internal static class Cli
         using (client)
         {
             Console.WriteLine("Anode started. Waiting for the seat...");
-            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(150);
-            while (DateTime.UtcNow < deadline)
-            {
-                var status = await client.RequestAsync("status");
-                var result = status.Obj("result");
-                string state = result?.Str("state") ?? "?";
-                if (state == "ready")
-                {
-                    Console.WriteLine($"Seat ready in session {result?.Int("session")}.");
-                    return 0;
-                }
-                if (state is "error" or "logon-error")
-                {
-                    Console.Error.WriteLine(result?.Str("lastError") ?? "The seat failed to start.");
-                    return 1;
-                }
-                await Task.Delay(500);
-            }
-            Console.Error.WriteLine("The seat did not become ready in time. Run `anode status`.");
-            return 1;
+            var status = await SeatStartup.WaitAsync(client);
+            Console.WriteLine($"Seat ready in session {status.Int("session")}.");
+            return 0;
         }
+    }
+
+    private static void ValidateSignInOptions(Args options)
+    {
+        if (options.Flag("sign-in") && options.Flag("hidden"))
+            throw new ArgumentException("--sign-in requires a visible viewer; remove --hidden.");
     }
 
     private static async Task<int> Status(string[] args)
@@ -259,6 +367,8 @@ internal static class Cli
             Console.WriteLine($"steam         {steam.Str("summary")}");
         if (result.Str("lastError") is { Length: > 0 } error)
             Console.WriteLine($"last error    {error}");
+        if (result.Str("logError") is { Length: > 0 } logError)
+            Console.WriteLine($"log error     {logError}");
 
         Console.WriteLine($"log           {result.Str("logPath")}");
         return 0;
@@ -474,7 +584,7 @@ internal static class Cli
         }
 
         Console.Error.WriteLine("Anode is not running; starting it...");
-        Launch(Array.Empty<string>());
+        DaemonLauncher.Launch(new[] { "--hidden" });
         client = await WaitForDaemon(TimeSpan.FromSeconds(30));
         if (client is null)
         {
@@ -483,63 +593,10 @@ internal static class Cli
         }
 
         // Give the seat a chance to finish signing in before the caller's request.
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(150);
-        while (DateTime.UtcNow < deadline)
-        {
-            var status = await client.RequestAsync("status");
-            string state = status.Obj("result")?.Str("state") ?? "?";
-            if (state == "ready") break;
-            if (state is "error" or "logon-error") break;
-            await Task.Delay(500);
-        }
+        try { await SeatStartup.WaitAsync(client); }
+        catch { client.Dispose(); throw; }
         return client;
     }
-
-    /// <summary>
-    /// Starts the daemon detached from whoever asked for it.
-    ///
-    /// This matters for agent CLIs. Claude Code and Codex put their subprocesses in a
-    /// job object, so a daemon started as an ordinary child of the MCP server would be
-    /// killed the moment the agent exits, stranding a child session with no owner.
-    /// Handing the launch to the Task Scheduler makes the daemon a child of the
-    /// scheduler service instead, so it outlives the agent and the seat stays under the
-    /// control of the person at the machine. Falls back to a plain child process if the
-    /// scheduler refuses.
-    /// </summary>
-    private static void Launch(string[] extra)
-    {
-        string arguments = string.Join(' ', new[] { "up" }.Concat(extra).Select(Quote));
-
-        try
-        {
-            Core.Launch.SeatLauncher.LaunchInSession(
-                Core.Session.ChildSession.CurrentSessionId(),
-                Env.ExecutablePath,
-                arguments,
-                AppContext.BaseDirectory);
-            return;
-        }
-        catch (Exception ex)
-        {
-            Log.Warn($"could not start the daemon through the Task Scheduler ({ex.Message}); starting it as a child process");
-        }
-
-        var info = new ProcessStartInfo
-        {
-            FileName = Env.ExecutablePath,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            WorkingDirectory = AppContext.BaseDirectory
-        };
-        info.ArgumentList.Add("up");
-        foreach (string argument in extra) info.ArgumentList.Add(argument);
-        Process.Start(info);
-    }
-
-    private static string Quote(string argument) =>
-        argument.Contains(' ') || argument.Contains('"')
-            ? '"' + argument.Replace("\"", "\\\"") + '"'
-            : argument;
 
     private static async Task<JsonPipeClient?> WaitForDaemon(TimeSpan timeout)
     {
@@ -592,6 +649,7 @@ does moves your pointer or steals your focus.
     anode up [options]           bring a seat up and keep the viewer in the foreground
     anode start                  same, but detached; returns when the seat is ready
     anode status [--json]        what the seat is doing right now
+    anode rendering [--restore] check or restore the per-user RDP rendering preference
     anode show | hide            show or hide the viewer window
     anode control [take|give]    let your own mouse and keyboard reach the seat
     anode kill                   sign the seat out and close everything in it
@@ -603,6 +661,10 @@ does moves your pointer or steals your focus.
     anode ps [--all]             list programs running in the seat
     anode ps kill <pid|name>     close one program in the seat
     anode shot [file] [--width N] [--jpeg]
+    anode windows [--query text] [--pid N] [--json]
+    anode inspect <windowId> [--html report.html] [--image screen.png] [--json]
+    anode window <windowId> <focus|restore|maximize|minimize|close|move>
+    anode element <snapshotId> <elementId> <action> [--value text]
 
   Drive the seat
     anode click [x y] [--right] [--double]
@@ -629,6 +691,9 @@ does moves your pointer or steals your focus.
     --winkeys              send Windows-key shortcuts to the seat, not to you
     --control              start with your input reaching the seat
     --hidden               do not show the viewer window
+    --no-background-rendering  leave the per-user RDP rendering preference unchanged
+    --sign-in              ask Windows for seat credentials without signing you out
+    --state-dir PATH       absolute directory for logs when starting a new daemon
     --keep                 leave the seat running when Anode exits
 
   Stopping a seat that has frozen
