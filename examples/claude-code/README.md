@@ -15,7 +15,7 @@ claude mcp add anode -- "C:\Tools\anode\anode.exe" mcp
 `mcpServers`, with the path corrected to wherever you put `anode.exe`.
 
 Nothing else is needed. The MCP server starts the daemon itself on the first tool call, and the
-viewer window appears without stealing your focus.
+viewer stays hidden. Use `seat_show` only when the user wants to watch.
 
 ## 2. Check the machine once
 

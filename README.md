@@ -1,19 +1,21 @@
 # Anode
 
-**A virtual seat for agents on Windows.** A second, fully isolated Windows session on your own
+**A background desktop for development, testing and agents on Windows.** A second Windows session on your own
 machine, with its own screen, its own mouse pointer, its own keyboard focus and its own running
 programs. An agent works in the seat while you keep working on your desktop, and neither one
-steals the other's clicks.
+steals the other's clicks. Installed apps and files remain available; accounts, network ports and
+application singletons are shared, so this is desktop isolation rather than a security sandbox.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Windows build](https://github.com/skulitom/Anode/actions/workflows/build.yml/badge.svg)](https://github.com/skulitom/Anode/actions/workflows/build.yml)
 
 ```powershell
 anode setup            # one administrator prompt, once per machine
-anode start            # a seat comes up; a small window lets you watch it
-anode steam 570        # Dota 2 launches inside the seat, not on your screen
-anode gamepad attach   # a virtual Xbox controller the agent can drive
-anode kill             # sign the seat out; everything in it closes at once
+anode start --hidden    # start a background seat
+anode capabilities     # test capture and see runtime capabilities
+anode exec --cwd C:\project --wait 1000 -- dotnet build
+anode windows          # discover applications and their window IDs
+# anode kill            # signs the seat out and closes every app in it
 ```
 
 ---
@@ -74,7 +76,7 @@ Check your machine before changing anything:
 
 ```powershell
 anode doctor      # what the machine still needs
-anode selftest    # exercise the parts that do not need a seat
+anode selftest --quick  # regression checks without desktop capture or gamepad input
 ```
 
 ---
@@ -88,6 +90,43 @@ powershell -ExecutionPolicy Bypass -File scripts\build.ps1
 ```
 
 That produces a single self-contained `dist\anode.exe`. Put it on your `PATH`, or call it by path.
+
+Connect installed Codex and Claude Code CLIs with backed-up user settings:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\connect-agents.ps1
+```
+
+Then open a new agent session. Anode exposes 30 MCP tools, including accessible control trees,
+screenshots, input, UI waits and command jobs with output and cancellation. See
+[connecting agents](docs/CONNECTING-AGENTS.md) and the [development/testing guide](docs/DEVELOPMENT-TESTING.md).
+
+## Develop and test applications
+
+Run builds, test runners and local servers with `exec`, then read incremental output with `job`.
+Use `run` for an ordinary GUI application that should remain open. Inspect controls with
+`windows` and `inspect`; `wait` handles delayed UI states without guessing a fixed sleep.
+Inspection can produce a standalone HTML report with a screenshot and searchable control tree.
+
+```powershell
+anode exec --cwd C:\project --timeout 600000 -- dotnet build
+anode jobs
+anode job j_RETURNED_ID --wait 1000 --json
+anode inspect w_RETURNED_ID --html artifacts\inspection.html
+anode wait w_RETURNED_ID --automation-id SaveButton --state enabled
+```
+
+Opt-in live checks use an existing seat and clean up their own fixtures:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\test-desktop.ps1
+powershell -ExecutionPolicy Bypass -File scripts\test-development.ps1 -InstallBrowserTools
+```
+
+The second script needs Node.js/npm and Chrome; it installs pinned Playwright locally under
+ignored artifacts. It tests a headed browser in the seat, HTTP requests, form input, screenshots,
+mobile layout and command output. App-specific accessibility, elevation and singleton behavior
+still need verification. No tool redirects an unrelated foreground computer-use service into Anode.
 
 ---
 

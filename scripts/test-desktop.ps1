@@ -10,7 +10,7 @@ $Anode = (Resolve-Path -LiteralPath $Anode).Path
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 $OutputDirectory = (Resolve-Path -LiteralPath $OutputDirectory).Path
 function Call-Anode([string[]]$Arguments) {
-    if ($Arguments[0] -in @('windows','inspect','window','element') -and $Arguments -notcontains '--json') { $Arguments += '--json' }
+    if ($Arguments[0] -in @('windows','inspect','window','element','wait','capabilities') -and $Arguments -notcontains '--json') { $Arguments += '--json' }
     $resultText = (& $Anode @Arguments | Out-String)
     if ($LASTEXITCODE -ne 0) { throw "Anode command failed: $($Arguments[0])" }
     return $resultText | ConvertFrom-Json
@@ -57,6 +57,13 @@ try {
     $observation = Observe-Fixture
     $label = $observation.elements | Where-Object { $_.automationId -eq 'Result' } | Select-Object -First 1
     Assert-That ($label.name -eq 'Applied: Anode background test') 'Button invocation did not update the result.'
+    $prepare = $observation.elements | Where-Object { $_.automationId -eq 'Prepare' } | Select-Object -First 1
+    $null = Call-Anode @('element', $observation.snapshotId, $prepare.id, 'invoke')
+    $ready = Call-Anode @('wait', $windowId, '--automation-id', 'ApplyNote', '--state', 'enabled', '--wait', '10000')
+    Assert-That ($ready.matched -and $ready.snapshotId) 'Wait did not return a fresh enabled control.'
+    $ready = Call-Anode @('wait', $windowId, '--automation-id', 'Result', '--text', 'Preparation complete', '--wait', '10000')
+    Assert-That $ready.matched 'Wait did not observe the delayed text.'
+    $observation = Observe-Fixture
     $checkbox = $observation.elements | Where-Object { $_.automationId -eq 'Preview' } | Select-Object -First 1
     $null = Call-Anode @('element', $observation.snapshotId, $checkbox.id, 'toggle')
     $observation = Observe-Fixture
@@ -89,7 +96,7 @@ try {
     $null = Call-Anode @('inspect', $windowId, '--html', $report, '--json')
     $finalStatus = Call-Anode @('status', '--json')
     Assert-That ($finalStatus.session -eq $status.session -and $finalStatus.viewerVisible -eq $status.viewerVisible) 'Seat or parent viewer state changed.'
-    [pscustomobject]@{ passed=$true; session=$status.session; fixturePid=$fixturePid; report=$report; checks=@('window discovery','control tree','password omission','text replacement','stale-reference refusal','button invocation','checkbox toggle','list selection','slider range and value','read-only action filtering','window move','HTML report','parent viewer unchanged') } |
+    [pscustomobject]@{ passed=$true; session=$status.session; fixturePid=$fixturePid; report=$report; checks=@('window discovery','control tree','password omission','text replacement','stale-reference refusal','button invocation','wait for enabled control','wait for delayed text','checkbox toggle','list selection','slider range and value','read-only action filtering','window move','HTML report','parent viewer unchanged') } |
         ConvertTo-Json -Depth 5 | Tee-Object -FilePath (Join-Path $OutputDirectory 'result.json')
 } finally {
     if ($windowId) { & $Anode window $windowId close | Out-Host }

@@ -106,13 +106,15 @@ internal sealed class AnodeDaemon : IDisposable
         _control.Start();
         Log.Info($"control pipe listening on \\\\.\\pipe\\{Env.ControlPipe}");
 
-        _window.Shown += (_, _) => BeginConnect();
-        _window.Show();
-        if (!_options.ShowWindow)
+        if (_options.ShowWindow)
         {
-            // Still shown once so the ActiveX control gets a real window to live in,
-            // then tucked away. The seat is unaffected either way.
-            _window.BeginInvoke(new Action(() => _window!.HideViewer()));
+            _window.Shown += (_, _) => BeginConnect();
+            _window.Show();
+        }
+        else
+        {
+            _window.CreateHiddenViewer();
+            _window.BeginInvoke(new Action(BeginConnect));
         }
 
         Application.Run();

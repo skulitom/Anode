@@ -37,6 +37,8 @@ internal sealed class RdpViewer : AxHost
     public event Action? AuthenticationPrompt;
     internal bool LoginCompleted { get; private set; }
 
+    internal void CreateHiddenHandle() => CreateHandle();
+
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);

@@ -107,6 +107,8 @@ accuracy.
 | `desktop.observe` | `windowId`, `maxElements`, `maxDepth`, `maxTextChars`, `includeOffscreen`, `includeScreenshot`, `maxWidth` | `{windowId, snapshotId, expiresInSeconds, window, elements, observedAt, truncated, warnings, screenshot?, screenshotError?, summary}` |
 | `desktop.window` | `windowId`, `action`, optional move geometry `x`, `y`, `width`, `height` | `{requested, note, summary}` |
 | `desktop.element` | `snapshotId`, `elementId`, `action`, optional `value`, `number`, `direction`, `amount` | `{performed, note, summary}` |
+| `desktop.capabilities` | `probeCapture` (default true) | `{version, session, workingDirectory, screen, capture, input, supported, limitations, summary}` |
+| `desktop.wait` | `windowId`, selectors `automationId`, `name`, `role`, `textContains`, `state`, `waitMs` | `{matched, waitElapsedMs, ...observation, summary}` |
 
 Window IDs last ten minutes. Snapshots last 90 seconds and are consumed on an
 attempted element action, including a timeout. Inputs and window actions invalidate
@@ -115,6 +117,23 @@ with a ten-second deadline. Password values are omitted. Screenshot failure leav
 the accessible tree available and adds `screenshotError`; it does not trigger a
 foreground fallback. Limits, states and actions are documented in
 [Desktop tools](DESKTOP-TOOLS.md).
+
+Window action `raise` brings a window forward without requesting keyboard focus. Focus is verified
+against the actual foreground window. A known foreground GameInput helper is reported as an input
+blocker; synthetic input fails explicitly instead of claiming it reached an application.
+
+### Execution jobs
+
+| `op` | Arguments | Result |
+| --- | --- | --- |
+| `exec.start` | `path`, literal `args`, absolute `cwd`, string-map `env`, `executionTimeoutMs`, `waitMs` | `{jobId, state, finished, exitCode, stdout, stderr, cursor, outputTruncated, hasMoreOutput, session, workerPid, error, elapsedMs, summary}` |
+| `exec.read` | `jobId`, `action` (`read` or `cancel`), `after`, `waitMs`, `maxChars` | same job result |
+| `exec.read` | `action: "list"` only | `{jobs: [{jobId, state, finished, exitCode, startedUtc}], summary}` |
+
+Commands use a verified child-session worker assigned to a Windows job before receiving its request.
+Client cancellation does not replay or cancel an already launched job. Jobs end on their own deadline,
+explicit cancellation, completion or host exit; existing applications remain outside their process tree.
+See [DEVELOPMENT-TESTING.md](DEVELOPMENT-TESTING.md) for bounds, exit semantics and cleanup.
 
 ### Input
 
@@ -210,7 +229,9 @@ maps to exactly one `op`, so there is no second implementation to keep in step.
 | `seat_window` | `desktop.window` | `seat_element` | `desktop.element` |
 | | | `gamepad_reset` | `gamepad.reset` |
 
-There are 26 tools. `seat_screenshot` returns an MCP image block plus capture-size
+There are 30 tools. `seat_capabilities`, `seat_wait`, `seat_exec` and `seat_job` map to
+`desktop.capabilities`, `desktop.wait`, `exec.start` and `exec.read` respectively.
+`seat_screenshot` returns an MCP image block plus capture-size
 text. Desktop tools return a readable summary and `structuredContent`;
 `seat_observe` additionally returns an image block when capture succeeds, keeping
 the image's base64 data out of `structuredContent` to avoid duplication.

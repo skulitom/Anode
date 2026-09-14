@@ -35,6 +35,7 @@ internal static class DesktopWorker
     {
         string op = request.Str("op") ?? "";
         if (op == "windows") return new JsonObject { ["windows"] = WindowAccess.List() };
+        if (op == "capabilities") return SeatCapabilities.Read(request.Bool("probeCapture") ?? true);
         var target = WindowTarget.FromJson(request.Obj("target") ?? throw new ArgumentException("Missing worker target."));
         return op switch
         {

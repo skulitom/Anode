@@ -11,7 +11,7 @@ namespace Anode.Cli;
 
 /// <summary>Command-line front end. Every command except `up`, `setup` and the internal
 /// roles is a thin client of the running daemon.</summary>
-internal static class Cli
+internal static partial class Cli
 {
     public static int Run(string[] args)
     {
@@ -36,6 +36,8 @@ internal static class Cli
                 return Seat.SeatHost.Run();
             case "__desktop-worker":
                 return Core.Desktop.DesktopWorker.Run();
+            case "__exec-worker":
+                return Core.Processes.ExecutionWorker.Run();
             case "__desktop-fixture":
                 return DesktopFixture.Run();
             case "__log-probe":
@@ -78,6 +80,7 @@ internal static class Cli
                 "ps" => Processes(rest).GetAwaiter().GetResult(),
                 "gamepad" or "pad" => Gamepad(rest).GetAwaiter().GetResult(),
                 "windows" or "inspect" or "window" or "element" => DesktopCommand(command, rest).GetAwaiter().GetResult(),
+                "capabilities" or "exec" or "job" or "jobs" or "wait" => DevelopmentCommand(command, rest).GetAwaiter().GetResult(),
                 _ => Unknown(command)
             };
         }
@@ -663,7 +666,7 @@ does moves your pointer or steals your focus.
     anode shot [file] [--width N] [--jpeg]
     anode windows [--query text] [--pid N] [--json]
     anode inspect <windowId> [--html report.html] [--image screen.png] [--json]
-    anode window <windowId> <focus|restore|maximize|minimize|close|move>
+    anode window <windowId> <focus|raise|restore|maximize|minimize|close|move>
     anode element <snapshotId> <elementId> <action> [--value text]
 
   Drive the seat
@@ -682,6 +685,14 @@ does moves your pointer or steals your focus.
 
   For agents
     anode mcp                    speak the Model Context Protocol on stdin/stdout
+
+  Develop and test inside the seat
+    anode capabilities [--json] [--no-capture]
+    anode exec --cwd C:\\project --timeout 120000 --wait 1000 -- dotnet build
+    anode job <jobId> [--after cursor] [--wait 1000] [--cancel] [--json]
+    anode jobs [--json]          recover job IDs after a disconnected client
+    anode wait <windowId> --automation-id SaveButton --state enabled [--wait 10000]
+    exec accepts repeated --env NAME=VALUE; -- separates literal executable arguments
 
   Options for `up` and `start`
     --width N --height N   seat resolution (default 1280x720)

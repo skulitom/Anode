@@ -67,7 +67,7 @@ internal sealed class McpServer : IDisposable
 
         var result = response.Obj("result");
 
-        if (toolName is "seat_windows" or "seat_observe" or "seat_window" or "seat_element" && result is not null)
+        if (result?.Str("summary") is not null)
         {
             var content = new JsonArray(new JsonObject { ["type"] = "text", ["text"] = result.Str("summary") ?? Core.Desktop.DesktopPresentation.Summary(result) });
             var structured = (JsonObject)result.DeepClone();

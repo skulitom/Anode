@@ -119,6 +119,18 @@ cannot reach across and kill something of yours.
 
 ## Running an agent in the seat
 
+`seat_exec` adds noninteractive command execution with captured output. The command runs as the
+seat user, with inherited environment and shared files/network access. A Windows job owns only its
+new worker and descendants, with hard lifetime/output limits. Output may contain application secrets;
+the request, argument values and environment overrides are not logged. Jobs are not a filesystem or
+network sandbox. Do not restart the seat host while an agent depends on a running build/server.
+
+`scripts/repair-seat-input.ps1` is an opt-in administrator repair for a stuck GameInput helper.
+It uses Windows' child-session API to verify the caller's child, checks the requested process's name,
+session and relationship to the running GameInput service, then stops only that helper. It does not
+stop or reconfigure either machine-wide GameInput service. `-WhatIf` verifies the target without
+stopping it. The service may recreate a helper; this is not an automatic recurring repair.
+
 - Give it the **MCP server**, not a shell in your session. The tool surface is deliberately narrow.
 - The daemon and an agent share one seat. **Your stop button always wins**, because the daemon owns
   the lifecycle and the agent is a client.

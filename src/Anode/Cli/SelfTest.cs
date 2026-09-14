@@ -113,6 +113,11 @@ internal static class SelfTest
         Check(results, "desktop dispatch", () => DesktopChecks.Dispatch().GetAwaiter().GetResult());
         Check(results, "desktop worker deadline", () => DesktopChecks.WorkerTimeout().GetAwaiter().GetResult());
         Check(results, "desktop report escaping", DesktopChecks.Presentation);
+        Check(results, "execution output", DevelopmentChecks.Output);
+        Check(results, "execution jobs", () => DevelopmentChecks.Jobs().GetAwaiter().GetResult());
+        Check(results, "UI condition waits", () => DevelopmentChecks.Waits().GetAwaiter().GetResult());
+        Check(results, "development validation", DevelopmentChecks.Validation);
+        Check(results, "hidden viewer startup", DevelopmentChecks.HiddenViewer);
         Check(results, "RDP extended settings", DiagnosticsChecks.RdpSettings);
         Check(results, "RDP event callbacks", DiagnosticsChecks.RdpCallbacks);
         Check(results, "RDP handshake diagnostics", DiagnosticsChecks.RdpHandshakeFailure);

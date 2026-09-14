@@ -35,7 +35,9 @@ internal static class DesktopPresentation
         else if (result["elements"] is JsonArray elements)
         {
             text.AppendLine($"{Line(result.Obj("window")?.Str("title"))} — {result.Str("windowId")}");
-            text.AppendLine($"Snapshot {result.Str("snapshotId")}; expires in 90 seconds and is consumed by an action.");
+            text.AppendLine(result.Str("snapshotId") is { } snapshot
+                ? $"Snapshot {snapshot}; expires in 90 seconds and is consumed by an action."
+                : "Diagnostic observation only; call seat_observe before taking control actions.");
             foreach (var node in elements.OfType<JsonObject>())
             {
                 text.Append(' ', Math.Min(node.Int("depth") ?? 0, 12) * 2);

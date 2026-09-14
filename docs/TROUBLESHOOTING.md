@@ -219,14 +219,28 @@ the seat out and closes its applications.
 The setting is based on RDP client behaviour documented by
 [SmartBear](https://support.smartbear.com/testcomplete/docs/testing-with/running/via-rdp/in-minimized-window.html).
 It is a mitigation, not a guarantee that every hidden ActiveX viewer can capture;
-verify with a fresh seat screenshot before sending visual input. Its effectiveness
-on the reported machine remains unverified until the updated daemon is started.
+verify with a fresh seat screenshot before sending visual input. On the reported
+machine, sustained hidden capture and changing browser screenshots were verified
+after the updated daemon started. `anode capabilities` tests the current condition.
 
 `anode inspect <windowId>` reads accessible controls without a screenshot.
 `seat_observe` can return those controls alongside a `screenshotError`; capture
 failure does not require opening the viewer or using foreground Computer Use.
 Games exposing only a rendered canvas still need working screenshots. See
 [Desktop tools](DESKTOP-TOOLS.md) and [rendering preference scope/undo](SECURITY.md#per-user-background-rendering).
+
+### Capture works, but focus and input do not
+
+Check `anode capabilities`. A SYSTEM-owned GameInput helper can hold the seat's
+foreground window and prevent ordinary synthetic input from reaching applications.
+Anode reports this known blocker explicitly. UIA and browser protocol actions may
+still work, and `window ID raise` can make an app visible without claiming focus.
+
+For this diagnosed fault, an administrator can run
+`scripts/repair-seat-input.ps1 -HelperPid PID` from the parent session. The script
+verifies Windows' child-session identity and stops only that child helper, preserving
+the services and main desktop. It is not an automatic service change, and the helper
+may return. Retest with `scripts/test-development.ps1 -VerifyInput` to prove delivery.
 
 ### Everything is choppy
 

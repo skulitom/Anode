@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using System.Text.Json;
+using Anode.Core.Bridge;
 
 namespace Anode.Mcp;
 
@@ -16,6 +17,40 @@ internal static class Tools
 
     private static readonly Tool[] All =
     {
+        new("seat_capabilities", "desktop.capabilities", true,
+            "Check the verified seat's actual capture availability, accessibility support, runtime version and limitations. "
+            + "A ready connection does not prove screenshots work. This read-only probe never opens the viewer or sends input.",
+            Schema(("probeCapture", "boolean", "Try a small seat capture and report success/error without returning its pixels. Default true.", false))),
+
+        new("seat_exec", "exec.start", true,
+            "Start a noninteractive build, test or development server inside the verified seat and collect stdout/stderr. "
+            + "Returns a jobId immediately or after a short wait; use seat_job to read more output or cancel. "
+            + "No implicit shell: pass powershell.exe or cmd.exe explicitly when needed. Jobs and descendants end on timeout, cancel, or host exit. "
+            + "Working files and network ports are shared with the main desktop. Never replay a start with uncertain outcome.",
+            ExecutionSchema()),
+
+        new("seat_job", "exec.read", false,
+            "Read one Anode execution job's output and exit code, or cancel only that job and its descendants. "
+            + "Pass the returned cursor as after to avoid repeated output. Truncation is explicit. A disconnected MCP client does not stop a job. "
+            + "Only jobs owned by the current seat host are available; retain full logs in a file when needed.",
+            Schema(("jobId", "string", "Job ID returned by seat_exec. Omit only for action=list.", false),
+                ("action", "string", "read (default), cancel, or list to recover job IDs after an interrupted start.", false),
+                ("after", "string", "Output cursor from the preceding read of this job. Default 0.", false),
+                ("waitMs", "integer", "Wait for completion for up to 10000 ms. Default 0.", false),
+                ("maxChars", "integer", "Maximum output characters returned, 1-20000. Default 12000.", false))),
+
+        new("seat_wait", "desktop.wait", true,
+            "Wait up to 30 seconds for an accessible control to appear, disappear, become enabled/disabled or expose matching text. "
+            + "Inspects without focusing or clicking. Returns matched plus a fresh observation when matched; timeout does not imply app failure. "
+            + "Use automationId/name/role and optional textContains to identify the target; do not use this for a custom canvas with no accessible controls.",
+            Schema(("windowId", "string", "Window ID from seat_windows.", true),
+                ("automationId", "string", "Exact accessibility automation ID.", false),
+                ("name", "string", "Exact accessible control name.", false),
+                ("role", "string", "Exact role, such as Button or Edit.", false),
+                ("textContains", "string", "Case-insensitive substring of name, value or document text.", false),
+                ("state", "string", "exists (default), missing, enabled, or disabled.", false),
+                ("waitMs", "integer", "Maximum wait, 0-30000 ms. Default 10000.", false))),
+
         new("seat_windows", "desktop.windows", true,
             "List windows inside the seat, with window IDs, process names, titles, bounds and foreground state. "
             + "Never enumerates the user's parent desktop. Use the returned windowId with seat_observe.",
@@ -36,10 +71,10 @@ internal static class Tools
                 ("includeOffscreen", "boolean", "Include controls outside the visible viewport. Default false.", false))),
 
         new("seat_window", "desktop.window", true,
-            "Focus, restore, maximize, minimize, move or request closing one verified seat window. Never focuses the parent desktop. "
+            "Focus, raise, restore, maximize, minimize, move or request closing one verified seat window. Raise brings it forward without requesting keyboard focus. Never focuses the parent desktop. "
             + "Move requires x, y, width and height in seat pixels. Inspect again to confirm; close may display an unsaved-changes dialog.",
             Schema(("windowId", "string", "Window ID from seat_windows.", true),
-                ("action", "string", "focus, restore, maximize, minimize, close, or move.", true),
+                ("action", "string", "focus, raise, restore, maximize, minimize, close, or move.", true),
                 ("x", "integer", "New left position for move.", false), ("y", "integer", "New top position for move.", false),
                 ("width", "integer", "New width for move, 160-8192.", false), ("height", "integer", "New height for move, 100-8192.", false))),
 
@@ -250,6 +285,36 @@ internal static class Tools
         var tool = All.First(t => t.Name == name);
         if (ValidateValue(arguments, tool.Schema, "arguments") is { } error) return error;
         bool Has(string field) => arguments.ContainsKey(field);
+        if (name == "seat_exec")
+        {
+            if (string.IsNullOrWhiteSpace(arguments["path"]!.GetValue<string>()) || arguments.Str("path")!.Contains('\0')) return "path must name an executable without null characters.";
+            if (arguments["cwd"] is { } cwd && (!Path.IsPathFullyQualified(cwd.GetValue<string>()) || !Directory.Exists(cwd.GetValue<string>()))) return "cwd must be an existing absolute directory.";
+            if (arguments["args"] is JsonArray argv && (argv.Count > 256 || argv.Any(a => a!.GetValue<string>().Contains('\0'))
+                || argv.Sum(a => Core.Launch.DaemonLauncher.Quote(a!.GetValue<string>()).Length + 1) + arguments.Str("path")!.Length > 30000)) return "args contain null characters or exceed the Windows command-line limit.";
+            if (arguments["env"] is JsonObject variables && (variables.Count > 64 || variables.Any(v => string.IsNullOrWhiteSpace(v.Key) || v.Key.Contains('=') || v.Key.Contains('\0') || v.Value!.GetValue<string>().Contains('\0') || v.Value.GetValue<string>().Length > 16000))) return "env requires at most 64 valid variable names and bounded string values.";
+            if (arguments.Int("waitMs") > 10000) return "seat_exec waitMs must be at most 10000.";
+            if (arguments.ToJsonString().Length > 262144) return "Execution request exceeds its size limit.";
+        }
+        if (name == "seat_job")
+        {
+            if (arguments.Str("action") is { } action && action is not "read" and not "cancel" and not "list") return "action must be read, cancel or list.";
+            if (arguments.Str("action") == "list")
+            {
+                if (arguments.Count != 1) return "list takes no jobId, cursor or wait arguments.";
+                return null;
+            }
+            if (arguments.Str("jobId") is not { Length: > 0 and <= 128 }) return "jobId must be a returned job identifier.";
+            if (arguments.Str("after") is { } after && !long.TryParse(after, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out _)) return "after must be a returned output cursor.";
+            if (arguments.Int("waitMs") > 10000) return "seat_job waitMs must be at most 10000.";
+        }
+        if (name == "seat_wait")
+        {
+            if (!new[] { "automationId", "name", "role", "textContains" }.Any(Has)) return "Provide at least one control selector.";
+            foreach (string selector in new[] { "automationId", "name", "role", "textContains" })
+                if (arguments.Str(selector) is { } value && value.Length is 0 or > 1000) return $"{selector} must have 1-1000 characters.";
+            if (arguments.Str("state") is { } state && state is not "exists" and not "missing" and not "enabled" and not "disabled") return "state must be exists, missing, enabled or disabled.";
+            if (arguments.Str("state") == "missing" && Has("textContains")) return "missing requires a stable control selector without textContains; bounded text cannot prove absence.";
+        }
         if (name is "seat_click" or "seat_move")
         {
             if (Has("x") != Has("y")) return "Provide both x and y.";
@@ -263,7 +328,7 @@ internal static class Tools
         if (name == "seat_window")
         {
             string action = arguments["action"]!.GetValue<string>();
-            if (!new[] { "focus", "restore", "maximize", "minimize", "close", "move" }.Contains(action)) return "Unknown window action.";
+            if (!new[] { "focus", "raise", "restore", "maximize", "minimize", "close", "move" }.Contains(action)) return "Unknown window action.";
             foreach (string key in new[] { "x", "y", "width", "height" })
                 if (Has(key) != (action == "move")) return "Move requires x, y, width and height; other window actions take no geometry.";
             foreach (string key in new[] { "x", "y" })
@@ -339,6 +404,7 @@ internal static class Tools
             (int Min, int Max)? range = field.Name switch
             {
                 "slot" => (0, 3), "quality" => (1, 100), "maxWidth" => (1, 8192),
+                "waitMs" => (0, 30000), "executionTimeoutMs" => (100, 1800000), "maxChars" => (1, 20000),
                 "maxElements" => (1, 500), "maxDepth" => (0, 20), "maxTextChars" => (0, 20000),
                 "width" => (160, 8192), "height" => (100, 8192),
                 "count" => (1, 2), "holdMs" or "ms" => (0, 60_000), "perCharMs" => (0, 1000),
@@ -352,6 +418,17 @@ internal static class Tools
 
         var schema = new JsonObject { ["type"] = "object", ["properties"] = properties, ["additionalProperties"] = false };
         if (required.Count > 0) schema["required"] = required;
+        return schema;
+    }
+
+    private static JsonObject ExecutionSchema()
+    {
+        var schema = Schema(("path", "string", "Executable path or name, for example dotnet.exe or powershell.exe.", true),
+            ("args", "array", "Literal argument array; no shell expansion is performed.", false),
+            ("cwd", "string", "Existing absolute working directory; defaults to the host's working directory.", false),
+            ("executionTimeoutMs", "integer", "Hard lifetime including startup, 100-1800000 ms. Default 120000.", false),
+            ("waitMs", "integer", "Initial completion wait, 0-10000 ms. Default 1000.", false));
+        schema["properties"]!["env"] = new JsonObject { ["type"] = "object", ["description"] = "Additional environment variables for this process only; inherited values are overridden.", ["additionalProperties"] = new JsonObject { ["type"] = "string" } };
         return schema;
     }
 }

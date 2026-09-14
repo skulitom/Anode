@@ -64,3 +64,12 @@ Use `windows`/`inspect` or `seat_windows`/`seat_observe` for accessible controls
 Control actions consume their snapshot; inspect again instead of replaying an
 uncertain action. `scripts/test-desktop.ps1` is an opt-in test using a disposable
 fixture in an already ready seat; it does not start the seat or show its viewer.
+
+`seat_exec`/`exec` runs noninteractive builds and tests with bounded command jobs.
+Use an absolute cwd, read output incrementally with `seat_job`/`job`, and cancel only
+your own jobs. Recover IDs with `jobs` after an interrupted request; never replay an
+uncertain start. `seat_wait` provides bounded UI predicates and a fresh snapshot on
+match. `scripts/test-development.ps1 -VerifyInput` tests an owned browser in the seat,
+including real mouse/keyboard delivery; it requires Node, Chrome and local Playwright.
+`capabilities` reports actual capture and known input blockers. A ready connection or
+successful SendInput call alone does not prove that an application received input.

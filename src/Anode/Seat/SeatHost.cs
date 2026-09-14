@@ -30,6 +30,7 @@ internal static class SeatHost
     private static readonly ManualResetEventSlim Stopping = new(false);
     private static readonly Stopwatch Uptime = Stopwatch.StartNew();
     private static readonly DesktopTools Desktop = new();
+    private static readonly ExecutionJobs Jobs = new();
     private static readonly SemaphoreSlim InteractionGate = new(1, 1);
     private static readonly CancellationTokenSource DesktopStopping = new();
 
@@ -58,10 +59,11 @@ internal static class SeatHost
         server.Start();
         Log.Info($"seat host listening on \\\\.\\pipe\\{Env.SeatPipe}");
 
-        AppDomain.CurrentDomain.ProcessExit += (_, _) => Gamepads.Dispose();
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => { Jobs.Dispose(); Gamepads.Dispose(); };
         Stopping.Wait();
 
         Gamepads.Dispose();
+        Jobs.Dispose();
         Log.Info("seat host stopped");
         return 0;
     }
@@ -88,7 +90,17 @@ internal static class SeatHost
     private static async Task<JsonObject> HandleAsync(JsonObject request)
     {
         string op = request.Str("op") ?? string.Empty;
-        if (op == "shutdown") DesktopStopping.Cancel();
+        if (op == "shutdown") { DesktopStopping.Cancel(); Jobs.Dispose(); }
+        if (op is "exec.start" or "exec.read")
+        {
+            var args = (JsonObject)request.DeepClone();
+            args.Remove("op"); args.Remove("id"); args.Remove("timeoutMs");
+            if (op == "exec.read") return JsonLine.Ok(await Jobs.ReadAsync(args, DesktopStopping.Token).ConfigureAwait(false));
+            if (Mcp.Tools.ValidateArguments("seat_exec", args) is { } error) return JsonLine.Fail(error);
+            await InteractionGate.WaitAsync(DesktopStopping.Token).ConfigureAwait(false);
+            try { Desktop.InvalidateObservations(); return JsonLine.Ok(await Jobs.StartAsync(args, DesktopStopping.Token).ConfigureAwait(false)); }
+            finally { InteractionGate.Release(); }
+        }
         bool desktop = DesktopTools.ToolName(op) is not null;
         bool changesUi = op.StartsWith("input.", StringComparison.Ordinal) || op is "run" or "steam.launch" or "ps.kill";
         if (!desktop && !changesUi) return Dispatch(op, request);

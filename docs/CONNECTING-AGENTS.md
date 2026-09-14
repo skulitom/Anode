@@ -21,6 +21,18 @@ you and the agent are pointed at the same seat and you always win.
 
 ## 0. Put anode somewhere stable
 
+From this repository, the repeatable setup is:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\build.ps1 -QuickTest
+powershell -ExecutionPolicy Bypass -File scripts\connect-agents.ps1
+```
+
+Use `-Client Codex` or `-Client Claude` for one installed CLI, or `-Anode C:\Tools\anode.exe`
+for another stable executable. The script backs up existing settings next to their originals,
+registers only the Anode server, sets a 420-second tool timeout and verifies configuration.
+It does not change approval policies or start a seat. Open a new agent session afterward.
+
 The MCP client stores an absolute path, so pick one that will not move. Anywhere on your `PATH` is
 convenient because you also get the bare `anode` command in a terminal.
 
@@ -43,7 +55,7 @@ missing, so an agent will tell you what to do rather than hanging.
 ## 1. Claude Code
 
 ```powershell
-claude mcp add -s user anode -- "$env:USERPROFILE\.local\bin\anode.exe" mcp
+claude mcp add --transport stdio --scope user anode -- "$env:USERPROFILE\.local\bin\anode.exe" mcp
 ```
 
 `-s user` makes the seat available in every project. Drop it for `local` (this project only, the
@@ -57,6 +69,10 @@ claude mcp get anode
 ```
 
 Inside a session, `/mcp` shows the server and its tools.
+
+Current Claude Code supports `"timeout": 420000` on the Anode server entry in
+`~/.claude.json` (milliseconds), which the setup script writes. Older clients can start the
+seat first. See the [official Claude Code MCP documentation](https://code.claude.com/docs/en/mcp).
 
 ## 2. Codex CLI
 
@@ -141,6 +157,11 @@ The `anode` MCP server gives you a seat: a second Windows session with its own s
 keyboard focus. Apps share the user's profile, and virtual gamepads are machine-wide.
 
 - Call `seat_status` first. If there is no seat, call `seat_start`.
+  Use `seat_capabilities` to probe actual screenshot availability.
+- Use `seat_exec` with an absolute cwd for builds, test runners and development servers.
+  Read/cancel through `seat_job`; save its cursor for incremental output. Use action=list
+  to recover IDs after a disconnected client. Never replay an uncertain command start.
+- Use `seat_wait` for named controls or text; inspect the returned matched flag.
 - Use `seat_windows` and `seat_observe` to discover windows and accessible controls.
   Act through `seat_element` using a fresh snapshot and an action offered by the control.
   `seat_window` can arrange and focus windows inside the seat.
@@ -158,7 +179,8 @@ keyboard focus. Apps share the user's profile, and virtual gamepads are machine-
 - `gamepad_set` is sticky: it changes only the fields you pass, so hold a stick and tap a button in
   two calls.
 - Detach the gamepad when you are done. It is a machine-wide device the user's own games can see.
-- Call `seat_stop` when the task is finished. Do not leave a seat running.
+- Cancel your execution jobs and close your test fixtures when finished. Use `seat_stop`
+  only when the whole seat can be closed; it ends other applications and agents' work too.
 ```
 
 ## 6. Check that it works
@@ -168,8 +190,10 @@ Ask for something small and verifiable:
 > Bring up the Anode seat, open Notepad in it, type "hello", and show me a screenshot. Do not touch
 > my desktop.
 
-You should see the viewer window appear without stealing your focus, Notepad open inside it, and the
-agent hand back an image. Your own screen should not have moved.
+The viewer stays hidden when the agent starts the seat. Notepad opens inside it and the
+agent returns an image. Show the viewer only when the user wants to watch.
+
+For repeatable native and browser tests, see [DEVELOPMENT-TESTING.md](DEVELOPMENT-TESTING.md).
 
 If it does not: `anode status`, then `anode doctor`, then the log at `%LOCALAPPDATA%\Anode\anode.log`,
 which records every role including the one running inside the seat. More in

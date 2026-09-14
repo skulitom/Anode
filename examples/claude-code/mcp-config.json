@@ -3,7 +3,8 @@
   "mcpServers": {
     "anode": {
       "command": "C:\\Tools\\anode\\anode.exe",
-      "args": ["mcp"]
+      "args": ["mcp"],
+      "timeout": 420000
     }
   }
 }

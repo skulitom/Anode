@@ -15,7 +15,8 @@ internal sealed class DesktopTools
     public static string? ToolName(string op) => op switch
     {
         "desktop.windows" => "seat_windows", "desktop.observe" => "seat_observe",
-        "desktop.window" => "seat_window", "desktop.element" => "seat_element", _ => null
+        "desktop.window" => "seat_window", "desktop.element" => "seat_element",
+        "desktop.capabilities" => "seat_capabilities", "desktop.wait" => "seat_wait", _ => null
     };
 
     public async Task<JsonObject> HandleAsync(string op, JsonObject arguments, CancellationToken cancel = default)
@@ -24,10 +25,16 @@ internal sealed class DesktopTools
         args.Remove("op"); args.Remove("id"); args.Remove("timeoutMs");
         string tool = ToolName(op) ?? throw new ArgumentException("Unknown desktop operation.");
         if (Mcp.Tools.ValidateArguments(tool, args) is { } error) return JsonLine.Fail(error);
+        if (op == "desktop.wait") return await DesktopWait.RunAsync(args, (r, token) => HandleAsync("desktop.observe", r, token), cancel).ConfigureAwait(false);
         await _gate.WaitAsync(cancel).ConfigureAwait(false);
         try
         {
             JsonObject result;
+            if (op == "desktop.capabilities")
+            {
+                args["op"] = "capabilities";
+                return JsonLine.Ok(await _worker(args, cancel).ConfigureAwait(false));
+            }
             if (op == "desktop.windows")
             {
                 result = await _worker(new JsonObject { ["op"] = "windows" }, cancel).ConfigureAwait(false);

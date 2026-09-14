@@ -1,7 +1,7 @@
 # Hidden viewer can leave the seat ready but unable to capture
 
-Status: hidden capture reproduced with the live September 13 daemon. New control
-inspection/actions validated in the child host; rendering mitigation awaits daemon restart.
+Status: hidden capture repaired and live-verified after the September 14 daemon restart.
+The earlier observations below describe the failure before the rendering preference took effect.
 
 The daemon remains ready, its host runs in verified child session 5, and qwinsta
 reports the child active. With the parent viewer minimized, and later after using
@@ -48,3 +48,17 @@ capture failure: the original daemon remains connected to preserve the running g
 and both Steam clients. Replacing just the seat host is insufficient to activate a
 setting consumed by the parent RDP client. Verify capture after an arranged daemon
 restart; do not treat `backgroundRenderingConfigured` as a successful capture test.
+
+## Follow-up verification
+
+The updated parent daemon was restarted with the per-user rendering preference active.
+Automatic reconnection failed, but one user-approved Windows sign-in succeeded without
+ending the child session or its applications. The viewer was hidden immediately afterward.
+Captures continued succeeding for more than 30 minutes. Later screenshots showed a newly
+launched Chrome fixture and its changing form value, proving capture was not just a stale frame.
+
+The native fixture passed 15 checks and the browser suite verified browser protocol actions,
+HTTP behavior, desktop/mobile screenshots and input delivery. A separate GameInput foreground
+helper blocked synthetic input until an approved administrator repair stopped only that child
+helper. Both machine-wide services remained running. This distinction is now visible through
+`anode capabilities`; connection readiness alone does not establish capture or input readiness.

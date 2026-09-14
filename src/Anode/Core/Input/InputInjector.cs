@@ -114,6 +114,7 @@ internal static class InputInjector
 
     private static void Send(params Input[] inputs)
     {
+        if (Desktop.WindowAccess.InputBlockReason() is { } blocked) throw new InvalidOperationException(blocked);
         uint sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<Input>());
         if (sent != inputs.Length)
             throw Native.Native.LastError($"SendInput accepted {sent} of {inputs.Length} events");

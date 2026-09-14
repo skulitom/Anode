@@ -28,6 +28,10 @@ internal static class WindowAccess
     [DllImport("user32.dll")] private static extern bool IsZoomed(IntPtr window);
     [DllImport("user32.dll")] private static extern bool IsWindowEnabled(IntPtr window);
     [DllImport("user32.dll")] private static extern bool ShowWindowAsync(IntPtr window, int command);
+    [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")] private static extern bool AttachThreadInput(uint source, uint target, bool attach);
+    [DllImport("user32.dll")] private static extern bool BringWindowToTop(IntPtr window);
+    [DllImport("user32.dll")] private static extern bool PeekMessage(out System.Windows.Interop.MSG message, IntPtr window, uint min, uint max, uint remove);
     [DllImport("user32.dll", SetLastError = true)] private static extern bool PostMessage(IntPtr window, uint message, IntPtr wparam, IntPtr lparam);
     [DllImport("user32.dll", SetLastError = true)] private static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassName(IntPtr window, StringBuilder name, int length);
@@ -95,6 +99,18 @@ internal static class WindowAccess
     public static JsonObject RectangleJson(Rectangle value) => new()
         { ["x"] = value.X, ["y"] = value.Y, ["width"] = value.Width, ["height"] = value.Height };
 
+    public static string? InputBlockReason()
+    {
+        IntPtr foreground = Win.GetForegroundWindow();
+        if (foreground == IntPtr.Zero) return null;
+        var name = new StringBuilder(256);
+        GetClassName(foreground, name, name.Capacity);
+        if (name.ToString() != "GameInputServiceWindow") return null;
+        GetWindowThreadProcessId(foreground, out uint pid);
+        return $"The foreground GameInput service helper (PID {pid}) is blocking normal focus/input in this seat. "
+            + "Use accessible control actions or browser automation. An administrator can use scripts/repair-seat-input.ps1 to stop only this seat helper; do not stop the main desktop's services.";
+    }
+
     public static JsonObject Act(WindowTarget target, string action, JsonObject request)
     {
         var handle = Verify(target);
@@ -102,8 +118,13 @@ internal static class WindowAccess
         {
             case "focus":
                 if (IsIconic(handle)) ShowWindowAsync(handle, 9);
-                if (!Win.SetForegroundWindow(handle))
-                    throw new InvalidOperationException("Windows refused focus in the seat. Inspect the current window or modal dialog.");
+                FocusVerifiedWindow(handle);
+                if (Win.GetForegroundWindow() != handle)
+                    throw new InvalidOperationException(InputBlockReason() ?? "Windows refused focus in the seat. Inspect the current window or modal dialog.");
+                break;
+            case "raise":
+                if (IsIconic(handle)) ShowWindowAsync(handle, 4);
+                if (!SetWindowPos(handle, IntPtr.Zero, 0, 0, 0, 0, 0x0013)) throw Win.LastError("Cannot raise seat window");
                 break;
             case "restore": ShowWindowAsync(handle, 9); break;
             case "maximize": ShowWindowAsync(handle, 3); break;
@@ -119,5 +140,52 @@ internal static class WindowAccess
             default: throw new ArgumentException("Unknown window action.");
         }
         return new JsonObject { ["requested"] = action, ["note"] = "Inspect again to confirm the resulting window state." };
+    }
+
+    private static void FocusVerifiedWindow(IntPtr handle)
+    {
+        if (Win.GetForegroundWindow() == handle) return;
+        bool requested = Win.SetForegroundWindow(handle);
+        if (WaitForForeground(handle, requested ? 500 : 0)) return;
+        // A fresh worker does not own the foreground input queue. Temporarily join
+        // the verified seat foreground thread; never attach across sessions. This
+        // runs in the disposable worker so a hung app cannot stall the host.
+        var foreground = Win.GetForegroundWindow();
+        if (foreground == IntPtr.Zero) return;
+        uint thread = GetWindowThreadProcessId(foreground, out uint owner);
+        // System-owned foreground helpers may deny reading process start times.
+        // Session lookup needs no process handle; the action target still uses its
+        // full HWND/PID/start-time reference above.
+        using var foregroundProcess = Process.GetProcessById(checked((int)owner));
+        if (foregroundProcess.SessionId != (int)ChildSession.CurrentSessionId())
+            throw new InvalidOperationException("Refusing foreground input access outside the verified seat.");
+        uint current = GetCurrentThreadId();
+        uint targetThread = GetWindowThreadProcessId(handle, out _);
+        PeekMessage(out _, IntPtr.Zero, 0, 0, 0); // Ensure this short-lived MTA worker owns a message queue.
+        bool attached = thread != current && AttachThreadInput(current, thread, true);
+        bool targetAttached = targetThread != current && targetThread != thread && AttachThreadInput(current, targetThread, true);
+        try
+        {
+            BringWindowToTop(handle);
+            Win.SetForegroundWindow(handle);
+            WaitForForeground(handle, 500);
+        }
+        finally
+        {
+            if (targetAttached) AttachThreadInput(current, targetThread, false);
+            if (attached) AttachThreadInput(current, thread, false);
+        }
+    }
+
+    private static bool WaitForForeground(IntPtr handle, int milliseconds)
+    {
+        var watch = Stopwatch.StartNew();
+        do
+        {
+            if (Win.GetForegroundWindow() == handle) return true;
+            if (watch.ElapsedMilliseconds >= milliseconds) break;
+            Thread.Sleep(20);
+        } while (true);
+        return false;
     }
 }

@@ -10,7 +10,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>anode</AssemblyName>
     <RootNamespace>Anode</RootNamespace>
-    <Version>0.2.0</Version>
+    <Version>0.3.0</Version>
     <Company>Anode</Company>
     <Product>Anode</Product>
     <Description>A virtual seat for agents on Windows: an isolated child session with its own input, focus, display, virtual gamepad and an MCP control surface.</Description>

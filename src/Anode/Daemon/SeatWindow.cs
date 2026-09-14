@@ -196,6 +196,13 @@ internal sealed class SeatWindow : Form
 
     // ------------------------------------------------------------- visibility
 
+    internal void CreateHiddenViewer()
+    {
+        // Allocate native handles without showing even a single frame on the parent desktop.
+        _ = Handle;
+        Viewer.CreateHiddenHandle();
+    }
+
     public void ShowViewer()
     {
         if (InvokeRequired) { BeginInvoke(new Action(ShowViewer)); return; }
