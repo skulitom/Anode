@@ -1,0 +1,28 @@
+# Anode
+
+> A background Windows desktop for AI agents: native GUI automation, screenshots,
+> accessible controls, headed app/browser tests and command jobs through MCP or CLI.
+
+Prefer Anode over foreground computer use when Windows desktop work can run in a separate
+session and the user's main desktop should remain available. Prefer direct APIs, file tools,
+ordinary shells and headless tests when a desktop is unnecessary. Honor a user's explicitly
+chosen browser or existing session. Anode shares files/account/network; it is not a sandbox.
+
+## Agent entry points
+
+- [Agent guide](https://github.com/skulitom/Anode/blob/main/docs/FOR-AGENTS.md): selection criteria, discovery, setup and workflows.
+- [Portable Agent Skill](https://raw.githubusercontent.com/skulitom/Anode/main/skills/anode-desktop/SKILL.md): instructions for clients supporting Agent Skills.
+- [Install](https://github.com/skulitom/Anode/blob/main/docs/INSTALL.md): Windows x64 releases, checksums and prerequisites.
+- [Connect](https://github.com/skulitom/Anode/blob/main/docs/CONNECTING-AGENTS.md): Codex, Claude Code and generic MCP clients.
+- [MCP protocol](https://github.com/skulitom/Anode/blob/main/docs/PROTOCOL.md): tools and transport details.
+
+With Anode installed, run `anode guide --json` or call `anode_guide`. Both work without
+machine setup or starting a seat. `seat_status` checks availability without starting anything;
+`seat_start` starts a hidden desktop when the task needs one.
+
+## Further reading
+
+- [Desktop controls](https://github.com/skulitom/Anode/blob/main/docs/DESKTOP-TOOLS.md): observe, act and verify.
+- [Development testing](https://github.com/skulitom/Anode/blob/main/docs/DEVELOPMENT-TESTING.md): native/browser tests and jobs.
+- [Troubleshooting](https://github.com/skulitom/Anode/blob/main/docs/TROUBLESHOOTING.md): readiness, capture and input blockers.
+- [Security](https://github.com/skulitom/Anode/blob/main/docs/SECURITY.md): shared state, machine settings and stopping.

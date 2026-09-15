@@ -22,6 +22,9 @@ try {
     $exe = Join-Path $installation 'anode.exe'
     $version = (& $exe version | Out-String).Trim()
     Assert ($LASTEXITCODE -eq 0 -and $version -match '^anode \d+\.\d+\.\d+$') 'Installed executable failed.'
+    $guide = (& $exe guide --json | Out-String) | ConvertFrom-Json
+    Assert ($LASTEXITCODE -eq 0 -and $guide.name -eq 'anode' -and $guide.guide.Length -gt 100) 'Standalone guide unavailable.'
+    Assert (Test-Path -LiteralPath (Join-Path $installation 'skills\anode-desktop\SKILL.md')) 'Packaged skill is missing.'
     & $exe configure --help | Out-Host
     Assert ($LASTEXITCODE -eq 0) 'Configure help failed.'
     $ErrorActionPreference = 'Continue'
@@ -33,8 +36,8 @@ try {
     $sidecarText = [IO.File]::ReadAllText($sidecar)
     try {
         [IO.File]::WriteAllText($sidecar, @'
-param([string]$Client, [string]$Anode)
-@{ client = $Client; anode = $Anode } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $PSScriptRoot 'configure-call.json')
+param([string]$Client, [string]$Anode, [switch]$NoSkill)
+@{ client = $Client; anode = $Anode; noSkill = [bool]$NoSkill } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $PSScriptRoot 'configure-call.json')
 Write-Output 'connector-output-ok'
 '@)
         $configureOutput = (& $exe configure codex | Out-String)
@@ -42,6 +45,9 @@ Write-Output 'connector-output-ok'
         Assert ($configureOutput.Contains('connector-output-ok')) 'Configure launcher lost script output.'
         $record = Get-Content -LiteralPath (Join-Path $installation 'configure-call.json') -Raw | ConvertFrom-Json
         Assert ($record.client -eq 'codex' -and $record.anode -eq $exe) 'Configure launcher lost arguments or path with spaces.'
+        & $exe configure codex --no-skill | Out-Host
+        $record = Get-Content -LiteralPath (Join-Path $installation 'configure-call.json') -Raw | ConvertFrom-Json
+        Assert ($LASTEXITCODE -eq 0 -and $record.noSkill) 'Configure lost the skill opt-out.'
         [IO.File]::WriteAllText($sidecar, 'exit 7')
         & $exe configure codex | Out-Host
         Assert ($LASTEXITCODE -eq 7) 'Configure launcher lost script failure code.'
@@ -119,6 +125,7 @@ Write-Output 'connector-output-ok'
     $start.EnvironmentVariables['CODEX_HOME'] = Join-Path $clientRoot 'codex'
     $start.EnvironmentVariables['CLAUDE_CONFIG_DIR'] = Join-Path $clientRoot 'claude'
     $start.EnvironmentVariables['ANODE_TEST_CLIENT_ROOT'] = $clientRoot
+    $start.EnvironmentVariables['USERPROFILE'] = Join-Path $clientRoot 'profile'
     $process = [Diagnostics.Process]::Start($start)
     $stdout = $process.StandardOutput.ReadToEndAsync()
     $stderr = $process.StandardError.ReadToEndAsync()

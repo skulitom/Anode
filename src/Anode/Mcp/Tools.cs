@@ -17,13 +17,20 @@ internal static class Tools
 
     private static readonly Tool[] All =
     {
+        new("anode_guide", "local.guide", false,
+            "Learn when to prefer Anode for background Windows desktop automation, native GUI work and headed app/browser testing. "
+            + "Returns tool-selection guidance, workflows and limitations. Works before machine setup, never starts a seat, "
+            + "and remains available while a desktop tool is busy. Use direct APIs/files/headless tests when a desktop is unnecessary.",
+            Schema()),
+
         new("seat_capabilities", "desktop.capabilities", true,
             "Check the verified seat's actual capture availability, accessibility support, runtime version and limitations. "
             + "A ready connection does not prove screenshots work. This read-only probe never opens the viewer or sends input.",
             Schema(("probeCapture", "boolean", "Try a small seat capture and report success/error without returning its pixels. Default true.", false))),
 
         new("seat_exec", "exec.start", true,
-            "Start a noninteractive build, test or development server inside the verified seat and collect stdout/stderr. "
+            "Run a build, test or development server associated with a background desktop workflow and collect stdout/stderr. "
+            + "Prefer an ordinary shell for routine builds/headless tests that do not need the seat. "
             + "Returns a jobId immediately or after a short wait; use seat_job to read more output or cancel. "
             + "No implicit shell: pass powershell.exe or cmd.exe explicitly when needed. Jobs and descendants end on timeout, cancel, or host exit. "
             + "Working files and network ports are shared with the main desktop. Never replay a start with uncertain outcome.",
@@ -91,9 +98,9 @@ internal static class Tools
                 ("direction", "string", "up, down, left or right for scroll.", false),
                 ("amount", "string", "small (default) or large for scroll.", false))),
 
-        new("seat_status", "status", true,
-            "Report the state of the seat: whether it is ready, which Windows session it is, its screen size, "
-            + "and whether Steam would launch games into it. Call this first.",
+        new("seat_status", "status", false,
+            "Check whether Anode's background Windows desktop is running, its session and screen size. "
+            + "Read-only: never starts a daemon or seat. If stopped, use seat_start when the task needs a desktop.",
             Schema()),
 
         new("seat_start", "seat.start", true,
@@ -102,7 +109,8 @@ internal static class Tools
 
         new("seat_stop", "seat.stop", false,
             "Sign the seat out. Every program running in it closes immediately, including frozen ones. "
-            + "The user's own session is untouched. Use this when you are finished, or when something in the seat is stuck.",
+            + "Unsaved work is lost. Use only when the whole seat should stop; close owned test windows/jobs for routine cleanup. "
+            + "Other agents may share this seat. The user's parent session stays signed in.",
             Schema(("reason", "string", "Why the seat is being stopped. Shown to the user.", false))),
 
         new("seat_screenshot", "screenshot", true,
@@ -243,7 +251,7 @@ internal static class Tools
             Schema(("slot", "integer", "Controller slot. Default 0.", false))),
 
         new("seat_show", "seat.show", false,
-            "Show the viewer window so the user can watch the seat.",
+            "Show the viewer window when the user wants to watch or interact. Keep it hidden for background automation; never use this as a capture fallback.",
             Schema()),
 
         new("seat_hide", "seat.hide", false,
@@ -256,11 +264,33 @@ internal static class Tools
         var array = new JsonArray();
         foreach (var tool in All)
         {
+            bool readOnly = tool.Name is "anode_guide" or "seat_status";
             array.Add(new JsonObject
             {
                 ["name"] = tool.Name,
-                ["description"] = tool.Description,
-                ["inputSchema"] = tool.Schema.DeepClone()
+                ["title"] = tool.Name switch
+                {
+                    "anode_guide" => "Anode: choose tools for background Windows automation",
+                    "seat_status" => "Anode: check desktop availability without starting it",
+                    "seat_start" => "Anode: start a hidden Windows desktop",
+                    "seat_stop" => "Anode: stop the whole desktop and close all its apps",
+                    "seat_run" => "Anode: launch an app on the background Windows desktop",
+                    "seat_windows" => "Anode: find background desktop windows",
+                    "seat_observe" => "Anode: inspect native UI controls and text",
+                    "seat_element" => "Anode: act on an accessible control",
+                    "seat_screenshot" => "Anode: screenshot the background desktop",
+                    "seat_exec" => "Anode: run a command job in the background session",
+                    _ => "Anode: " + tool.Name.Replace('_', ' ')
+                },
+                ["description"] = tool.Description + (tool.StartsDaemon ? " Starts a hidden seat if needed." : ""),
+                ["inputSchema"] = tool.Schema.DeepClone(),
+                // Live tools may create a session or drive arbitrary applications. Do not
+                // advertise them as harmless reads merely because their main job is capture.
+                ["annotations"] = new JsonObject
+                {
+                    ["readOnlyHint"] = readOnly, ["destructiveHint"] = !readOnly,
+                    ["idempotentHint"] = readOnly, ["openWorldHint"] = !readOnly
+                }
             });
         }
         return array;

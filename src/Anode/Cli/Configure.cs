@@ -4,18 +4,32 @@ namespace Anode.Cli;
 
 internal static partial class Cli
 {
+    private static int Guide(string[] args)
+    {
+        if (args.Length > 1 || (args.Length == 1 && args[0] != "--json"))
+        {
+            Console.Error.WriteLine("usage: anode guide [--json]");
+            return 2;
+        }
+        Console.WriteLine(args.Length == 0 ? Mcp.AgentGuide.Text : Mcp.AgentGuide.Info().ToJsonString());
+        return 0;
+    }
+
     private static int Configure(string[] args)
     {
-        const string usage = "usage: anode configure [auto|codex|claude|both]";
+        const string usage = "usage: anode configure [auto|codex|claude|both] [--no-skill]";
         if (args.Length == 1 && args[0] is "--help" or "-h")
         {
             Console.WriteLine(usage);
-            Console.WriteLine("Registers Anode for installed Codex/Claude Code CLIs, with backups. Default: auto.");
+            Console.WriteLine("Registers Anode and its discoverable desktop skill for installed Codex/Claude Code CLIs, with backups. Default: auto.");
+            Console.WriteLine("Use --no-skill for MCP registration only. Existing customized skills are preserved.");
             Console.WriteLine("Does not start a seat or change machine settings. Restart your agent afterward.");
             return 0;
         }
-        string client = args.FirstOrDefault()?.ToLowerInvariant() ?? "auto";
-        if (args.Length > 1 || client is not ("auto" or "codex" or "claude" or "both"))
+        bool noSkill = args.Contains("--no-skill", StringComparer.Ordinal);
+        var positional = args.Where(arg => arg != "--no-skill").ToArray();
+        string client = positional.FirstOrDefault()?.ToLowerInvariant() ?? "auto";
+        if (positional.Length > 1 || args.Length - positional.Length > 1 || client is not ("auto" or "codex" or "claude" or "both"))
         {
             Console.Error.WriteLine(usage);
             return 2;
@@ -35,6 +49,7 @@ internal static partial class Cli
         foreach (string argument in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
             "-File", script, "-Client", client, "-Anode", Environment.ProcessPath! })
             start.ArgumentList.Add(argument);
+        if (noSkill) start.ArgumentList.Add("-NoSkill");
         using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start the connector script.");
         Task.WhenAll(
             process.StandardOutput.BaseStream.CopyToAsync(Console.OpenStandardOutput()),

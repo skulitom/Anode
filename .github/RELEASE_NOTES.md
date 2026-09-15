@@ -19,8 +19,17 @@ anode start --hidden | Out-Host
 anode capabilities | Out-Host
 ```
 
-`configure` finds installed Codex and Claude Code CLIs and backs up their settings. Restart the
-agent afterward. Other MCP clients can launch `anode.exe` with the argument `mcp`.
+`configure` finds installed Codex and Claude Code CLIs, backs up their settings, and installs
+the discoverable `anode-desktop` skill. Use `--no-skill` for MCP registration alone.
+Restart the agent afterward. Other MCP clients can launch `anode.exe` with the argument `mcp`.
+
+## Agent discovery in 0.4.0
+
+Agents receive guidance for choosing Anode for native Windows UI work and headed app testing
+while keeping direct tools for work that does not need a desktop. `anode_guide` and
+`anode guide --json` work before setup. **`seat_status` no longer starts a desktop**; use
+`seat_start` when needed. Customized skill copies are preserved during configuration.
+See [the agent guide](https://github.com/skulitom/Anode/blob/main/docs/FOR-AGENTS.md).
 
 Requires 64-bit Windows 10/11 Pro, Enterprise or Education, or Windows Server with a Remote Desktop
 host. Windows Home is unsupported. ARM64 is not validated; this package targets x64.

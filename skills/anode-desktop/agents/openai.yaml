@@ -1,0 +1,7 @@
+interface:
+  display_name: "Anode background desktop"
+  short_description: "Windows GUI automation while you keep working"
+  default_prompt: "Use $anode-desktop to test this app in a background Windows session."
+
+policy:
+  allow_implicit_invocation: true

@@ -229,16 +229,21 @@ maps to exactly one `op`, so there is no second implementation to keep in step.
 | `seat_window` | `desktop.window` | `seat_element` | `desktop.element` |
 | | | `gamepad_reset` | `gamepad.reset` |
 
-There are 30 tools. `seat_capabilities`, `seat_wait`, `seat_exec` and `seat_job` map to
+There are 31 tools. `anode_guide` returns the embedded operating guide locally, without a daemon,
+setup or waiting behind long tool calls. `seat_capabilities`, `seat_wait`, `seat_exec` and `seat_job` map to
 `desktop.capabilities`, `desktop.wait`, `exec.start` and `exec.read` respectively.
 `seat_screenshot` returns an MCP image block plus capture-size
 text. Desktop tools return a readable summary and `structuredContent`;
 `seat_observe` additionally returns an image block when capture succeeds, keeping
 the image's base64 data out of `structuredContent` to avoid duplication.
 
-Tools marked as starting the daemon (`seat_status`, `seat_start`, and everything that acts on a live
-seat) will launch `anode up` if it is not running and wait for the seat to become ready. `seat_stop`
-and the other teardown tools never start anything.
+`seat_status` never starts a daemon. With no daemon it returns a successful result containing
+`state: stopped` and `daemonRunning: false`; with one running it returns that daemon's status.
+Tools marked as starting the daemon (`seat_start` and live tools whose descriptions say so)
+launch a hidden daemon through the shared launcher and wait for readiness. Teardown tools do
+not start anything. Only `anode_guide` and `seat_status` carry `readOnlyHint: true`;
+auto-starting observations and arbitrary input/application actions use conservative annotations.
+Titles and initialization instructions provide task-selection guidance. See [For agents](FOR-AGENTS.md).
 
 The stdio server supports MCP versions `2024-11-05`, `2025-03-26`, `2025-06-18` and `2025-11-25`.
 An unsupported version negotiates `2025-11-25` rather than echoing a version the server does not know.

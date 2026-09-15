@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.0 — 2026-09-15
+
+- Added a discoverable `anode-desktop` Agent Skill, installed with client configuration,
+  to prefer Anode for native GUI work and headed testing while preserving direct tools
+  for tasks that do not need a desktop. Added an MCP-only opt-out and protected skill edits.
+- Added `anode_guide` and `anode guide [--json]`, sharing an embedded workflow that works
+  before setup and remains responsive during long tools.
+- Made MCP `seat_status` a read-only check that never creates a daemon or seat. Call
+  `seat_start` when desktop work is needed. Added tool titles, conservative effect
+  annotations, explicit auto-start descriptions and scoped cleanup guidance.
+- Added an agent-facing guide and `llms.txt` index, with discovery and skill installation
+  checks in the quick test and release installation suites.
+
 ## 0.3.1 — 2026-09-15
 
 - Added downloadable Windows x64 release bundles with docs, installer and SHA-256 sums.

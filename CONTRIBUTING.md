@@ -28,7 +28,7 @@ logs for personal information before attaching them.
 1. Update the version in `src/Anode/Anode.csproj`, `CHANGELOG.md` and any pinned install examples.
 2. Review `.github/RELEASE_NOTES.md`, which is the user-facing release body.
 3. Run the checks above, push the changes and confirm Windows CI passes.
-4. Tag the tested commit with the matching version, such as `v0.3.1`, and push the tag.
+4. Tag the tested commit with the matching version, such as `v0.4.0`, and push the tag.
 
 The Release workflow checks the tag against the project version, builds a self-contained x64
 binary, runs quick and installation checks, then publishes the ZIP, installer and SHA-256 sums.

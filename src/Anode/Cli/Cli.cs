@@ -59,6 +59,7 @@ internal static partial class Cli
                 "version" or "--version" or "-v" => Version(),
                 "doctor" => Doctor(),
                 "configure" => Configure(rest),
+                "guide" => Guide(rest),
                 "rendering" => Rendering(rest),
                 "selftest" or "self-test" => SelfTest.Run(rest),
                 "setup" => Setup(rest),
@@ -685,8 +686,9 @@ does moves your pointer or steals your focus.
     anode gamepad detach
 
   For agents
-    anode configure [auto|codex|claude|both]
-                                 register installed CLIs with config backups
+    anode guide [--json]         when to use Anode and how to choose its tools; no setup
+    anode configure [auto|codex|claude|both] [--no-skill]
+                                 register installed CLIs and the Anode skill, with backups
     anode mcp                    speak the Model Context Protocol on stdin/stdout
 
   Develop and test inside the seat

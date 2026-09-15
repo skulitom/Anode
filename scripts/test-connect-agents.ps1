@@ -4,7 +4,7 @@ param([Parameter(Mandatory=$true)][string]$Anode)
 $ErrorActionPreference = 'Stop'
 if (-not $env:ANODE_TEST_CLIENT_ROOT) { throw 'Run test-install.ps1 instead.' }
 $testRoot = [IO.Path]::GetFullPath($env:ANODE_TEST_CLIENT_ROOT).TrimEnd('\') + '\'
-foreach ($directory in @($env:CODEX_HOME, $env:CLAUDE_CONFIG_DIR)) {
+foreach ($directory in @($env:CODEX_HOME, $env:CLAUDE_CONFIG_DIR, $env:USERPROFILE)) {
     if (-not $directory -or -not [IO.Path]::GetFullPath($directory).StartsWith($testRoot, [StringComparison]::OrdinalIgnoreCase)) {
         throw 'Client home is outside the disposable test root.'
     }
@@ -56,6 +56,11 @@ $claudeBefore = '{"theme":"dark","mcpServers":{"other":{"command":"other.exe"}}}
 [IO.File]::WriteAllText($codexConfig, $codexBefore)
 [IO.File]::WriteAllText($claudeConfig, $claudeBefore)
 & $connector -Client Auto -Anode $Anode
+$codexSkill = Join-Path $env:USERPROFILE '.agents\skills\anode-desktop\SKILL.md'
+$claudeSkill = Join-Path $env:CLAUDE_CONFIG_DIR 'skills\anode-desktop\SKILL.md'
+$packagedSkill = [IO.File]::ReadAllText((Join-Path (Split-Path -Parent $Anode) 'skills\anode-desktop\SKILL.md'))
+Assert ([IO.File]::ReadAllText($codexSkill) -ceq $packagedSkill) 'Codex skill was not installed.'
+Assert ([IO.File]::ReadAllText($claudeSkill) -ceq $packagedSkill) 'Claude skill was not installed.'
 Assert ((Get-Content -LiteralPath $codexConfig -Raw).StartsWith($codexBefore)) 'Unrelated TOML changed.'
 $result = Get-Content -LiteralPath $claudeConfig -Raw | ConvertFrom-Json
 Assert ($result.theme -eq 'dark' -and $result.mcpServers.other.command -eq 'other.exe') 'Unrelated JSON changed.'
@@ -66,6 +71,28 @@ Assert (@(Get-ChildItem -LiteralPath $env:CLAUDE_CONFIG_DIR -Filter '*.anode-bac
 & $connector -Client Both -Anode $Anode
 Assert ([regex]::Matches((Get-Content -LiteralPath $codexConfig -Raw), '\[mcp_servers\.anode\]').Count -eq 1) 'Repeat setup duplicated the server.'
 Write-Host '[ok] both clients, backups, repeat configuration and unrelated settings'
+
+# Verify an owned old distribution updates with backups, then preserve user edits.
+$skillMarker = Join-Path (Split-Path -Parent $codexSkill) '.anode-skill.json'
+$oldSkill = 'previous Anode skill distribution'
+[IO.File]::WriteAllText($codexSkill, $oldSkill)
+$marker = Get-Content -LiteralPath $skillMarker -Raw | ConvertFrom-Json
+$marker.files.'SKILL.md' = (Get-FileHash -LiteralPath $codexSkill -Algorithm SHA256).Hash
+$marker | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $skillMarker
+& $connector -Client Codex -Anode $Anode
+Assert ([IO.File]::ReadAllText($codexSkill) -ceq $packagedSkill) 'Managed skill update failed.'
+$skillBackups = @(Get-ChildItem -LiteralPath (Split-Path -Parent $codexSkill) -Filter 'SKILL.md.anode-backup-*')
+Assert ($skillBackups.Count -eq 1 -and [IO.File]::ReadAllText($skillBackups[0].FullName) -ceq $oldSkill) 'Previous skill was not backed up.'
+[IO.File]::WriteAllText($codexSkill, 'my customized workflow')
+& $connector -Client Codex -Anode $Anode
+Assert ([IO.File]::ReadAllText($codexSkill) -ceq 'my customized workflow') 'Customized skill was overwritten.'
+$testProfile = $env:USERPROFILE
+try {
+    $env:USERPROFILE = Join-Path $testRoot 'optout-profile'
+    & $connector -Client Codex -Anode $Anode -NoSkill
+    Assert (-not (Test-Path -LiteralPath (Join-Path $env:USERPROFILE '.agents'))) 'Skill opt-out wrote a personal skill.'
+} finally { $env:USERPROFILE = $testProfile }
+Write-Host '[ok] discoverable skills, managed updates, customizations and opt-out'
 
 $global:AnodeTestAvailable = @('claude')
 $global:AnodeTestCalls = @()

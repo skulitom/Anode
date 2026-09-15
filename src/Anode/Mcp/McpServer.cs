@@ -11,8 +11,8 @@ namespace Anode.Mcp;
 /// A Model Context Protocol server over stdin and stdout, so an agent can hold a seat
 /// the way it holds any other tool.
 ///
-/// It owns nothing. Every tool call is forwarded to the running daemon over the control
-/// pipe, and the daemon is started on the first call if it is not up yet. That means an
+/// It owns nothing. Live tools use the daemon over the control pipe and may start it.
+/// Guide discovery is local; status never starts a daemon. That means an
 /// agent and a person can both be pointed at the same seat, and the person's stop button
 /// still wins.
 /// </summary>
@@ -22,9 +22,16 @@ internal sealed class McpServer : IDisposable
     private string? _blockedReason;
     private bool _launchPending;
     private readonly string _controlPipe;
+    private readonly Action _launchDaemon;
+    private readonly Func<string?> _blockingSummary;
     private readonly SemaphoreSlim ConnectGate = new(1, 1);
 
-    internal McpServer(string controlPipe = Env.ControlPipe) => _controlPipe = controlPipe;
+    internal McpServer(string controlPipe = Env.ControlPipe, Action? launchDaemon = null, Func<string?>? blockingSummary = null)
+    {
+        _controlPipe = controlPipe;
+        _launchDaemon = launchDaemon ?? (() => DaemonLauncher.Launch(new[] { "--hidden" }));
+        _blockingSummary = blockingSummary ?? Core.Session.Preconditions.BlockingSummary;
+    }
 
     public static async Task<int> Run()
     {
@@ -46,10 +53,22 @@ internal sealed class McpServer : IDisposable
         if (!Tools.TryResolve(toolName, out string op, out bool startsDaemon))
             return TextResult($"Unknown tool '{toolName}'.", isError: true);
 
+        if (toolName == "anode_guide") return TextResult(AgentGuide.Text);
         if (toolName == "seat_stop") return await StopAsync(arguments, cancel).ConfigureAwait(false);
         var client = await DaemonAsync(startsDaemon, cancel).ConfigureAwait(false);
         if (client is null)
         {
+            if (toolName == "seat_status")
+            {
+                var status = new JsonObject
+                {
+                    ["state"] = "stopped", ["daemonRunning"] = false,
+                    ["summary"] = "Anode is not running. Call seat_start when the task needs a background desktop."
+                };
+                var reply = TextResult(status.ToJsonString());
+                reply["structuredContent"] = status;
+                return reply;
+            }
             string reason = _blockedReason is not null
                 ? _blockedReason + " Tell the user to run `anode setup` in a terminal and approve the administrator prompt; "
                   + "this cannot be done from here."
@@ -120,7 +139,7 @@ internal sealed class McpServer : IDisposable
             _daemon = await JsonPipeClient.TryConnectAsync(_controlPipe, 1000, cancel).ConfigureAwait(false);
             if (_daemon is not null || !mayStart) return _daemon;
 
-            if (Core.Session.Preconditions.BlockingSummary() is { } blocked)
+            if (_blockingSummary() is { } blocked)
             {
                 Log.Warn($"not starting a daemon: {blocked}");
                 _blockedReason = blocked;
@@ -131,7 +150,7 @@ internal sealed class McpServer : IDisposable
             Log.Info("no daemon; starting one");
             cancel.ThrowIfCancellationRequested();
             _launchPending = true;
-            try { DaemonLauncher.Launch(new[] { "--hidden" }); }
+            try { _launchDaemon(); }
             catch { _launchPending = false; throw; }
 
             var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(40);

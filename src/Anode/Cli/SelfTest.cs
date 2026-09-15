@@ -129,6 +129,7 @@ internal static class SelfTest
         Check(results, "log diagnostics", () => DiagnosticsChecks.Logging().GetAwaiter().GetResult());
         Check(results, "MCP stdio", () => TransportChecks.McpStdio().GetAwaiter().GetResult());
         Check(results, "MCP validation", () => McpChecks.Validation().GetAwaiter().GetResult());
+        Check(results, "MCP agent discovery", () => McpChecks.Discovery().GetAwaiter().GetResult());
         Check(results, "MCP stop and cancellation", () => McpChecks.StopAndCancellation().GetAwaiter().GetResult());
         Check(results, "MCP disconnect", () => McpChecks.Disconnect().GetAwaiter().GetResult());
         Check(results, "MCP busy daemon", () => McpChecks.BusyDaemon().GetAwaiter().GetResult());

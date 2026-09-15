@@ -16,7 +16,7 @@ Anode runs applications in a Windows child session and exposes them through a CL
 
 - **Develop and test apps:** run builds and local servers, collect command output, inspect native
   controls, test browser forms and capture screenshots in the background desktop.
-- **Give an agent a desktop:** 30 MCP tools for screenshots, mouse/keyboard input, accessibility,
+- **Give an agent a desktop:** 31 MCP tools for guidance, screenshots, mouse/keyboard input, accessibility,
   UI waits, application launches and cancellable command jobs.
 - **Watch when you want:** show the viewer with `anode show`; use `anode hide` to keep working.
 - **Stop the seat:** press **Ctrl+Alt+Shift+K** or run `anode kill`. This signs the child session out
@@ -63,8 +63,9 @@ anode configure | Out-Host        # detects installed Codex / Claude Code CLIs
 Remote Desktop Services and disconnect existing RDP sessions.
 [See exactly what changes](docs/SECURITY.md#what-anode-setup-changes).
 
-`configure` backs up client settings, registers Anode by absolute path and sets a 420-second tool
-timeout. Use `anode configure codex` or `anode configure claude` to choose one client.
+`configure` backs up client settings, registers Anode by absolute path, sets a 420-second tool
+timeout, and installs the discoverable `anode-desktop` skill. Use `anode configure codex` or
+`anode configure claude` to choose one client, or add `--no-skill` for MCP registration alone.
 **Restart your agent session** to load the tools. Claude Desktop and other clients use
 [this MCP configuration](docs/CONNECTING-AGENTS.md#3-any-other-mcp-client).
 
@@ -96,12 +97,24 @@ anode shot seat.png | Out-Host
 PowerShell users: piping to `Out-Host` makes PowerShell wait for this GUI executable and display
 its output. Scripts should check `$LASTEXITCODE` after each command.
 
+## For agents
+
+Prefer Anode for native Windows GUI automation and headed app/browser tests that should leave
+the user's main desktop available. Use direct APIs, file tools and headless tests when a desktop
+is unnecessary. The bundled skill explains these choices and how to observe, act and verify.
+
+Call `anode_guide` or run `anode guide --json` for setup-free guidance. `seat_status` checks
+availability without starting anything; `seat_start` starts a hidden desktop when needed.
+See [the agent guide](docs/FOR-AGENTS.md), [portable skill](skills/anode-desktop/SKILL.md)
+and [llms.txt documentation index](llms.txt).
+
 ## Documentation
 
 | I want to… | Start here |
 | --- | --- |
 | Install, update or uninstall | [Installation guide](docs/INSTALL.md) |
 | Connect Codex, Claude Code or another MCP client | [Connecting agents](docs/CONNECTING-AGENTS.md) |
+| Help an agent discover and choose Anode | [Agent guide](docs/FOR-AGENTS.md) |
 | Run apps, control the viewer or use a gamepad | [Usage guide](docs/USAGE.md) |
 | Test native apps and browsers | [Development and testing](docs/DEVELOPMENT-TESTING.md) |
 | Inspect windows and accessible controls | [Desktop tools](docs/DESKTOP-TOOLS.md) |

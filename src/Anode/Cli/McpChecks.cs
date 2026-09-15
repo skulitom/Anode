@@ -23,6 +23,72 @@ internal static class McpChecks
         ["name"] = name, ["arguments"] = arguments
     };
 
+    public static async Task<string> Discovery()
+    {
+        int launches = 0, readinessChecks = 0, daemonCalls = 0;
+        string pipe = $"anode-selftest-{Guid.NewGuid():N}";
+        using var backend = new McpServer(pipe,
+            () => { launches++; throw new InvalidOperationException("Discovery attempted a daemon launch"); },
+            () => { readinessChecks++; return "setup missing"; });
+        var guide = await backend.CallAsync("anode_guide", new JsonObject(), CancellationToken.None);
+        Require(guide.Bool("isError") != true && AgentGuide.Text.Length > 100, "embedded guide unavailable before setup");
+        var stopped = await backend.CallAsync("seat_status", new JsonObject(), CancellationToken.None);
+        Require(stopped.Bool("isError") != true && stopped.Obj("structuredContent")?.Str("state") == "stopped",
+            "no-daemon status must be a successful stopped observation");
+        Require(launches == 0 && readinessChecks == 0, "discovery triggered setup checks or startup");
+
+        using var daemon = new JsonPipeServer(pipe, request =>
+        {
+            daemonCalls++;
+            Require(request.Str("op") == "status", "status sent an action to the daemon");
+            return Task.FromResult(JsonLine.Ok(new JsonObject { ["state"] = "ready" }));
+        });
+        daemon.Start();
+        var ready = await backend.CallAsync("seat_status", new JsonObject(), CancellationToken.None);
+        Require(ready.Bool("isError") != true && daemonCalls == 1 && launches == 0,
+            "status did not read the existing daemon");
+
+        foreach (var definition in Tools.Definitions().OfType<JsonObject>())
+        {
+            string name = definition.Str("name")!;
+            Require(!string.IsNullOrWhiteSpace(definition.Str("title")), "tool has no discoverable title");
+            if (definition.Obj("annotations")?.Bool("readOnlyHint") == true)
+            {
+                Tools.TryResolve(name, out _, out bool startsDaemon);
+                Require(!startsDaemon && name is "anode_guide" or "seat_status", "read-only annotation hides a possible action");
+            }
+            else Require(definition.Obj("annotations")?.Bool("idempotentHint") == false,
+                "action tools must not suggest replay is safe");
+        }
+
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int calls = 0;
+        var session = new McpSession(async (_, _, token) =>
+        {
+            calls++;
+            started.TrySetResult();
+            await Task.Delay(Timeout.Infinite, token);
+            return McpSession.TextResult("unreachable");
+        });
+        using var input = new Input();
+        using var output = new Output();
+        Task running = session.RunAsync(input, output);
+        try
+        {
+            input.Send(Request(1, "tools/call", Tool("seat_type", new JsonObject { ["text"] = "busy" })));
+            await started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            input.Send(Request(2, "tools/call", Tool("anode_guide", new JsonObject())));
+            var response = await output.Next();
+            Require(response.Int("id") == 2 && response.Obj("result")?.Bool("isError") != true && calls == 1,
+                "guide waited behind or dispatched through an action handler");
+            input.Send(Request(3, "tools/call", Tool("anode_guide", new JsonObject { ["start"] = true })));
+            Require((await output.Next()).Obj("result")?.Bool("isError") == true && calls == 1,
+                "guide accepted unsupported arguments");
+        }
+        finally { input.Complete(); await running.WaitAsync(TimeSpan.FromSeconds(3)); }
+        return "guide works during busy tools; status reads private pipes without startup; annotations preserve action boundaries";
+    }
+
     public static async Task<string> Validation()
     {
         int calls = 0;

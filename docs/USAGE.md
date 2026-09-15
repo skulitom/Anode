@@ -169,7 +169,7 @@ stops.
 ## For agents: the MCP server
 
 Run `anode configure` to register installed Codex and Claude Code CLIs.
-See [Connecting agents](CONNECTING-AGENTS.md) and the [protocol reference](PROTOCOL.md) for configuration and all 30 tools.
+See [Connecting agents](CONNECTING-AGENTS.md) and the [protocol reference](PROTOCOL.md) for configuration and all 31 tools.
 
 ## How it works
 

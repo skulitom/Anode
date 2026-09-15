@@ -32,7 +32,9 @@ anode configure claude | Out-Host
 
 The command checks requested clients before changing settings, backs up existing settings beside
 the originals, registers the Anode server by absolute path, configures a 420-second tool timeout,
-and verifies configuration. It does not change approval policies or start a seat.
+installs the discoverable `anode-desktop` skill, and verifies configuration. Use `--no-skill`
+for MCP registration alone. Existing customized skills are preserved. It does not change approval
+policies or start a seat. See [agent discovery and skill locations](FOR-AGENTS.md).
 Open a new agent session afterward. `auto` with neither CLI installed prints guidance;
 `both` requires both CLIs. The full release bundle includes the connector script.
 
@@ -134,7 +136,8 @@ anode start
 The seat is up before the agent's first tool call, so the first call is fast, and the viewer is
 already on screen.
 
-**The agent starts it.** The first tool call brings the seat up on its own. Anode launches the daemon
+**The agent starts it.** `seat_start` or another auto-starting live tool brings the seat up.
+`seat_status` only checks availability; `anode_guide` returns guidance locally. Anode launches the daemon
 with its viewer hidden. Use `seat_show` only when the user wants to watch. It launches
 through the Task Scheduler rather than as a child process, specifically because Claude Code and Codex
 put their subprocesses in a job object: a daemon started the naive way would die with the agent and

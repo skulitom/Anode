@@ -14,7 +14,8 @@ claude mcp add anode -- "C:\Tools\anode\anode.exe" mcp
 **Claude Desktop**, or any other MCP client: add [`mcp-config.json`](mcp-config.json) to your
 `mcpServers`, with the path corrected to wherever you put `anode.exe`.
 
-Nothing else is needed. The MCP server starts the daemon itself on the first tool call, and the
+Once machine setup is complete, `seat_start` or a live-seat tool starts the daemon; guide/status
+discovery does not. The
 viewer stays hidden. Use `seat_show` only when the user wants to watch.
 
 ## 2. Check the machine once
@@ -88,7 +89,8 @@ input never reaches the user's own desktop.
   already running outside the seat, say so rather than forcing it, because the game would open on
   the user's screen.
 - Detach the gamepad when you are done with it. It is a machine-wide device.
-- Call `seat_stop` when the task is finished. Do not leave a seat running.
+- Close owned apps and cancel owned jobs when finished. Use `seat_stop` only when the entire
+  shared seat should close, including other apps and unsaved work.
 ```
 
 ## If something goes wrong

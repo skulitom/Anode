@@ -33,7 +33,7 @@ Useful options:
 
 ```powershell
 # Choose a version and register installed Codex/Claude Code CLIs as well.
-powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Version 0.3.1 -Client Auto
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Version 0.4.0 -Client Auto
 # A dedicated custom folder; leave PATH alone.
 powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -InstallDirectory C:\Tools\Anode -NoPath
 ```
@@ -86,7 +86,10 @@ anode configure claude | Out-Host
 ```
 
 The command detects CLIs on PATH, uses their registration commands, keeps timestamped backups
-beside existing settings and configures a 420-second tool timeout. `both` requires both CLIs and
+beside existing settings, configures a 420-second tool timeout, and installs the `anode-desktop`
+skill for automatic selection in suitable desktop tasks. Add `--no-skill` for MCP registration
+alone. Customized skills are preserved; [locations and update behavior](FOR-AGENTS.md) are documented.
+`both` requires both CLIs and
 checks they exist before changing either client. `auto` with neither installed prints guidance.
 No approval policies change. No seat starts. Restart the agent to reload tools.
 For manual configuration and Claude Desktop, see [Connecting agents](CONNECTING-AGENTS.md).
@@ -125,6 +128,8 @@ Portable users should extract a fresh folder, then run its `anode configure` to 
 1. Save work, run `anode quit`, and close MCP clients using Anode.
 2. Remove registrations with `codex mcp remove anode` and/or
    `claude mcp remove --scope user anode`. For other clients, remove only their Anode entry.
+   Remove the `anode-desktop` skill folder from the [client skill locations](FOR-AGENTS.md#skill-installation-and-control)
+   if installed; MCP registration and skills are independent.
 3. Optionally run `anode rendering --restore` to restore the saved per-user RDP rendering value,
    and `anode setup --undo` to disable child sessions. Remote Desktop remains enabled;
    [security documentation](SECURITY.md) explains why and how to disable it separately.

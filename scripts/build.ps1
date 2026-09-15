@@ -40,6 +40,7 @@ Copy-Item -LiteralPath LICENSE    -Destination (Join-Path $OutputDirectory 'LICE
 Copy-Item -LiteralPath CHANGELOG.md -Destination $OutputDirectory -Force
 Copy-Item -LiteralPath CONTRIBUTING.md -Destination $OutputDirectory -Force
 Copy-Item -LiteralPath AGENTS.md -Destination $OutputDirectory -Force
+Copy-Item -LiteralPath llms.txt -Destination $OutputDirectory -Force
 Copy-Item -LiteralPath scripts\install.ps1 -Destination $OutputDirectory -Force
 Copy-Item -LiteralPath (Join-Path $projectRoot 'docs') -Destination $OutputDirectory -Recurse -Force
 
@@ -61,7 +62,7 @@ if ($Package) {
     $null = New-Item -ItemType Directory -Path $ArchiveDirectory -Force
     $archive = Join-Path $ArchiveDirectory 'anode-windows-x64.zip'
     # Explicit payload prevents stale binaries, logs and local files entering a release.
-    $payload = @('anode.exe','connect-agents.ps1','install.ps1','README.md','LICENSE','CHANGELOG.md','CONTRIBUTING.md','AGENTS.md','docs') |
+    $payload = @('anode.exe','connect-agents.ps1','install.ps1','README.md','LICENSE','CHANGELOG.md','CONTRIBUTING.md','AGENTS.md','llms.txt','docs','skills') |
         ForEach-Object { Join-Path $OutputDirectory $_ }
     Compress-Archive -LiteralPath $payload -DestinationPath $archive -Force
     Copy-Item -LiteralPath scripts\install.ps1 -Destination $ArchiveDirectory -Force
