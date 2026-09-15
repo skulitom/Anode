@@ -136,8 +136,9 @@ stopping it. The service may recreate a helper; this is not an automatic recurri
   the lifecycle and the agent is a client.
 - Watch the log at `%LOCALAPPDATA%\Anode\anode.log`. Every launch, stop and failure is recorded with a
   timestamp and a role.
-- Nothing in Anode talks to the network. There is no telemetry, no update check and no remote
-  endpoint of any kind.
+- The CLI/MCP runtime has no telemetry, update check or remote control endpoint. The seat uses
+  loopback RDP. The separately invoked installer downloads releases and checksums from GitHub;
+  offline installation is available. Agent registration uses the installed clients' CLIs.
 
 ## Reporting a problem
 

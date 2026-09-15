@@ -10,7 +10,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>anode</AssemblyName>
     <RootNamespace>Anode</RootNamespace>
-    <Version>0.3.0</Version>
+    <Version>0.3.1</Version>
     <Company>Anode</Company>
     <Product>Anode</Product>
     <Description>A virtual seat for agents on Windows: an isolated child session with its own input, focus, display, virtual gamepad and an MCP control surface.</Description>
@@ -31,6 +31,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include="..\..\scripts\connect-agents.ps1" Link="connect-agents.ps1" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <!-- WPF supplies UI Automation and the opt-in interoperability test fixture. -->
     <Using Include="System.IO" />
     <PackageReference Include="Nefarius.ViGEm.Client" Version="1.21.256" />

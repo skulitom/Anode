@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.1 — 2026-09-15
+
+- Added downloadable Windows x64 release bundles with docs, installer and SHA-256 sums.
+- Added a per-user PowerShell installer with offline/version selection, optional client
+  registration, PATH setup, locked-file checks and rollback of failed file updates.
+- Added `anode configure` with automatic Codex/Claude Code CLI detection and preflight
+  checks, using the existing backed-up configuration and tool timeout handling.
+- Added release automation and disposable installation/configuration checks in Windows CI.
+- Reorganized the README around downloads and first use; added installation, update,
+  removal and contribution guides plus structured issue forms.
+
 ## 0.3.0 — 2026-09-14
 
 - Added command jobs with separate stdout/stderr, exit codes, incremental cursors,

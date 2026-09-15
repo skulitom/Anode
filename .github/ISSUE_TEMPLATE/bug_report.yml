@@ -1,0 +1,41 @@
+name: Bug report
+description: Report an installation, configuration or runtime problem.
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: "Check [troubleshooting](https://github.com/skulitom/Anode/blob/main/docs/TROUBLESHOOTING.md) first. Remove private information from logs and screenshots."
+  - type: input
+    id: version
+    attributes:
+      label: Anode version
+      description: Output of anode version
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows edition and build
+      placeholder: Windows 11 Pro, build ...
+    validations:
+      required: true
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Installation method
+      options: [PowerShell installer, Portable release ZIP, Built from source]
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Include the command or MCP client, what you expected, and what happened.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Paste relevant doctor / capabilities output and log excerpts. Logs are in %LOCALAPPDATA%\Anode\anode.log.
+      render: text

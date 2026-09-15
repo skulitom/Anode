@@ -12,7 +12,9 @@ param(
     [ValidateSet('Release', 'Debug')]
     [string]$Configuration = 'Release',
     [switch]$Test,
-    [switch]$QuickTest
+    [switch]$QuickTest,
+    [switch]$Package,
+    [string]$ArchiveDirectory = 'artifacts\release'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -34,7 +36,11 @@ dotnet publish src\Anode\Anode.csproj `
 if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
 
 Copy-Item -LiteralPath README.md  -Destination (Join-Path $OutputDirectory 'README.md')  -Force
-Copy-Item -LiteralPath LICENSE    -Destination (Join-Path $OutputDirectory 'LICENSE.txt') -Force
+Copy-Item -LiteralPath LICENSE    -Destination (Join-Path $OutputDirectory 'LICENSE') -Force
+Copy-Item -LiteralPath CHANGELOG.md -Destination $OutputDirectory -Force
+Copy-Item -LiteralPath CONTRIBUTING.md -Destination $OutputDirectory -Force
+Copy-Item -LiteralPath AGENTS.md -Destination $OutputDirectory -Force
+Copy-Item -LiteralPath scripts\install.ps1 -Destination $OutputDirectory -Force
 Copy-Item -LiteralPath (Join-Path $projectRoot 'docs') -Destination $OutputDirectory -Recurse -Force
 
 $exe = Join-Path $OutputDirectory 'anode.exe'
@@ -49,5 +55,21 @@ if ($Test -or $QuickTest) {
 }
 
 $size = [math]::Round((Get-Item $exe).Length / 1MB, 1)
+if ($Package) {
+    if ($Configuration -ne 'Release') { throw '-Package requires -Configuration Release for the single-file executable.' }
+    if (-not [IO.Path]::IsPathRooted($ArchiveDirectory)) { $ArchiveDirectory = Join-Path $projectRoot $ArchiveDirectory }
+    $null = New-Item -ItemType Directory -Path $ArchiveDirectory -Force
+    $archive = Join-Path $ArchiveDirectory 'anode-windows-x64.zip'
+    # Explicit payload prevents stale binaries, logs and local files entering a release.
+    $payload = @('anode.exe','connect-agents.ps1','install.ps1','README.md','LICENSE','CHANGELOG.md','CONTRIBUTING.md','AGENTS.md','docs') |
+        ForEach-Object { Join-Path $OutputDirectory $_ }
+    Compress-Archive -LiteralPath $payload -DestinationPath $archive -Force
+    Copy-Item -LiteralPath scripts\install.ps1 -Destination $ArchiveDirectory -Force
+    @('anode-windows-x64.zip','install.ps1') | ForEach-Object {
+        $hash = (Get-FileHash -LiteralPath (Join-Path $ArchiveDirectory $_) -Algorithm SHA256).Hash.ToLowerInvariant()
+        "$hash  $_"
+    } | Set-Content -LiteralPath (Join-Path $ArchiveDirectory 'SHA256SUMS') -Encoding ASCII
+    Write-Host "Release archive: $archive" -ForegroundColor Green
+}
 Write-Host "`nReady: $exe ($size MB)" -ForegroundColor Green
 Write-Host "Next:  $exe doctor" -ForegroundColor Gray

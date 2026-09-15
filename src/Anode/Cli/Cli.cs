@@ -58,6 +58,7 @@ internal static partial class Cli
                 "help" or "--help" or "-h" or "/?" => Help(rest.FirstOrDefault()),
                 "version" or "--version" or "-v" => Version(),
                 "doctor" => Doctor(),
+                "configure" => Configure(rest),
                 "rendering" => Rendering(rest),
                 "selftest" or "self-test" => SelfTest.Run(rest),
                 "setup" => Setup(rest),
@@ -644,7 +645,7 @@ does moves your pointer or steals your focus.
 
   Set up (once)
     anode doctor                 check whether this machine can host a seat
-    anode selftest               exercise the parts that do not need a seat
+    anode selftest --quick       verify local behavior without desktop input or capture
     anode setup [--fps 60] [--gpu]
                                  enable Remote Desktop + child sessions (one UAC prompt)
 
@@ -684,6 +685,8 @@ does moves your pointer or steals your focus.
     anode gamepad detach
 
   For agents
+    anode configure [auto|codex|claude|both]
+                                 register installed CLIs with config backups
     anode mcp                    speak the Model Context Protocol on stdin/stdout
 
   Develop and test inside the seat

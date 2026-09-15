@@ -3,10 +3,30 @@
    Backs up existing config files beside the originals. Changes only Anode's server settings.
    Does not start a seat, change approvals, or open a sign-in dialog.
 #>
-param([ValidateSet('Both','Codex','Claude')][string]$Client = 'Both',
-    [string]$Anode = (Join-Path $PSScriptRoot '..\dist\anode.exe'))
+param([ValidateSet('Auto','Both','Codex','Claude')][string]$Client = 'Auto',
+    [string]$Anode)
 $ErrorActionPreference = 'Stop'
+if (-not $Anode) {
+    $Anode = Join-Path $PSScriptRoot 'anode.exe'
+    if (-not (Test-Path -LiteralPath $Anode)) { $Anode = Join-Path $PSScriptRoot '..\dist\anode.exe' }
+}
 $Anode = (Resolve-Path -LiteralPath $Anode).Path
+# Preflight every requested CLI before changing any settings.
+$clients = @()
+foreach ($candidate in @('Codex','Claude')) {
+    $installed = Get-Command $candidate.ToLowerInvariant() -ErrorAction SilentlyContinue
+    if ($Client -eq 'Auto') {
+        if ($installed) { $clients += $candidate }
+    } elseif ($Client -eq 'Both' -or $Client -eq $candidate) {
+        if (-not $installed) { throw "$candidate CLI is not on PATH. Install it first or choose another client. No settings changed." }
+        $clients += $candidate
+    }
+}
+if ($clients.Count -eq 0) {
+    Write-Host 'No Codex or Claude Code CLI found on PATH. Install a client, then rerun anode configure.'
+    Write-Host 'Other MCP clients: https://github.com/skulitom/Anode/blob/main/docs/CONNECTING-AGENTS.md'
+    return
+}
 & $Anode version | Out-Host
 if ($LASTEXITCODE -ne 0) { throw 'Anode executable check failed.' }
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
@@ -25,7 +45,7 @@ function Save-Config([string]$Path, [string]$Before, [string]$After) {
         [IO.File]::Replace($temporary, $Path, [NullString]::Value)
     } finally { if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary } }
 }
-if ($Client -in @('Both','Codex')) {
+if ('Codex' -in $clients) {
     $null = Get-Command codex -ErrorAction Stop
     $configRoot = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USERPROFILE '.codex' }
     $configPath = Join-Path $configRoot 'config.toml'
@@ -45,7 +65,7 @@ if ($Client -in @('Both','Codex')) {
     if ($LASTEXITCODE -ne 0 -or $check.tool_timeout_sec -ne 420) { throw 'Codex Anode configuration check failed.' }
     Write-Host 'Codex: Anode registered, tool timeout 420 seconds.'
 }
-if ($Client -in @('Both','Claude')) {
+if ('Claude' -in $clients) {
     $null = Get-Command claude -ErrorAction Stop
     $configRoot = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { $env:USERPROFILE }
     $configPath = Join-Path $configRoot '.claude.json'

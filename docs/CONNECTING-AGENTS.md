@@ -19,43 +19,42 @@ you and the agent are pointed at the same seat and you always win.
                                   └──────────────┘
 ```
 
-## 0. Put anode somewhere stable
+## 0. Install and register
 
-From this repository, the repeatable setup is:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\build.ps1 -QuickTest
-powershell -ExecutionPolicy Bypass -File scripts\connect-agents.ps1
-```
-
-Use `-Client Codex` or `-Client Claude` for one installed CLI, or `-Anode C:\Tools\anode.exe`
-for another stable executable. The script backs up existing settings next to their originals,
-registers only the Anode server, sets a 420-second tool timeout and verifies configuration.
-It does not change approval policies or start a seat. Open a new agent session afterward.
-
-The MCP client stores an absolute path, so pick one that will not move. Anywhere on your `PATH` is
-convenient because you also get the bare `anode` command in a terminal.
+[Install Anode](INSTALL.md) first. The default location is
+`%LOCALAPPDATA%\Programs\Anode`; release builds need no .NET installation.
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\build.ps1
-mkdir "$env:USERPROFILE\.local\bin" -Force
-copy dist\anode.exe "$env:USERPROFILE\.local\bin\anode.exe"
+anode configure | Out-Host          # detect installed Codex and Claude Code CLIs
+anode configure codex | Out-Host    # or choose one
+anode configure claude | Out-Host
 ```
 
-Check the machine once, and do the one-time setup if you have not already:
+The command checks requested clients before changing settings, backs up existing settings beside
+the originals, registers the Anode server by absolute path, configures a 420-second tool timeout,
+and verifies configuration. It does not change approval policies or start a seat.
+Open a new agent session afterward. `auto` with neither CLI installed prints guidance;
+`both` requires both CLIs. The full release bundle includes the connector script.
+
+From a source checkout, `scripts\build.ps1 -QuickTest` builds the executable and
+`scripts\connect-agents.ps1 -Client Auto` connects it. The script also accepts
+`-Anode C:\Tools\Anode\anode.exe` for another stable executable.
+
+Check the machine once, then run the one-time setup if needed:
 
 ```powershell
-anode doctor
-anode setup --fps 60 --gpu
+anode doctor | Out-Host
+anode setup | Out-Host
 ```
 
-Until `anode setup` has run, every tool call fails with a message naming the exact setting that is
-missing, so an agent will tell you what to do rather than hanging.
+MCP initialization and tool discovery work before machine setup. Tools that need a seat report
+missing prerequisites. Setup can restart Remote Desktop Services; see [Security](SECURITY.md).
+The manual instructions below are alternatives to `anode configure`.
 
 ## 1. Claude Code
 
 ```powershell
-claude mcp add --transport stdio --scope user anode -- "$env:USERPROFILE\.local\bin\anode.exe" mcp
+claude mcp add --transport stdio --scope user anode -- "$env:LOCALAPPDATA\Programs\Anode\anode.exe" mcp
 ```
 
 `-s user` makes the seat available in every project. Drop it for `local` (this project only, the
@@ -77,14 +76,14 @@ seat first. See the [official Claude Code MCP documentation](https://code.claude
 ## 2. Codex CLI
 
 ```powershell
-codex mcp add anode -- "$env:USERPROFILE\.local\bin\anode.exe" mcp
+codex mcp add anode -- "$env:LOCALAPPDATA\Programs\Anode\anode.exe" mcp
 ```
 
 That writes into `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.anode]
-command = 'C:\Users\you\.local\bin\anode.exe'
+command = 'C:\Users\you\AppData\Local\Programs\Anode\anode.exe'
 args = ["mcp"]
 tool_timeout_sec = 420
 ```
@@ -112,14 +111,14 @@ different session; connecting this server does not redirect them into the seat.
 {
   "mcpServers": {
     "anode": {
-      "command": "C:\\Users\\you\\.local\\bin\\anode.exe",
+      "command": "C:\\Users\\you\\AppData\\Local\\Programs\\Anode\\anode.exe",
       "args": ["mcp"]
     }
   }
 }
 ```
 
-No environment variables, no arguments, no network. See [PROTOCOL.md](PROTOCOL.md) for the tool list
+The only argument is `mcp`; no environment variables or remote endpoint are required. See [PROTOCOL.md](PROTOCOL.md) for the tool list
 and for the named-pipe interface underneath, if you would rather skip MCP entirely.
 
 ## 4. Who starts the daemon

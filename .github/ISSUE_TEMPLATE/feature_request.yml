@@ -1,0 +1,15 @@
+name: Feature request
+description: Suggest a way to improve Anode.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the workflow and what currently gets in your way.
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested improvement
+      description: Include alternatives you have tried, if any.

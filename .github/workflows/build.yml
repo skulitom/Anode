@@ -7,6 +7,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: windows-latest
@@ -25,7 +28,7 @@ jobs:
         run: dotnet build Anode.sln -c Release --no-restore --nologo
 
       - name: Publish
-        run: ./scripts/build.ps1
+        run: ./scripts/build.ps1 -Package
 
       # The quick self-test covers only environment-independent behaviour: key-name
       # resolution, gamepad name mapping, pipe deadlines/cancellation, MCP stdio,
@@ -44,14 +47,18 @@ jobs:
 
       - name: Report machine readiness
         continue-on-error: true
-        run: ./dist/anode.exe doctor
+        run: |
+          ./dist/anode.exe doctor | Out-Host
+          exit $LASTEXITCODE
+
+      - name: Test installation and configuration
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-install.ps1
 
       - uses: actions/upload-artifact@v4
         with:
           name: anode-windows-x64
           path: |
-            dist/anode.exe
-            dist/README.md
-            dist/LICENSE.txt
-            dist/docs/**
+            artifacts/release/anode-windows-x64.zip
+            artifacts/release/install.ps1
+            artifacts/release/SHA256SUMS
           if-no-files-found: error
