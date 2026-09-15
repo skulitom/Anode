@@ -15,6 +15,8 @@ internal static partial class Cli
 {
     public static int Run(string[] args)
     {
+        try { args = AgentOptions(args); }
+        catch (ArgumentException ex) { ConsoleBridge.Attach(); Console.Error.WriteLine(ex.Message); return 2; }
         string command = args.Length > 0 ? args[0].ToLowerInvariant() : "help";
         var rest = args.Skip(1).ToArray();
 
@@ -45,7 +47,7 @@ internal static partial class Cli
             case "__apply-setup":
                 return ApplySetupElevated(rest);
             case "mcp":
-                return Mcp.McpServer.Run().GetAwaiter().GetResult();
+                return Mcp.McpServer.Run(_agentId).GetAwaiter().GetResult();
         }
 
         ConsoleBridge.Attach();
@@ -66,6 +68,7 @@ internal static partial class Cli
                 "up" => Up(rest),
                 "start" => StartDetached(rest).GetAwaiter().GetResult(),
                 "status" => Status(rest).GetAwaiter().GetResult(),
+                "lease" => LeaseCommand(rest).GetAwaiter().GetResult(),
                 "kill" or "stop" => Simple("seat.stop").GetAwaiter().GetResult(),
                 "quit" => Simple("quit").GetAwaiter().GetResult(),
                 "show" => Simple("seat.show").GetAwaiter().GetResult(),
@@ -160,7 +163,7 @@ internal static partial class Cli
         Mcp.Tools.TryResolve(tool, out string op, out _);
         using var client = await Connect(autoStart: false);
         if (client is null) { Console.Error.WriteLine("Anode is not running."); return 1; }
-        var response = await client.RequestAsync(op, payload, 20_000);
+        var response = await RequestAsync(client, op, payload, 20_000);
         if (response.Bool("ok") != true) return Report(response);
         var result = response.Obj("result")!;
         if (options.Value("html") is { } html)
@@ -303,7 +306,7 @@ internal static partial class Cli
                     Console.Error.WriteLine("Anode is already running. To change its sign-in mode, run `anode quit`, then `anode start --sign-in`.");
                     return 2;
                 }
-                return Report(await already.RequestAsync("seat.start", timeoutMs: 180_000));
+                return Report(await RequestAsync(already, "seat.start", timeoutMs: 180_000));
             }
         }
 
@@ -348,7 +351,7 @@ internal static partial class Cli
             return 1;
         }
 
-        var response = await client.RequestAsync("status");
+        var response = await RequestAsync(client, "status");
         var result = response.Obj("result");
         if (result is null) return Report(response);
 
@@ -387,7 +390,7 @@ internal static partial class Cli
             Console.WriteLine("Anode is not running, so there is nothing to do.");
             return 0;
         }
-        return Report(await client.RequestAsync(op));
+        return Report(await RequestAsync(client, op));
     }
 
     private static async Task<int> Control(string[] args)
@@ -395,7 +398,7 @@ internal static partial class Cli
         bool viewOnly = !(args.FirstOrDefault()?.Equals("take", StringComparison.OrdinalIgnoreCase) ?? false);
         using var client = await Connect(autoStart: false);
         if (client is null) { Console.Error.WriteLine("Anode is not running."); return 1; }
-        return Report(await client.RequestAsync("seat.control", new JsonObject { ["viewOnly"] = viewOnly }));
+        return Report(await RequestAsync(client, "seat.control", new JsonObject { ["viewOnly"] = viewOnly }));
     }
 
     private static async Task<int> RunProgram(string[] args)
@@ -405,18 +408,18 @@ internal static partial class Cli
         var payload = new JsonObject { ["path"] = args[0] };
         if (args.Length > 1) payload["args"] = new JsonArray(args.Skip(1).Select(a => (JsonNode)a!).ToArray());
 
-        using var client = await Connect(autoStart: true);
+        using var client = await Connect(autoStart: false);
         if (client is null) return 1;
-        return Report(await client.RequestAsync("run", payload));
+        return Report(await RequestAsync(client, "run", payload));
     }
 
     private static async Task<int> SteamCommand(string[] args)
     {
-        using var client = await Connect(autoStart: true);
+        using var client = await Connect(autoStart: false);
         if (client is null) return 1;
 
         if (args.Length == 0 || args[0].Equals("status", StringComparison.OrdinalIgnoreCase))
-            return Report(await client.RequestAsync("steam.status"));
+            return Report(await RequestAsync(client, "steam.status"));
 
         if (!int.TryParse(args[0], out int appId))
         {
@@ -426,7 +429,7 @@ internal static partial class Cli
 
         var options = new Args(args.Skip(1).ToArray());
         var payload = new JsonObject { ["appId"] = appId, ["force"] = options.Flag("force") };
-        return Report(await client.RequestAsync("steam.launch", payload, 120_000));
+        return Report(await RequestAsync(client, "steam.launch", payload, 120_000));
     }
 
     private static async Task<int> Screenshot(string[] args)
@@ -442,7 +445,7 @@ internal static partial class Cli
         using var client = await Connect(autoStart: false);
         if (client is null) { Console.Error.WriteLine("Anode is not running."); return 1; }
 
-        var response = await client.RequestAsync("screenshot", payload, 30_000);
+        var response = await RequestAsync(client, "screenshot", payload, 30_000);
         var result = response.Obj("result");
         if (response.Bool("ok") != true || result?.Str("data") is not { } base64) return Report(response);
 
@@ -464,7 +467,7 @@ internal static partial class Cli
 
         using var client = await Connect(autoStart: false);
         if (client is null) { Console.Error.WriteLine("Anode is not running."); return 1; }
-        return Report(await client.RequestAsync("input.click", payload));
+        return Report(await RequestAsync(client, "input.click", payload));
     }
 
     private static async Task<int> Move(string[] args)
@@ -476,7 +479,7 @@ internal static partial class Cli
         }
         using var client = await Connect(autoStart: false);
         if (client is null) { Console.Error.WriteLine("Anode is not running."); return 1; }
-        return Report(await client.RequestAsync("input.move", new JsonObject { ["x"] = x, ["y"] = y }));
+        return Report(await RequestAsync(client, "input.move", new JsonObject { ["x"] = x, ["y"] = y }));
     }
 
     private static async Task<int> Scroll(string[] args)
@@ -484,7 +487,7 @@ internal static partial class Cli
         int amount = args.Length > 0 && int.TryParse(args[0], out int parsed) ? parsed : -3;
         using var client = await Connect(autoStart: false);
         if (client is null) { Console.Error.WriteLine("Anode is not running."); return 1; }
-        return Report(await client.RequestAsync("input.scroll", new JsonObject { ["amount"] = amount }));
+        return Report(await RequestAsync(client, "input.scroll", new JsonObject { ["amount"] = amount }));
     }
 
     private static async Task<int> Key(string[] args)
@@ -492,7 +495,7 @@ internal static partial class Cli
         if (args.Length == 0) { Console.Error.WriteLine("usage: anode key <chord>    e.g. anode key ctrl+shift+esc"); return 2; }
         using var client = await Connect(autoStart: false);
         if (client is null) { Console.Error.WriteLine("Anode is not running."); return 1; }
-        return Report(await client.RequestAsync("input.key", new JsonObject { ["keys"] = args[0] }));
+        return Report(await RequestAsync(client, "input.key", new JsonObject { ["keys"] = args[0] }));
     }
 
     private static async Task<int> TypeText(string[] args)
@@ -500,7 +503,7 @@ internal static partial class Cli
         if (args.Length == 0) { Console.Error.WriteLine("usage: anode type <text>"); return 2; }
         using var client = await Connect(autoStart: false);
         if (client is null) { Console.Error.WriteLine("Anode is not running."); return 1; }
-        return Report(await client.RequestAsync("input.text", new JsonObject { ["text"] = string.Join(' ', args) }));
+        return Report(await RequestAsync(client, "input.text", new JsonObject { ["text"] = string.Join(' ', args) }));
     }
 
     private static async Task<int> Processes(string[] args)
@@ -512,11 +515,11 @@ internal static partial class Cli
         {
             var payload = new JsonObject();
             if (int.TryParse(args[1], out int pid)) payload["pid"] = pid; else payload["name"] = args[1];
-            return Report(await client.RequestAsync("ps.kill", payload));
+            return Report(await RequestAsync(client, "ps.kill", payload));
         }
 
         var options = new Args(args);
-        var response = await client.RequestAsync("ps.list", new JsonObject { ["windowedOnly"] = !options.Flag("all") });
+        var response = await RequestAsync(client, "ps.list", new JsonObject { ["windowedOnly"] = !options.Flag("all") });
         if (response.Obj("result")?["processes"] is not JsonArray processes) return Report(response);
 
         Console.WriteLine($"{"pid",-8} {"name",-28} title");
@@ -536,15 +539,15 @@ internal static partial class Cli
 
         switch (sub)
         {
-            case "attach": return Report(await client.RequestAsync("gamepad.attach", payload));
-            case "detach": return Report(await client.RequestAsync("gamepad.detach", payload));
-            case "reset": return Report(await client.RequestAsync("gamepad.reset", payload));
-            case "state": return Report(await client.RequestAsync("gamepad.state", payload));
+            case "attach": return Report(await RequestAsync(client, "gamepad.attach", payload));
+            case "detach": return Report(await RequestAsync(client, "gamepad.detach", payload));
+            case "reset": return Report(await RequestAsync(client, "gamepad.reset", payload));
+            case "state": return Report(await RequestAsync(client, "gamepad.state", payload));
             case "tap":
                 if (args.Length < 2) { Console.Error.WriteLine("usage: anode gamepad tap <button> [--ms 80]"); return 2; }
                 payload["button"] = args[1];
                 payload["ms"] = options.Int("ms") ?? 80;
-                return Report(await client.RequestAsync("gamepad.tap", payload));
+                return Report(await RequestAsync(client, "gamepad.tap", payload));
             case "stick":
             {
                 if (args.Length < 4) { Console.Error.WriteLine("usage: anode gamepad stick <left|right> <x> <y>"); return 2; }
@@ -554,14 +557,14 @@ internal static partial class Cli
                     [prefix + "x"] = double.Parse(args[2], System.Globalization.CultureInfo.InvariantCulture),
                     [prefix + "y"] = double.Parse(args[3], System.Globalization.CultureInfo.InvariantCulture)
                 };
-                return Report(await client.RequestAsync("gamepad.set", payload));
+                return Report(await RequestAsync(client, "gamepad.set", payload));
             }
             case "hold":
             case "release":
             {
                 if (args.Length < 2) { Console.Error.WriteLine($"usage: anode gamepad {sub} <button>"); return 2; }
                 payload["buttons"] = new JsonObject { [args[1]] = sub == "hold" };
-                return Report(await client.RequestAsync("gamepad.set", payload));
+                return Report(await RequestAsync(client, "gamepad.set", payload));
             }
             default:
                 Console.Error.WriteLine("usage: anode gamepad <attach|detach|tap|hold|release|stick|reset|state>");
@@ -661,6 +664,14 @@ does moves your pointer or steals your focus.
     anode quit                   stop the seat and exit Anode
 
   Work in the seat
+    anode --agent build-1 lease acquire [--ttl 120]
+                                 acquire exclusive desktop use; returns leaseToken
+    anode --agent build-1 --lease TOKEN lease renew | release [--cancel-jobs]
+    anode --agent build-1 lease status
+    Set ANODE_AGENT_ID and ANODE_LEASE_TOKEN to avoid repeating prefix options.
+    Desktop commands require the lease. Job reads/cancellation require their agent ID.
+    MCP remembers its token automatically; set ANODE_AGENT_ID for restart recovery.
+
     anode run <program> [args]   start a program inside the seat
     anode steam <appid>          start a Steam game inside the seat
     anode ps [--all]             list programs running in the seat

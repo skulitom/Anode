@@ -76,15 +76,25 @@ internal sealed class GamepadManager : IDisposable
         }
     }
 
-    public void DetachAll()
+    public void DetachAll(bool requireSuccess = false)
     {
         lock (_gate)
         {
-            foreach (var pad in _pads.Values)
+            Exception? failure = null;
+            foreach (var (slot, pad) in _pads.ToArray())
             {
-                try { pad.ResetReport(); pad.SubmitReport(); pad.Disconnect(); } catch { }
+                try
+                {
+                    pad.ResetReport(); pad.SubmitReport(); pad.Disconnect();
+                    _pads.Remove(slot);
+                }
+                catch (Exception ex)
+                {
+                    if (requireSuccess) failure ??= ex;
+                    else _pads.Remove(slot);
+                }
             }
-            _pads.Clear();
+            if (failure is not null) throw new InvalidOperationException("Could not detach an owned controller; desktop lease transfer is paused until cleanup succeeds.", failure);
         }
     }
 

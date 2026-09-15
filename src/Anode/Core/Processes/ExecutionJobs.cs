@@ -9,6 +9,7 @@ internal sealed class ExecutionJobs : IDisposable
 {
     private sealed class Job : IDisposable
     {
+        public required string AgentId;
         public readonly string Id = "j_" + Guid.NewGuid().ToString("N");
         public readonly DateTime Started = DateTime.UtcNow;
         public readonly ExecutionOutput Output = new();
@@ -40,16 +41,17 @@ internal sealed class ExecutionJobs : IDisposable
     private bool _disposed;
     public ExecutionJobs(Func<ProcessStartInfo>? workerInfo = null) => _workerInfo = workerInfo ?? (() => new ProcessStartInfo(Env.ExecutablePath, "__exec-worker"));
 
-    public async Task<JsonObject> StartAsync(JsonObject request, CancellationToken cancel = default)
+    public async Task<JsonObject> StartAsync(JsonObject request, string agentId, CancellationToken cancel = default)
     {
+        if (!Agents.AgentAccess.ValidId(agentId)) throw new ArgumentException("A valid agentId is required for execution jobs.");
         if (Mcp.Tools.ValidateArguments("seat_exec", request) is { } error) throw new ArgumentException(error);
         if (Core.Steam.Steam.DirectLaunchFailure(request.Str("path")!, Session.ChildSession.CurrentSessionId()) is { } blocked)
             throw new InvalidOperationException(blocked);
-        var job = new Job();
+        var job = new Job { AgentId = agentId };
         lock (_gate)
         {
             if (_disposed) throw new ObjectDisposedException(nameof(ExecutionJobs));
-            if (_jobs.Values.Count(j => !j.Done.Task.IsCompleted) >= 8) throw new InvalidOperationException("Eight commands are already running. Finish or cancel one first.");
+            if (_jobs.Values.Count(j => !j.Done.Task.IsCompleted) >= 8) throw new InvalidOperationException("Eight commands are already running in this shared seat. Wait, or finish/cancel one of your own jobs.");
             while (_jobs.Count >= 32)
             {
                 var old = _jobs.Values.Where(j => j.Done.Task.IsCompleted).MinBy(j => j.Started)!;
@@ -61,7 +63,7 @@ internal sealed class ExecutionJobs : IDisposable
         // Supervision outlives this client call. Client cancellation never replays or
         // implicitly cancels an already started command; use the returned job ID.
         _ = SuperviseAsync(job, (JsonObject)request.DeepClone());
-        return await ReadAsync(new JsonObject { ["jobId"] = job.Id, ["waitMs"] = request.Int("waitMs") ?? 1000 }, cancel);
+        return await ReadAsync(new JsonObject { ["jobId"] = job.Id, ["waitMs"] = request.Int("waitMs") ?? 1000 }, agentId, cancel);
     }
 
     private async Task SuperviseAsync(Job job, JsonObject request)
@@ -75,6 +77,8 @@ internal sealed class ExecutionJobs : IDisposable
             info.CreateNoWindow = true;
             info.WindowStyle = ProcessWindowStyle.Hidden;
             info.RedirectStandardInput = info.RedirectStandardOutput = info.RedirectStandardError = true;
+            info.Environment["ANODE_AGENT_ID"] = job.AgentId;
+            info.Environment.Remove("ANODE_LEASE_TOKEN");
             if (request.Str("cwd") is { } cwd) info.WorkingDirectory = cwd;
             job.Owner = new ExecutionJobObject();
             job.Worker = Process.Start(info) ?? throw new InvalidOperationException("Execution worker could not start.");
@@ -120,22 +124,24 @@ internal sealed class ExecutionJobs : IDisposable
         while ((count = await reader.ReadAsync(buffer).ConfigureAwait(false)) > 0) output.Append(channel, new string(buffer, 0, count));
     }
 
-    public async Task<JsonObject> ReadAsync(JsonObject request, CancellationToken cancel = default)
+    public async Task<JsonObject> ReadAsync(JsonObject request, string agentId, CancellationToken cancel = default)
     {
+        if (!Agents.AgentAccess.ValidId(agentId)) throw new ArgumentException("A valid agentId is required for execution jobs.");
         if (Mcp.Tools.ValidateArguments("seat_job", request) is { } error) throw new ArgumentException(error);
         if (request.Str("action") == "list")
         {
             var items = new JsonArray();
             lock (_gate)
-                foreach (var item in _jobs.Values.OrderBy(j => j.Started))
-                    lock (item.Gate) items.Add(new JsonObject { ["jobId"] = item.Id, ["state"] = item.State,
+                foreach (var item in _jobs.Values.Where(j => j.AgentId == agentId).OrderBy(j => j.Started))
+                    lock (item.Gate) items.Add(new JsonObject { ["jobId"] = item.Id, ["agentId"] = item.AgentId, ["state"] = item.State,
                         ["finished"] = item.Done.Task.IsCompleted, ["exitCode"] = item.ExitCode, ["startedUtc"] = item.Started.ToString("O") });
             return new JsonObject { ["jobs"] = items, ["summary"] = items.Count == 0 ? "No execution jobs in this seat host."
                 : string.Join("\n", items.OfType<JsonObject>().Select(j => $"{j.Str("jobId")}: {j.Str("state")}, started {j.Str("startedUtc")}")) };
         }
         Job job;
         lock (_gate)
-            if (!_jobs.TryGetValue(request.Str("jobId")!, out job!)) throw new InvalidOperationException("Unknown jobId. Execution jobs belong to the current seat host and only the latest 32 are retained.");
+            if (!_jobs.TryGetValue(request.Str("jobId")!, out job!) || job.AgentId != agentId)
+                throw new InvalidOperationException("Unknown jobId for this agent. Use the original agentId; only the latest 32 jobs in this seat host are retained.");
         job.Output.Read(request.Str("after"), 0); // Reject a future cursor before cancellation or waiting.
         if (request.Str("action") == "cancel") job.Stop("cancelled");
         int wait = request.Int("waitMs") ?? 0;
@@ -145,6 +151,7 @@ internal sealed class ExecutionJobs : IDisposable
         lock (job.Gate)
         {
             result["jobId"] = job.Id;
+            result["agentId"] = job.AgentId;
             result["state"] = job.State;
             result["finished"] = job.Done.Task.IsCompleted;
             result["workerPid"] = job.WorkerPid;
@@ -161,6 +168,16 @@ internal sealed class ExecutionJobs : IDisposable
             + (result.Str("error") is { Length: > 0 } failure ? "\n" + Printable(failure) : "");
         return result;
     }
+    public int CancelOwned(string agentId)
+    {
+        int count = 0;
+        lock (_gate)
+            foreach (var job in _jobs.Values.Where(j => j.AgentId == agentId))
+                lock (job.Gate)
+                    if (job.State == "running") { job.Stop("cancelled"); count++; }
+        return count;
+    }
+
     public void Dispose()
     {
         lock (_gate)

@@ -11,6 +11,7 @@ internal sealed class DesktopTools
     private readonly Func<JsonObject, CancellationToken, Task<JsonObject>> _worker;
     public DesktopTools(Func<JsonObject, CancellationToken, Task<JsonObject>>? worker = null) => _worker = worker ?? DesktopWorker.CallAsync;
     public void InvalidateObservations() => _references.InvalidateObservations();
+    public void InvalidateLease() => _references.Clear();
 
     public static string? ToolName(string op) => op switch
     {
@@ -21,8 +22,7 @@ internal sealed class DesktopTools
 
     public async Task<JsonObject> HandleAsync(string op, JsonObject arguments, CancellationToken cancel = default)
     {
-        var args = (JsonObject)arguments.DeepClone();
-        args.Remove("op"); args.Remove("id"); args.Remove("timeoutMs");
+        var args = Core.Agents.AgentAccess.Arguments(arguments);
         string tool = ToolName(op) ?? throw new ArgumentException("Unknown desktop operation.");
         if (Mcp.Tools.ValidateArguments(tool, args) is { } error) return JsonLine.Fail(error);
         if (op == "desktop.wait") return await DesktopWait.RunAsync(args, (r, token) => HandleAsync("desktop.observe", r, token), cancel).ConfigureAwait(false);

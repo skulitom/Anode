@@ -18,6 +18,8 @@ function Call-Anode([string[]]$Arguments) {
 function Assert-That($Condition, [string]$Message) { if (-not $Condition) { throw $Message } }
 $status = Call-Anode @('status', '--json')
 Assert-That ($status.state -eq 'ready' -and $status.session -ne $status.parentSession) 'An existing verified seat is required.'
+# The caller supplies an existing lease; never acquire/start a seat from this opt-in test.
+$null = Call-Anode @('lease', 'renew', '--ttl', '600')
 $launched = Call-Anode @('run', $Anode, '__desktop-fixture')
 $fixturePid = [int]$launched.pid
 Assert-That ($launched.session -eq $status.session) 'Fixture launched in the wrong session.'

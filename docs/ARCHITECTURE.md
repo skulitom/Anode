@@ -113,6 +113,13 @@ end on purpose.
 
 ## Transport
 
+Multiple clients share the seat through an exclusive desktop lease. The seat host validates
+the agent and token before queueing and again immediately before desktop dispatch. Expiry cannot
+transfer control while an admitted action is still running. Release/expiry invalidate references
+and clear held input/controllers. Lease management and owned job reads use independent daemon-to-host
+connections so they do not wait behind long desktop actions. Stop keeps its separate lifecycle path.
+See [multiple agents](MULTI-AGENT.md) for recovery, cleanup and the trust model.
+
 Newline-delimited JSON over named pipes, request then response, on one connection. Two hops:
 CLI or MCP to daemon over `anode-control`, daemon to seat host over `anode-seat`. Named pipes are
 machine-global. Clients and servers use `PipeOptions.CurrentUserOnly`, restricting

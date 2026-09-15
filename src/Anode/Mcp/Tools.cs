@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using System.Text.Json;
 using Anode.Core.Bridge;
+using Anode.Core.Agents;
 
 namespace Anode.Mcp;
 
@@ -17,6 +18,18 @@ internal static class Tools
 
     private static readonly Tool[] All =
     {
+        new("seat_lease", "lease", false,
+            "Coordinate agents sharing one desktop. action=acquire starts a hidden seat if needed and grants exclusive desktop use; "
+            + "the MCP server remembers the returned token and supplies it on desktop calls. Acquire before observe/act/verify. "
+            + "action=renew extends a live lease; renew before expiry, including while thinking between calls. "
+            + "action=release gives up the desktop and optionally cancels only your command jobs. status is read-only and never starts a seat. "
+            + "If busy, wait and retry acquisition. After expiry or reacquisition, get fresh windows/observations. "
+            + "Disconnect does not release a lease or stop jobs: the lease expires, and a stable ANODE_AGENT_ID allows recovery. "
+            + "Ownership coordinates trusted agents under the same Windows account; it does not isolate files or applications.",
+            Schema(("action", "string", "status (default), acquire, renew, or release.", false),
+                ("ttlSeconds", "integer", "Lease lifetime, 10-600 seconds; default 120. Only acquire/renew.", false),
+                ("cancelJobs", "boolean", "Cancel your running command jobs on release. Default false; only release.", false))),
+
         new("anode_guide", "local.guide", false,
             "Learn when to prefer Anode for background Windows desktop automation, native GUI work and headed app/browser testing. "
             + "Returns tool-selection guidance, workflows and limitations. Works before machine setup, never starts a seat, "
@@ -39,7 +52,7 @@ internal static class Tools
         new("seat_job", "exec.read", false,
             "Read one Anode execution job's output and exit code, or cancel only that job and its descendants. "
             + "Pass the returned cursor as after to avoid repeated output. Truncation is explicit. A disconnected MCP client does not stop a job. "
-            + "Only jobs owned by the current seat host are available; retain full logs in a file when needed.",
+            + "Only this agent's jobs in the current seat host are available. Set a stable ANODE_AGENT_ID to recover after MCP restart; retain full logs in a file when needed.",
             Schema(("jobId", "string", "Job ID returned by seat_exec. Omit only for action=list.", false),
                 ("action", "string", "read (default), cancel, or list to recover job IDs after an interrupted start.", false),
                 ("after", "string", "Output cursor from the preceding read of this job. Default 0.", false),
@@ -282,7 +295,9 @@ internal static class Tools
                     "seat_exec" => "Anode: run a command job in the background session",
                     _ => "Anode: " + tool.Name.Replace('_', ' ')
                 },
-                ["description"] = tool.Description + (tool.StartsDaemon ? " Starts a hidden seat if needed." : ""),
+                ["description"] = tool.Description
+                    + (AgentAccess.RequiresLease(tool.Op) ? " Requires your active desktop lease; call seat_lease action=acquire first."
+                        : tool.StartsDaemon ? " Starts a hidden seat if needed." : ""),
                 ["inputSchema"] = tool.Schema.DeepClone(),
                 // Live tools may create a session or drive arbitrary applications. Do not
                 // advertise them as harmless reads merely because their main job is capture.
@@ -315,6 +330,14 @@ internal static class Tools
         var tool = All.First(t => t.Name == name);
         if (ValidateValue(arguments, tool.Schema, "arguments") is { } error) return error;
         bool Has(string field) => arguments.ContainsKey(field);
+        if (name == "seat_lease")
+        {
+            string action = arguments.Str("action") ?? "status";
+            if (action is not "status" and not "acquire" and not "renew" and not "release") return "action must be status, acquire, renew or release.";
+            if (Has("ttlSeconds") && (action is not "acquire" and not "renew" || arguments.Int("ttlSeconds") is < 10 or > 600))
+                return "ttlSeconds must be 10-600 and is only allowed for acquire/renew.";
+            if (Has("cancelJobs") && action != "release") return "cancelJobs is only allowed for release.";
+        }
         if (name == "seat_exec")
         {
             if (string.IsNullOrWhiteSpace(arguments["path"]!.GetValue<string>()) || arguments.Str("path")!.Contains('\0')) return "path must name an executable without null characters.";
@@ -376,6 +399,12 @@ internal static class Tools
             if (arguments["amount"] is { } amount && !new[] { "small", "large" }.Contains(amount.GetValue<string>())) return "Invalid scroll amount.";
         }
         return null;
+    }
+
+    internal static string? ValidateOperation(string op, JsonObject arguments)
+    {
+        var tool = All.FirstOrDefault(t => t.Op == op);
+        return tool is null ? null : ValidateArguments(tool.Name, arguments);
     }
 
     private static string? ValidateValue(JsonNode? value, JsonObject schema, string path)

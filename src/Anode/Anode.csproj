@@ -32,8 +32,8 @@
 
   <ItemGroup>
     <EmbeddedResource Include="..\..\skills\anode-desktop\SKILL.md" LogicalName="Anode.AgentSkill" />
-    <Content Include="..\..\skills\anode-desktop\**\*" Link="skills\anode-desktop\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="..\..\scripts\connect-agents.ps1" Link="connect-agents.ps1" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\skills\anode-desktop\**\*" Link="skills\anode-desktop\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    <Content Include="..\..\scripts\connect-agents.ps1" Link="connect-agents.ps1" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
     <!-- WPF supplies UI Automation and the opt-in interoperability test fixture. -->
     <Using Include="System.IO" />
     <PackageReference Include="Nefarius.ViGEm.Client" Version="1.21.256" />

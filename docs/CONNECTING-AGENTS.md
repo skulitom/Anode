@@ -159,6 +159,9 @@ The `anode` MCP server gives you a seat: a second Windows session with its own s
 keyboard focus. Apps share the user's profile, and virtual gamepads are machine-wide.
 
 - Call `seat_status` first. If there is no seat, call `seat_start`.
+- Acquire with `seat_lease {action: "acquire"}` before desktop work; renew before expiry and
+  release after fixture cleanup. MCP supplies its identity/token automatically. Configure a
+  unique `ANODE_AGENT_ID` per independent agent for restart recovery. See [multiple agents](MULTI-AGENT.md).
   Use `seat_capabilities` to probe actual screenshot availability.
 - Use `seat_exec` with an absolute cwd for builds, test runners and development servers.
   Read/cancel through `seat_job`; save its cursor for incremental output. Use action=list

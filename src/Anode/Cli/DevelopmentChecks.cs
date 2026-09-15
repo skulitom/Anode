@@ -60,32 +60,50 @@ internal static class DevelopmentChecks
         }
         using (var jobs = new ExecutionJobs(() => Worker("[Console]::Out.Write('hello'); [Console]::Error.Write('problem'); exit 7")))
         {
-            var done = await jobs.StartAsync(new JsonObject { ["path"] = "unused-test-command", ["waitMs"] = 10000 });
+            var done = await jobs.StartAsync(new JsonObject { ["path"] = "unused-test-command", ["waitMs"] = 10000 }, "test-agent");
             Require(done.Bool("finished") == true && done.Int("exitCode") == 7 && done.Str("stdout") == "hello" && done.Str("stderr") == "problem", "exit code or streams missing: " + done);
-            var listed = await jobs.ReadAsync(new JsonObject { ["action"] = "list" });
+            var listed = await jobs.ReadAsync(new JsonObject { ["action"] = "list" }, "test-agent");
             Require(listed["jobs"] is JsonArray { Count: 1 }, "interrupted-call job recovery unavailable");
         }
         using (var jobs = new ExecutionJobs(() => Worker("Start-Sleep -Seconds 30")))
         {
-            var done = await jobs.StartAsync(new JsonObject { ["path"] = "unused-test-command", ["executionTimeoutMs"] = 500, ["waitMs"] = 5000 });
+            var done = await jobs.StartAsync(new JsonObject { ["path"] = "unused-test-command", ["executionTimeoutMs"] = 500, ["waitMs"] = 5000 }, "test-agent");
             Require(done.Str("state") == "timed_out" && done.Bool("finished") == true, "hard lifetime did not stop the worker");
         }
         using (var jobs = new ExecutionJobs(() => Worker("$p = Start-Process powershell.exe -ArgumentList '-NoProfile -NonInteractive -Command Start-Sleep -Seconds 30' -WindowStyle Hidden -PassThru; [Console]::Out.WriteLine($p.Id); Start-Sleep -Seconds 30")))
         {
-            var started = await jobs.StartAsync(new JsonObject { ["path"] = "unused-test-command", ["waitMs"] = 2000 });
+            var started = await jobs.StartAsync(new JsonObject { ["path"] = "unused-test-command", ["waitMs"] = 2000 }, "test-agent");
             Require(int.TryParse(started.Str("stdout")?.Trim(), out int descendant), "descendant did not start");
             try
             {
-                await jobs.ReadAsync(new JsonObject { ["jobId"] = started.Str("jobId"), ["action"] = "cancel", ["after"] = "999999" });
+                await jobs.ReadAsync(new JsonObject { ["jobId"] = started.Str("jobId"), ["action"] = "cancel", ["after"] = "999999" }, "test-agent");
                 throw new InvalidOperationException("invalid cancellation cursor accepted");
             }
             catch (ArgumentException) { }
-            Require((await jobs.ReadAsync(new JsonObject { ["jobId"] = started.Str("jobId") })).Str("state") == "running", "invalid request cancelled a live job");
-            var stopped = await jobs.ReadAsync(new JsonObject { ["jobId"] = started.Str("jobId"), ["action"] = "cancel", ["waitMs"] = 5000 });
+            Require((await jobs.ReadAsync(new JsonObject { ["jobId"] = started.Str("jobId") }, "test-agent")).Str("state") == "running", "invalid request cancelled a live job");
+            var stopped = await jobs.ReadAsync(new JsonObject { ["jobId"] = started.Str("jobId"), ["action"] = "cancel", ["waitMs"] = 5000 }, "test-agent");
             Require(stopped.Str("state") == "cancelled" && stopped.Bool("finished") == true, "job cancellation did not finish");
             try { using var child = Process.GetProcessById(descendant); Require(child.HasExited || child.WaitForExit(2000), "descendant survived job cancellation"); } catch (ArgumentException) { }
         }
-        return "output/exit codes, job recovery, hard timeouts and cancellation of owned descendants";
+        using (var jobs = new ExecutionJobs(() => Worker("Start-Sleep -Seconds 30")))
+        {
+            var a = await jobs.StartAsync(new JsonObject { ["path"] = "unused-test-command", ["waitMs"] = 0 }, "A");
+            var b = await jobs.StartAsync(new JsonObject { ["path"] = "unused-test-command", ["waitMs"] = 0 }, "B");
+            var listed = await jobs.ReadAsync(new JsonObject { ["action"] = "list" }, "A");
+            Require(listed["jobs"] is JsonArray { Count: 1 } && listed["jobs"]![0]!["jobId"]!.GetValue<string>() == a.Str("jobId"), "job discovery leaked another agent's job");
+            foreach (string action in new[] { "read", "cancel" })
+            {
+                bool refused = false;
+                try { await jobs.ReadAsync(new JsonObject { ["jobId"] = b.Str("jobId"), ["action"] = action }, "A"); }
+                catch (InvalidOperationException) { refused = true; }
+                Require(refused, "another agent's job was readable or cancellable");
+            }
+            Require(jobs.CancelOwned("A") == 1, "owned cleanup missed a running job");
+            Require((await jobs.ReadAsync(new JsonObject { ["jobId"] = a.Str("jobId"), ["waitMs"] = 5000 }, "A")).Str("state") == "cancelled", "owned job survived cleanup");
+            Require((await jobs.ReadAsync(new JsonObject { ["jobId"] = b.Str("jobId") }, "B")).Str("state") == "running", "owned cleanup cancelled another agent's job");
+            await jobs.ReadAsync(new JsonObject { ["jobId"] = b.Str("jobId"), ["action"] = "cancel", ["waitMs"] = 5000 }, "B");
+        }
+        return "output/exit codes, recovery, hard timeouts, owner-only discovery/read/cancel and cleanup of owned descendants";
     }
     public static async Task<string> Waits()
     {

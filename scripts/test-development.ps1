@@ -24,6 +24,8 @@ function Invoke-AnodeJson([string[]]$Arguments, [int]$ExpectedExit = 0) {
     if ($LASTEXITCODE -ne $ExpectedExit) { throw "Anode $($Arguments[0]) exited $LASTEXITCODE (expected $ExpectedExit): $text" }
     $text | ConvertFrom-Json
 }
+# The caller supplies ANODE_AGENT_ID and ANODE_LEASE_TOKEN. Renewal never starts a seat.
+$null = Invoke-AnodeJson @('lease','renew','--ttl','600')
 function Assert-That($Condition, [string]$Message) { if (-not $Condition) { throw $Message } }
 $before = Invoke-AnodeJson @('status','--json')
 Assert-That ($before.state -eq 'ready' -and $before.session -ne $before.parentSession) 'An existing verified seat is required.'

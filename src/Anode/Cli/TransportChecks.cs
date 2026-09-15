@@ -223,16 +223,16 @@ internal static class TransportChecks
                 Require(replies[i].Int("id") == i && replies[i].Str("jsonrpc") == "2.0", "MCP reply lost its id or version");
             Require(replies[1].Obj("result")?.Obj("serverInfo")?.Str("name") == "anode", "MCP initialization failed");
             var listed = replies[2].Obj("result")?["tools"] as JsonArray;
-            Require(listed is { Count: 31 } && JsonNode.DeepEquals(replies[2]["result"], replies[3]["result"]), "MCP tool discovery is incomplete or unstable");
-            Require(listed!.OfType<JsonObject>().Select(t => t.Str("name")).Distinct().Count() == 31, "duplicate tool names");
-            foreach (string name in new[] { "seat_windows", "seat_observe", "seat_window", "seat_element", "seat_capabilities", "seat_exec", "seat_job", "seat_wait" })
+            Require(listed is { Count: 32 } && JsonNode.DeepEquals(replies[2]["result"], replies[3]["result"]), "MCP tool discovery is incomplete or unstable");
+            Require(listed!.OfType<JsonObject>().Select(t => t.Str("name")).Distinct().Count() == listed!.Count, "duplicate tool names");
+            foreach (string name in new[] { "seat_lease", "seat_windows", "seat_observe", "seat_window", "seat_element", "seat_capabilities", "seat_exec", "seat_job", "seat_wait" })
                 Require(listed!.OfType<JsonObject>().Any(tool => tool.Str("name") == name), $"Missing desktop tool {name}");
             Require(replies[4].Obj("result") is { Count: 0 }, "MCP ping failed");
             Require(replies[5].Obj("error")?.Int("code") == -32602, "unknown tool was not reported as a protocol error");
             Require(replies[6].Obj("error")?.Int("code") == -32601, "unknown method was not reported as an error");
             Require((replies[7].Obj("result")?["content"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault()?.Str("text") == Mcp.AgentGuide.Text,
                 "published MCP guide differs from the embedded skill");
-            return "initialize, 31 tools, embedded guide, notifications, ping, malformed JSON and errors over stdio";
+            return "initialize, 32 tools, embedded guide, notifications, ping, malformed JSON and errors over stdio";
         }
         finally
         {

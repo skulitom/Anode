@@ -42,6 +42,7 @@ internal sealed class DesktopReferences
     }
 
     public void InvalidateObservations() => _observations.Clear();
+    public void Clear() { _windows.Clear(); _observations.Clear(); }
 
     private void Prune<T>(Dictionary<string, Entry<T>> entries, int limit)
     {

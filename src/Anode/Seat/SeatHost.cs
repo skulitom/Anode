@@ -8,6 +8,7 @@ using Anode.Core.Processes;
 using Anode.Core.Session;
 using Anode.Core.Util;
 using Anode.Core.Desktop;
+using Anode.Core.Agents;
 
 namespace Anode.Seat;
 
@@ -31,7 +32,7 @@ internal static class SeatHost
     private static readonly Stopwatch Uptime = Stopwatch.StartNew();
     private static readonly DesktopTools Desktop = new();
     private static readonly ExecutionJobs Jobs = new();
-    private static readonly SemaphoreSlim InteractionGate = new(1, 1);
+    private static readonly DesktopLease Lease = new(EndLease, Jobs.CancelOwned);
     private static readonly CancellationTokenSource DesktopStopping = new();
 
     public static int Run()
@@ -57,6 +58,11 @@ internal static class SeatHost
 
         using var server = new JsonPipeServer(Env.SeatPipe, HandleAsync);
         server.Start();
+        using var expiry = new System.Threading.Timer(_ =>
+        {
+            try { Lease.ExpireIdle(); }
+            catch (Exception ex) { Log.Error("lease cleanup failed; desktop transfer remains blocked", ex); }
+        }, null, 1000, 1000);
         Log.Info($"seat host listening on \\\\.\\pipe\\{Env.SeatPipe}");
 
         AppDomain.CurrentDomain.ProcessExit += (_, _) => { Jobs.Dispose(); Gamepads.Dispose(); };
@@ -77,6 +83,13 @@ internal static class SeatHost
             throw new InvalidOperationException($"Refusing desktop access: the parent daemon did not verify session {session} as its child.");
     }
 
+    private static void EndLease()
+    {
+        Desktop.InvalidateLease();
+        InputInjector.ReleaseHeld();
+        Gamepads.DetachAll(requireSuccess: true);
+    }
+
     internal static bool MatchesSeat(uint session, JsonObject? identity)
     {
         var result = identity?.Obj("result");
@@ -87,30 +100,33 @@ internal static class SeatHost
             && parent != (int)session;
     }
 
-    private static async Task<JsonObject> HandleAsync(JsonObject request)
+    private static Task<JsonObject> HandleAsync(JsonObject request)
+    {
+        // Emergency shutdown remains independent of desktop ownership and the interaction queue.
+        if (request.Str("op") == "shutdown")
+        {
+            DesktopStopping.Cancel(); Jobs.Dispose();
+            return Task.FromResult(Dispatch("shutdown", request));
+        }
+        return Lease.HandleAsync(request, HandleOwnedAsync, DesktopStopping.Token);
+    }
+
+    private static async Task<JsonObject> HandleOwnedAsync(JsonObject request, CancellationToken cancel)
     {
         string op = request.Str("op") ?? string.Empty;
-        if (op == "shutdown") { DesktopStopping.Cancel(); Jobs.Dispose(); }
         if (op is "exec.start" or "exec.read")
         {
-            var args = (JsonObject)request.DeepClone();
-            args.Remove("op"); args.Remove("id"); args.Remove("timeoutMs");
-            if (op == "exec.read") return JsonLine.Ok(await Jobs.ReadAsync(args, DesktopStopping.Token).ConfigureAwait(false));
-            if (Mcp.Tools.ValidateArguments("seat_exec", args) is { } error) return JsonLine.Fail(error);
-            await InteractionGate.WaitAsync(DesktopStopping.Token).ConfigureAwait(false);
-            try { Desktop.InvalidateObservations(); return JsonLine.Ok(await Jobs.StartAsync(args, DesktopStopping.Token).ConfigureAwait(false)); }
-            finally { InteractionGate.Release(); }
+            var args = AgentAccess.Arguments(request);
+            string owner = request.Str("agentId")!;
+            if (op == "exec.read") return JsonLine.Ok(await Jobs.ReadAsync(args, owner, cancel).ConfigureAwait(false));
+            Desktop.InvalidateObservations();
+            return JsonLine.Ok(await Jobs.StartAsync(args, owner, cancel).ConfigureAwait(false));
         }
         bool desktop = DesktopTools.ToolName(op) is not null;
         bool changesUi = op.StartsWith("input.", StringComparison.Ordinal) || op is "run" or "steam.launch" or "ps.kill";
         if (!desktop && !changesUi) return Dispatch(op, request);
-        await InteractionGate.WaitAsync(DesktopStopping.Token).ConfigureAwait(false);
-        try
-        {
-            if (changesUi) Desktop.InvalidateObservations();
-            return desktop ? await Desktop.HandleAsync(op, request, DesktopStopping.Token).ConfigureAwait(false) : Dispatch(op, request);
-        }
-        finally { InteractionGate.Release(); }
+        if (changesUi) Desktop.InvalidateObservations();
+        return desktop ? await Desktop.HandleAsync(op, request, cancel).ConfigureAwait(false) : Dispatch(op, request);
     }
 
     private static JsonObject Dispatch(string op, JsonObject r)
@@ -342,7 +358,7 @@ internal static class SeatHost
 
         using var started = (launch ?? Process.Start)(info);
         Log.Info($"seat launched: {path}");
-        return JsonLine.Ok(new JsonObject { ["pid"] = started?.Id, ["path"] = path, ["session"] = session });
+        return JsonLine.Ok(new JsonObject { ["pid"] = started?.Id, ["path"] = path, ["session"] = session, ["agentId"] = request.Str("agentId") });
     }
 
     private static string SafeWorkingDirectory(string path)

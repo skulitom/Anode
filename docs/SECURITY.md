@@ -119,6 +119,12 @@ cannot reach across and kill something of yours.
 
 ## Running an agent in the seat
 
+Desktop leases coordinate agents sharing one Windows identity; agent IDs are cooperative labels,
+not authenticated principals. A same-user program can impersonate an ID or use native Windows APIs.
+Lease ownership does not restrict filesystem/network access or autonomous application behavior.
+Command job APIs enforce their recorded agent ID for discovery, reads and cancellation. See
+[multiple agents](MULTI-AGENT.md) for scope and emergency Stop behavior.
+
 `seat_exec` adds noninteractive command execution with captured output. The command runs as the
 seat user, with inherited environment and shared files/network access. A Windows job owns only its
 new worker and descendants, with hard lifetime/output limits. Output may contain application secrets;

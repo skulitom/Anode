@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using Anode.Core.Bridge;
 using Anode.Core.Launch;
 using Anode.Core.Util;
+using Anode.Core.Agents;
 
 namespace Anode.Mcp;
 
@@ -21,23 +22,26 @@ internal sealed class McpServer : IDisposable
     private JsonPipeClient? _daemon;
     private string? _blockedReason;
     private bool _launchPending;
+    private readonly string _agentId;
+    private string? _leaseToken;
     private readonly string _controlPipe;
     private readonly Action _launchDaemon;
     private readonly Func<string?> _blockingSummary;
     private readonly SemaphoreSlim ConnectGate = new(1, 1);
 
-    internal McpServer(string controlPipe = Env.ControlPipe, Action? launchDaemon = null, Func<string?>? blockingSummary = null)
+    internal McpServer(string controlPipe = Env.ControlPipe, Action? launchDaemon = null, Func<string?>? blockingSummary = null, string? agentId = null)
     {
         _controlPipe = controlPipe;
         _launchDaemon = launchDaemon ?? (() => DaemonLauncher.Launch(new[] { "--hidden" }));
         _blockingSummary = blockingSummary ?? Core.Session.Preconditions.BlockingSummary;
+        _agentId = agentId ?? Environment.GetEnvironmentVariable("ANODE_AGENT_ID") ?? "a_" + Guid.NewGuid().ToString("N");
     }
 
-    public static async Task<int> Run()
+    public static async Task<int> Run(string? agentId = null)
     {
         Log.SetRole("mcp");
         Log.Info("MCP server starting");
-        using var server = new McpServer();
+        using var server = new McpServer(agentId: agentId);
         using var stdin = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false));
         using var stdout = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true };
         try { await new McpSession(server.CallAsync).RunAsync(stdin, stdout).ConfigureAwait(false); }
@@ -54,15 +58,22 @@ internal sealed class McpServer : IDisposable
             return TextResult($"Unknown tool '{toolName}'.", isError: true);
 
         if (toolName == "anode_guide") return TextResult(AgentGuide.Text);
+        if (Tools.ValidateArguments(toolName, arguments) is { } invalid) return TextResult(invalid, true);
         if (toolName == "seat_stop") return await StopAsync(arguments, cancel).ConfigureAwait(false);
+        var payload = AgentAccess.Attach(arguments, _agentId, _leaseToken);
+        payload["op"] = op;
+        if (AgentAccess.Validate(payload) is { } invalidOwner) return TextResult(invalidOwner, true);
+        payload.Remove("op");
+        if (toolName == "seat_lease") startsDaemon = arguments.Str("action") == "acquire";
         var client = await DaemonAsync(startsDaemon, cancel).ConfigureAwait(false);
         if (client is null)
         {
-            if (toolName == "seat_status")
+            if (toolName == "seat_status" || toolName == "seat_lease" && (arguments.Str("action") ?? "status") == "status")
             {
                 var status = new JsonObject
                 {
-                    ["state"] = "stopped", ["daemonRunning"] = false,
+                    ["state"] = "stopped", ["daemonRunning"] = false, ["agentId"] = _agentId,
+                    ["ownerAgentId"] = null,
                     ["summary"] = "Anode is not running. Call seat_start when the task needs a background desktop."
                 };
                 var reply = TextResult(status.ToJsonString());
@@ -78,13 +89,24 @@ internal sealed class McpServer : IDisposable
             return TextResult(reason, isError: true);
         }
 
-        int timeout = toolName is "steam_launch" or "seat_start" ? 180_000 : 60_000;
-        var response = await client.RequestAsync(op, arguments, timeout, cancel).ConfigureAwait(false);
+        int timeout = toolName is "steam_launch" or "seat_start" || toolName == "seat_lease" && arguments.Str("action") == "acquire" ? 180_000 : 60_000;
+        var response = await client.RequestAsync(op, payload, timeout, cancel).ConfigureAwait(false);
 
         if (response.Bool("ok") != true)
-            return TextResult(response.Str("error") ?? "The request failed.", isError: true);
+        {
+            if (response.Str("errorCode") is "lease_expired" or "stale_lease") _leaseToken = null;
+            var error = TextResult(response.Str("error") ?? "The request failed.", isError: true);
+            error["structuredContent"] = response.DeepClone();
+            return error;
+        }
 
         var result = response.Obj("result");
+        if (toolName == "seat_lease")
+        {
+            if (arguments.Str("action") is "acquire" or "renew") _leaseToken = result?.Str("leaseToken");
+            if (arguments.Str("action") == "release") _leaseToken = null;
+        }
+        if (toolName == "seat_status" && result is not null) result["agentId"] = _agentId;
 
         if (result?.Str("summary") is not null)
         {
@@ -190,6 +212,7 @@ internal sealed class McpServer : IDisposable
                     : "Anode is not running; there is no seat to stop.", _launchPending);
             _launchPending = false;
             var response = await client.RequestAsync("seat.stop", arguments, 60_000, cancel).ConfigureAwait(false);
+            if (response.Bool("ok") == true) _leaseToken = null;
             return response.Bool("ok") == true
                 ? TextResult(response.Obj("result")?.ToJsonString() ?? "ok")
                 : TextResult(response.Str("error") ?? "Could not stop the seat.", true);

@@ -26,3 +26,4 @@ machine setup or starting a seat. `seat_status` checks availability without star
 - [Development testing](https://github.com/skulitom/Anode/blob/main/docs/DEVELOPMENT-TESTING.md): native/browser tests and jobs.
 - [Troubleshooting](https://github.com/skulitom/Anode/blob/main/docs/TROUBLESHOOTING.md): readiness, capture and input blockers.
 - [Security](https://github.com/skulitom/Anode/blob/main/docs/SECURITY.md): shared state, machine settings and stopping.
+- [Multiple agents and desktop leases](https://github.com/skulitom/Anode/blob/main/docs/MULTI-AGENT.md): acquire/renew/release, agent identities, ownership and restart recovery.

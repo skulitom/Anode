@@ -16,12 +16,14 @@ Anode runs applications in a Windows child session and exposes them through a CL
 
 - **Develop and test apps:** run builds and local servers, collect command output, inspect native
   controls, test browser forms and capture screenshots in the background desktop.
-- **Give an agent a desktop:** 31 MCP tools for guidance, screenshots, mouse/keyboard input, accessibility,
+- **Give an agent a desktop:** 32 MCP tools for guidance, screenshots, mouse/keyboard input, accessibility,
   UI waits, application launches and cancellable command jobs.
 - **Watch when you want:** show the viewer with `anode show`; use `anode hide` to keep working.
 - **Stop the seat:** press **Ctrl+Alt+Shift+K** or run `anode kill`. This signs the child session out
   and closes every application in it, including unsaved work.
 - **Automate games:** optional virtual Xbox 360 controller support through ViGEmBus.
+- **Coordinate several agents:** exclusive desktop leases and command jobs scoped to each agent.
+  Agents share one seat and take turns; see [multiple agents](docs/MULTI-AGENT.md).
 
 A child session has its own pointer and focus; adding a virtual monitor to your current session
 does not. The seat runs as your Windows user and shares your files, account and network.
@@ -89,9 +91,14 @@ Then ask your agent:
 Or work through the CLI:
 
 ```powershell
+$env:ANODE_AGENT_ID = 'my-cli-task'
+$lease = anode lease acquire | Out-String | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0) { throw 'Desktop acquisition failed.' }
+$env:ANODE_LEASE_TOKEN = $lease.leaseToken
 anode exec --cwd C:\project --wait 1000 -- dotnet build | Out-Host
 anode windows | Out-Host
 anode shot seat.png | Out-Host
+anode lease release | Out-Host
 ```
 
 PowerShell users: piping to `Out-Host` makes PowerShell wait for this GUI executable and display
@@ -105,6 +112,7 @@ is unnecessary. The bundled skill explains these choices and how to observe, act
 
 Call `anode_guide` or run `anode guide --json` for setup-free guidance. `seat_status` checks
 availability without starting anything; `seat_start` starts a hidden desktop when needed.
+Acquire with `seat_lease` before desktop work, renew before expiry, and release when finished.
 See [the agent guide](docs/FOR-AGENTS.md), [portable skill](skills/anode-desktop/SKILL.md)
 and [llms.txt documentation index](llms.txt).
 
@@ -114,6 +122,7 @@ and [llms.txt documentation index](llms.txt).
 | --- | --- |
 | Install, update or uninstall | [Installation guide](docs/INSTALL.md) |
 | Connect Codex, Claude Code or another MCP client | [Connecting agents](docs/CONNECTING-AGENTS.md) |
+| Share the desktop between agents | [Multiple agents and leases](docs/MULTI-AGENT.md) |
 | Help an agent discover and choose Anode | [Agent guide](docs/FOR-AGENTS.md) |
 | Run apps, control the viewer or use a gamepad | [Usage guide](docs/USAGE.md) |
 | Test native apps and browsers | [Development and testing](docs/DEVELOPMENT-TESTING.md) |

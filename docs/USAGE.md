@@ -2,6 +2,11 @@
 
 Start with [installation](INSTALL.md) and [agent configuration](CONNECTING-AGENTS.md).
 
+Before the desktop commands below, [acquire a desktop lease](MULTI-AGENT.md#cli-workflow)
+and set `ANODE_AGENT_ID` / `ANODE_LEASE_TOKEN`. Renew before expiry and release when finished.
+Job reads/cancellation require the original agent ID. Opt-in live scripts require an existing
+lease and renew it for their test; they do not acquire or start a seat themselves.
+
 ## Develop and test applications
 
 Run builds, test runners and local servers with `exec`, then read incremental output with `job`.
@@ -169,7 +174,7 @@ stops.
 ## For agents: the MCP server
 
 Run `anode configure` to register installed Codex and Claude Code CLIs.
-See [Connecting agents](CONNECTING-AGENTS.md) and the [protocol reference](PROTOCOL.md) for configuration and all 31 tools.
+See [Connecting agents](CONNECTING-AGENTS.md) and the [protocol reference](PROTOCOL.md) for configuration and all 32 tools.
 
 ## How it works
 

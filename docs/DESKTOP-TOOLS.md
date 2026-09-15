@@ -1,5 +1,9 @@
 # Inspect and control the background desktop
 
+Before desktop work, [acquire a desktop lease](MULTI-AGENT.md) and renew it before expiry.
+CLI examples require ANODE_AGENT_ID and ANODE_LEASE_TOKEN; MCP supplies both after acquisition.
+Opt-in live scripts require an existing lease and renew it for the test. Release after cleanup.
+
 Anode can enumerate windows, read accessible controls and text, and act on those
 controls inside the verified child session. This works through the CLI and MCP
 without a computer-use overlay on your main desktop.

@@ -79,12 +79,14 @@ source. It never edits global `AGENTS.md`, `CLAUDE.md`, tool allowlists or appro
 
 For an authorized request to test a native app:
 
-1. `seat_status`, then `seat_start` if stopped.
+1. `seat_status`, then `seat_lease {action: "acquire"}`. Acquisition starts a hidden seat if needed;
+   wait if another agent owns it. Renew before expiry; MCP remembers the identity/token.
 2. `seat_capabilities` to check actual capture/input blockers.
 3. `seat_run` to launch an owned fixture; `seat_windows` to locate its actual window.
 4. `seat_observe` to discover controls; `seat_element` with a fresh snapshot for offered actions.
 5. `seat_wait` for the resulting state, or a fresh screenshot when pixels matter.
-6. Close the owned fixture. Keep unrelated apps and jobs running.
+6. Close the owned fixture and release with `seat_lease {action: "release"}`. Keep unrelated apps
+   and jobs running; `cancelJobs: true` requests cancellation only for your command jobs.
 
 For delayed UI, use waits. For builds/servers, save command job IDs and read incremental output.
 For visual-only controls, use a fresh screenshot and original-screen coordinates. Keep the viewer

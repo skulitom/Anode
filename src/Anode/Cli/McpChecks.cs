@@ -208,6 +208,7 @@ internal static class McpChecks
         string pipeName = $"anode-selftest-{Guid.NewGuid():N}";
         using var daemon = new JsonPipeServer(pipeName, async request =>
         {
+            if (request.Str("op") == "lease") return JsonLine.Ok(new JsonObject { ["leaseToken"] = "busy-test-token" });
             if (request.Str("op") == "input.text")
             {
                 entered.TrySetResult();
@@ -217,6 +218,7 @@ internal static class McpChecks
         });
         daemon.Start();
         using var backend = new McpServer(pipeName);
+        await backend.CallAsync("seat_lease", new JsonObject { ["action"] = "acquire" }, CancellationToken.None);
         var session = new McpSession(backend.CallAsync);
         using var input = new Input();
         using var output = new Output();

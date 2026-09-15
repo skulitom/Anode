@@ -11,7 +11,7 @@ response object per line, in order, on a single connection. No framing headers, 
 **Request**
 
 ```json
-{"op": "input.click", "id": 7, "x": 640, "y": 400, "button": "left"}
+{"op": "input.click", "id": 7, "agentId": "agent-1", "leaseToken": "l_RETURNED_TOKEN", "x": 640, "y": 400, "button": "left"}
 ```
 
 `op` is required. `id` is optional and echoed back. Everything else is the operation's arguments,
@@ -19,6 +19,11 @@ flat on the same object. `timeoutMs` on a request bound for the seat overrides t
 60 second forwarding timeout. Client deadlines include queueing, writing and reading. A timeout
 after sending closes that connection, because a late reply must not become the next command's
 result. Reconnect for subsequent requests; a timed-out command may already have executed.
+
+Desktop operations additionally require an `agentId` and live `leaseToken`, acquired through
+`lease` with `action: "acquire"`. `lease` also supports `status`, `renew` and `release`, with
+`ttlSeconds` (10-600, default 120) on acquire/renew and `cancelJobs` on release. Owned job reads
+require `agentId` but no lease. See [the full ownership protocol](MULTI-AGENT.md).
 
 **Response**
 
@@ -229,7 +234,9 @@ maps to exactly one `op`, so there is no second implementation to keep in step.
 | `seat_window` | `desktop.window` | `seat_element` | `desktop.element` |
 | | | `gamepad_reset` | `gamepad.reset` |
 
-There are 31 tools. `anode_guide` returns the embedded operating guide locally, without a daemon,
+There are 32 tools. `seat_lease` maps to `lease`; acquisition can start a hidden seat, while its
+status, renewal and release do not start one. MCP assigns an agent ID, remembers the acquired
+token and supplies it on desktop calls. `anode_guide` returns the embedded operating guide locally, without a daemon,
 setup or waiting behind long tool calls. `seat_capabilities`, `seat_wait`, `seat_exec` and `seat_job` map to
 `desktop.capabilities`, `desktop.wait`, `exec.start` and `exec.read` respectively.
 `seat_screenshot` returns an MCP image block plus capture-size

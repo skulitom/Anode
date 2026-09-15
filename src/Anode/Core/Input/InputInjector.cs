@@ -152,10 +152,11 @@ internal static class InputInjector
 
     public static void MouseDown(string button, int? x = null, int? y = null)
     {
-        var (down, _, data) = ButtonFlags(button);
+        var (down, up, data) = ButtonFlags(button);
         var events = new List<Input>();
         if (x.HasValue && y.HasValue) events.Add(AbsoluteMove(x.Value, y.Value));
         events.Add(new Input { Type = InputMouse, Union = { Mouse = new MouseInput { Flags = down, MouseData = data } } });
+        HeldMouse.Add((up, data));
         Send(events.ToArray());
     }
 
@@ -166,6 +167,7 @@ internal static class InputInjector
         if (x.HasValue && y.HasValue) events.Add(AbsoluteMove(x.Value, y.Value));
         events.Add(new Input { Type = InputMouse, Union = { Mouse = new MouseInput { Flags = up, MouseData = data } } });
         Send(events.ToArray());
+        HeldMouse.Remove((up, data));
     }
 
     public static void Click(string button = "left", int? x = null, int? y = null, int count = 1, int holdMs = 20)
@@ -229,9 +231,37 @@ internal static class InputInjector
         return new Input { Type = InputKeyboard, Union = { Keyboard = new KeyboardInput { Vk = vk, Scan = scan, Flags = flags } } };
     }
 
-    public static void KeyDown(string key, bool useScanCode = true) => Send(KeyEvent(KeyCodes.Resolve(key), false, useScanCode));
+    private static readonly HashSet<(uint Up, uint Data)> HeldMouse = new();
+    private static readonly HashSet<(ushort Key, bool Scan)> HeldKeys = new();
 
-    public static void KeyUp(string key, bool useScanCode = true) => Send(KeyEvent(KeyCodes.Resolve(key), true, useScanCode));
+    public static void KeyDown(string key, bool useScanCode = true)
+    {
+        ushort vk = KeyCodes.Resolve(key);
+        HeldKeys.Add((vk, useScanCode));
+        Send(KeyEvent(vk, false, useScanCode));
+    }
+
+    public static void KeyUp(string key, bool useScanCode = true)
+    {
+        ushort vk = KeyCodes.Resolve(key);
+        Send(KeyEvent(vk, true, useScanCode));
+        HeldKeys.Remove((vk, useScanCode));
+    }
+
+    /// <summary>Release only input issued by this host, under the desktop ownership gate.</summary>
+    public static void ReleaseHeld()
+    {
+        foreach (var button in HeldMouse.ToArray())
+        {
+            Send(new Input { Type = InputMouse, Union = { Mouse = new MouseInput { Flags = button.Up, MouseData = button.Data } } });
+            HeldMouse.Remove(button);
+        }
+        foreach (var key in HeldKeys.ToArray())
+        {
+            Send(KeyEvent(key.Key, true, key.Scan));
+            HeldKeys.Remove(key);
+        }
+    }
 
     /// <summary>
     /// Presses a chord such as <c>ctrl+shift+esc</c> or a single key such as <c>f5</c>,
@@ -246,10 +276,14 @@ internal static class InputInjector
         if (keys.Length == 0) throw new ArgumentException("No key was given.");
 
         var down = keys.Select(vk => KeyEvent(vk, false, useScanCode)).ToArray();
-        Send(down);
-        Thread.Sleep(Math.Max(1, holdMs));
-        var up = keys.Reverse().Select(vk => KeyEvent(vk, true, useScanCode)).ToArray();
-        Send(up);
+        foreach (ushort key in keys) HeldKeys.Add((key, useScanCode));
+        try { Send(down); Thread.Sleep(Math.Max(1, holdMs)); }
+        finally
+        {
+            var up = keys.Reverse().Select(vk => KeyEvent(vk, true, useScanCode)).ToArray();
+            Send(up);
+            foreach (ushort key in keys) HeldKeys.Remove((key, useScanCode));
+        }
     }
 
     /// <summary>Types literal text as Unicode, so layout and dead keys do not interfere.</summary>

@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using System.Diagnostics;
 using System.Windows.Forms;
 using Anode.Core.Bridge;
 using Anode.Core.Launch;
@@ -22,6 +23,7 @@ internal sealed class AnodeDaemon : IDisposable
     private readonly object _lifecycleGate = new();
     private CancellationTokenSource _bringUpCancellation = new();
     private volatile bool _stopRequested;
+    private int _stopVersion;
     private bool _reconnecting;
     private int _connectionAttempt;
     private readonly Func<uint?> _findChild;
@@ -383,6 +385,7 @@ internal sealed class AnodeDaemon : IDisposable
 
     internal async Task<JsonObject> StopSeatAsync(string why)
     {
+        Interlocked.Increment(ref _stopVersion);
         CancelBringUp();
         // Close pending Windows prompts even if logoff fails or the session ID was
         // only reserved. Posting this first also prevents a late login completing.
@@ -429,11 +432,13 @@ internal sealed class AnodeDaemon : IDisposable
         }
     }
 
-    internal async Task<JsonObject> StartSeatAsync()
+    internal async Task<JsonObject> StartSeatAsync(int? expectedStopVersion = null)
     {
         await _seatGate.WaitAsync().ConfigureAwait(false);
         try
         {
+            if (expectedStopVersion is int version && version != Volatile.Read(ref _stopVersion))
+                return JsonLine.Fail("The seat was stopped while this acquisition was pending. Request a new lease when desktop work should resume.");
             if (_hostReady && _seat is { IsConnected: true })
                 return JsonLine.Ok(new JsonObject { ["session"] = _sessionId, ["note"] = "already running" });
             if (_blockingSummary() is { } blocked)
@@ -516,9 +521,12 @@ internal sealed class AnodeDaemon : IDisposable
 
     // ------------------------------------------------------------- control pipe
 
-    private async Task<JsonObject> HandleControlAsync(JsonObject request)
+    internal async Task<JsonObject> HandleControlAsync(JsonObject request)
     {
         string op = request.Str("op") ?? string.Empty;
+        int stopVersion = Volatile.Read(ref _stopVersion);
+        if (Core.Agents.AgentAccess.Validate(request) is { } invalid) return JsonLine.Fail(invalid);
+        if (Mcp.Tools.ValidateOperation(op, Core.Agents.AgentAccess.Arguments(request)) is { } badArgs) return JsonLine.Fail(badArgs);
 
         switch (op)
         {
@@ -549,6 +557,16 @@ internal sealed class AnodeDaemon : IDisposable
 
             case "seat.start":
                 return await StartSeatAsync().ConfigureAwait(false);
+
+            case "lease":
+                if (_stopRequested && _state != "stopped")
+                    return JsonLine.Fail("The seat is stopping or has failed to stop. Wait for Stop to finish before acquiring a desktop lease.");
+                if (request.Str("action") == "acquire" && !_hostReady)
+                {
+                    var started = await StartSeatAsync(stopVersion).ConfigureAwait(false);
+                    if (started.Bool("ok") != true) return started;
+                }
+                return await ForwardToSeatAsync(op, request).ConfigureAwait(false);
 
             case "seat.show":
                 _window?.ShowViewer();
@@ -589,6 +607,16 @@ internal sealed class AnodeDaemon : IDisposable
         forwarded.Remove("op");
 
         int timeout = request.Int("timeoutMs") ?? 60_000;
+        // Ownership renewal/status and owned job reads must not queue behind a desktop action.
+        // The verified host enforces the same lease rules on every connection.
+        if (op is "lease" or "exec.read")
+        {
+            var clock = Stopwatch.StartNew();
+            using var independent = await JsonPipeClient.TryConnectAsync(Env.SeatPipe, Math.Min(1000, timeout)).ConfigureAwait(false);
+            int remaining = timeout - (int)clock.ElapsedMilliseconds;
+            if (independent is null || remaining <= 0) return JsonLine.Fail("Could not reach the seat host within the request deadline.");
+            return await independent.RequestAsync(op, forwarded, remaining).ConfigureAwait(false);
+        }
         var response = await seat.RequestAsync(op, forwarded, timeout).ConfigureAwait(false);
 
         if (response.Bool("ok") != true && !seat.IsConnected && ReferenceEquals(_seat, seat) && !_stopRequested)

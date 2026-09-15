@@ -115,6 +115,10 @@ internal static class SelfTest
         Check(results, "desktop report escaping", DesktopChecks.Presentation);
         Check(results, "execution output", DevelopmentChecks.Output);
         Check(results, "execution jobs", () => DevelopmentChecks.Jobs().GetAwaiter().GetResult());
+        Check(results, "agent ownership", () => AgentChecks.Ownership().GetAwaiter().GetResult());
+        Check(results, "agent queue and disconnect", () => AgentChecks.QueueAndDisconnect().GetAwaiter().GetResult());
+        Check(results, "MCP ownership", () => AgentChecks.McpOwnership().GetAwaiter().GetResult());
+        Check(results, "agent startup and Stop", () => AgentChecks.StartupAndStop().GetAwaiter().GetResult());
         Check(results, "UI condition waits", () => DevelopmentChecks.Waits().GetAwaiter().GetResult());
         Check(results, "development validation", DevelopmentChecks.Validation);
         Check(results, "hidden viewer startup", DevelopmentChecks.HiddenViewer);

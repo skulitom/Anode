@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- Added `seat_lease` / `anode lease` for exclusive desktop acquisition, renewal and release.
+  Leases expire without renewal and reject stale queued actions; in-flight operations finish
+  before ownership can transfer. Stop remains immediate and global.
+- Added per-agent MCP identities, stable-ID recovery, owner-scoped command jobs and optional
+  job cancellation on release. Release/expiry clear desktop references and held input/controllers.
+- Desktop tools now require a lease. CLI workflows supply an agent ID and token; MCP supplies
+  them automatically after acquisition. Updated guides and private-pipe regression checks.
+  Restart existing daemon/seat-host processes to load the new protocol.
+- Explicitly publish the connector script and portable skill beside the executable so clean
+  and incremental package builds include the files required by installation/configuration.
+
 ## 0.4.0 — 2026-09-15
 
 - Added a discoverable `anode-desktop` Agent Skill, installed with client configuration,

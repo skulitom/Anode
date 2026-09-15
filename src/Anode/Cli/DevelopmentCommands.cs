@@ -59,7 +59,7 @@ internal static partial class Cli
         Mcp.Tools.TryResolve(tool, out string op, out _);
         using var client = await Connect(autoStart: false);
         if (client is null) { Console.Error.WriteLine("Anode is not running. Start a seat first."); return 1; }
-        var response = await client.RequestAsync(op, request, 45000);
+        var response = await RequestAsync(client, op, request, 45000);
         if (response.Bool("ok") != true) return Report(response);
         var result = response.Obj("result")!;
         Console.WriteLine(json ? result.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) : result.Str("summary"));
