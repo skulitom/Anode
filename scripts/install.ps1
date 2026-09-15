@@ -109,8 +109,21 @@ try {
             $ancestor = Split-Path -Parent $ancestor
         }
         if (Test-Path -LiteralPath $destination) {
-            try { $handle = [IO.File]::Open($destination, 'Open', 'ReadWrite', 'None'); $handle.Dispose() }
-            catch { throw "Cannot replace $destination. Close Anode and connected MCP clients before updating. No files changed." }
+            # Process exit and antivirus scanning can briefly retain a file handle.
+            # A running instance still fails within five seconds, before any copies.
+            $deadline = [DateTime]::UtcNow.AddSeconds(5)
+            while ($true) {
+                try {
+                    $handle = [IO.File]::Open($destination, 'Open', 'ReadWrite', 'None')
+                    $handle.Dispose()
+                    break
+                } catch {
+                    if ([DateTime]::UtcNow -ge $deadline) {
+                        throw "Cannot replace $destination. Close Anode and connected MCP clients before updating. No files changed. $($_.Exception.Message)"
+                    }
+                    Start-Sleep -Milliseconds 200
+                }
+            }
         }
     }
     $backup = Join-Path $scratch 'backup'
