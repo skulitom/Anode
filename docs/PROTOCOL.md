@@ -72,6 +72,8 @@ See [Microsoft's pipe option documentation](https://learn.microsoft.com/en-us/do
   "viewerConnection": 1,
   "viewerVisible": true,
   "viewOnly": true,
+  "pointerGuard": { "installed": true, "patchedImports": 1, "suppressed": 61, "forwarded": 0,
+                    "viewer": {"x":400,"y":167,"width":1280,"height":720} },
   "parentSession": 1,
   "uptimeSeconds": 184.2,
   "lastError": null,
@@ -87,6 +89,12 @@ land on `detached` (seat alive, viewer disconnected), `stopping`, `stopped`, `er
 A viewer disconnect during startup becomes `error`, preserving the disconnect code and explanation
 in `lastError`. Startup waits return that failure immediately. `logError` reports the most recent
 log-write failure and clears after a successful write; `logPath` is the actual resolved destination.
+
+`pointerGuard` describes the gate on the Remote Desktop control's `SetCursorPos` import. `suppressed`
+counts seat pointer moves kept off the user's desktop, `forwarded` those applied because the user had
+taken control in a visible, focused viewer, and `viewer` is the control's rectangle on the user's
+desktop, which exists even while the viewer is hidden. `installed: false` means the real pointer is
+not protected; see [Troubleshooting](TROUBLESHOOTING.md#my-real-pointer-jumps-while-something-runs-in-the-seat).
 
 ## Operations the seat host owns
 

@@ -43,6 +43,16 @@ internal sealed class RdpViewer : AxHost
     {
         base.OnHandleCreated(e);
         EnableWindow(Handle, _inputEnabled);
+        // The control exists by now, so mstscax.dll is loaded and can be patched
+        // before any connection delivers a pointer update.
+        PointerGuard.Track(Handle, _inputEnabled);
+        PointerGuard.Install();
+    }
+
+    protected override void OnHandleDestroyed(EventArgs e)
+    {
+        if (IsHandleCreated) PointerGuard.Untrack(Handle);
+        base.OnHandleDestroyed(e);
     }
 
     /// <summary>0 = disconnected, 1 = connected, 2 = connecting.</summary>
@@ -146,6 +156,10 @@ internal sealed class RdpViewer : AxHost
             TryExtended(extended, "DeviceScaleFactor", 100u);
         }
 
+        // Disabling the window stops input going to the seat, not pointer moves coming
+        // back from it. A failed patch is logged and reported by `anode status`.
+        PointerGuard.Install();
+
         Log.Info($"connecting the viewer to a child session at {options.Width}x{options.Height}");
         Dispatch.Call(control, "Connect");
     }
@@ -202,12 +216,16 @@ internal sealed class RdpViewer : AxHost
         catch { /* not every build supports every extended property */ }
     }
 
-    /// <summary>Blocks or restores mouse and keyboard input to the control without hiding the picture.</summary>
+    /// <summary>
+    /// Blocks or restores mouse and keyboard input to the control without hiding the picture.
+    /// The same switch tells <see cref="PointerGuard"/> whether the seat may move the local pointer.
+    /// </summary>
     public void SetInputEnabled(bool enabled)
     {
         _inputEnabled = enabled;
         if (!IsHandleCreated) return;
         EnableWindow(Handle, enabled);
+        PointerGuard.Track(Handle, enabled);
     }
 
     [DllImport("user32.dll")]

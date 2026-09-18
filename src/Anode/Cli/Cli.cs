@@ -44,6 +44,10 @@ internal static partial class Cli
                 return DesktopFixture.Run();
             case "__log-probe":
                 return DiagnosticsChecks.LogProbe(rest);
+            case "__cursor-probe":
+                return PointerIsolation.Probe(rest);
+            case "__pointer-watch":
+                return PointerIsolation.Watch(rest);
             case "__apply-setup":
                 return ApplySetupElevated(rest);
             case "mcp":
@@ -365,6 +369,11 @@ internal static partial class Cli
         Console.WriteLine($"seat session  {result.Int("session")?.ToString() ?? "none"}");
         Console.WriteLine($"agent         {(result.Bool("agentReady") == true ? "ready" : "not ready")}");
         Console.WriteLine($"viewer        {(result.Int("viewerConnection") == 1 ? "connected" : "disconnected")}, {(result.Bool("viewerVisible") == true ? "visible" : "hidden")}, {(result.Bool("viewOnly") == true ? "view only" : "you have control")}");
+
+        if (result.Obj("pointerGuard") is { } guard)
+            Console.WriteLine(guard.Bool("installed") == true
+                ? $"your pointer  guarded; {guard["suppressed"]} seat pointer move(s) kept off your desktop"
+                : "your pointer  NOT guarded: a program in the seat that moves its cursor can move yours. See the log.");
 
         if (result.Obj("seat") is { } seat)
         {

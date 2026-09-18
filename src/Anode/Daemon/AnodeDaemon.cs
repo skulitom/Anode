@@ -640,6 +640,7 @@ internal sealed class AnodeDaemon : IDisposable
             ["signInPrompt"] = _options.PromptForCredentials && _state is "connecting" or "signing-in",
             ["viewerVisible"] = _window?.Visible ?? false,
             ["viewOnly"] = _window?.ViewOnly ?? true,
+            ["pointerGuard"] = PointerGuard.Status(),
             ["backgroundRenderingConfigured"] = BackgroundRendering.Current() == 2,
             ["parentSession"] = ChildSession.CurrentSessionId(),
             ["uptimeSeconds"] = Math.Round((DateTime.UtcNow - _startedUtc).TotalSeconds, 1),

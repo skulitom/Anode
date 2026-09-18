@@ -33,6 +33,11 @@ through UAC; do not treat a missing setup as a failed build.
 - Preserve the seat host's refusal to run in an unverified or parent session.
   The parent daemon resolves child-session identity; the host verifies it before
   serving input. Keep input and capture inside the seat host.
+- Keep `Daemon/PointerGuard.cs` installed before the viewer connects. The Remote Desktop control
+  moves the real pointer when a seat program calls `SetCursorPos` and the pointer is over the
+  viewer's rectangle, even hidden or view-only; the guard lets that through only while the user has
+  taken control in a visible, focused viewer. A live test is meaningless unless the real pointer is
+  inside that rectangle; `scripts/test-pointer-isolation.ps1` handles this.
 - Keep CLI and MCP daemon startup on the shared `Core/Launch/DaemonLauncher.cs`
   path so Task Scheduler can detach the daemon from an agent's process lifetime.
 - Keep MCP stdout exclusively newline-delimited JSON. Diagnostics go to the log

@@ -193,6 +193,35 @@ Everything in your `Run` key and Startup folder launches when the seat signs in,
 your account signing in. Nothing is broken; it is what a second sign-in means. Remove what you do not
 want from startup, or stop the seat when you are not using it.
 
+### My real pointer jumps while something runs in the seat
+
+Games built on SDL (Half-Life, most Source and indie titles) call `SetCursorPos` whenever they enter
+or leave relative mouse mode: opening a menu or the console, loading a level. Windows forwards that
+to the Remote Desktop control in the viewer, which moves the pointer on the desktop it lives on,
+yours, whenever your pointer is over the viewer's rectangle. It does this with the viewer view-only
+and with the viewer hidden, because a hidden window still has a rectangle. The symptom is the pointer
+teleporting to the same few spots, typically the point where the seat's centre would be drawn.
+
+Anode gates that call. Check that the gate is in place:
+
+```powershell
+anode status          # "your pointer  guarded; N seat pointer move(s) kept off your desktop"
+anode status --json   # pointerGuard: { installed, patchedImports, suppressed, forwarded, viewer }
+```
+
+- `pointerGuard` missing: the daemon predates the guard. Restart it from a current build. That
+  interrupts the seat, so arrange it with whoever has programs open there.
+- `installed: false`: this Windows build's `mstscax.dll` no longer imports `SetCursorPos` by name or
+  address, so there was nothing to patch. The daemon log says so at startup. Report it with the
+  file version of `C:\Windows\System32\mstscax.dll`; until it is handled, keep your pointer away
+  from where the viewer sits, or move the viewer to a monitor you are not using.
+- `suppressed` growing is the guard working. `forwarded` only grows while you have pressed
+  **Take control** and the viewer is the foreground window; pointer moves inside the viewer are
+  expected then, as in any Remote Desktop client.
+
+`scripts/test-pointer-isolation.ps1` reproduces the condition on purpose and proves the pointer stays
+put; see [Developing and testing](DEVELOPMENT-TESTING.md#reproducible-live-verification).
+
 ### The game shows a black screen in the viewer
 
 Exclusive fullscreen and protected video do not capture through the remote pipeline. Switch the game

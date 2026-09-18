@@ -71,7 +71,7 @@ contain private information; reports remain local until you choose to share them
 
 | | |
 | --- | --- |
-| Your mouse pointer | **Isolated.** The seat has its own; nothing Anode does moves yours. |
+| Your mouse pointer | **Isolated.** The seat has its own. The viewer is the one component on your desktop that could move yours (the Remote Desktop control applies the seat's programmatic cursor moves locally), so the daemon gates that call: it only passes while you have taken control in a visible, focused viewer. Check `pointerGuard` in `anode status --json`. |
 | Your keyboard focus and foreground window | **Isolated.** |
 | Your desktop and window list | **Isolated.** The seat's windows never appear on your monitors. |
 | Your clipboard | **Isolated by default.** `--clipboard` shares it. |

@@ -188,12 +188,99 @@ internal static class DiagnosticsChecks
         finally { Marshal.Release(dispatch); }
     }
 
+    /// <summary>
+    /// Creates the hidden view-only viewer the daemon creates, then calls SetCursorPos the
+    /// way mstscax.dll does: through its own import table. Never connects to anything.
+    /// </summary>
+    public static string ViewerPointerGuard()
+    {
+        foreach (bool input in new[] { false, true })
+            foreach (bool visible in new[] { false, true })
+                foreach (bool foreground in new[] { false, true })
+                    Require(PointerGuard.Allows(input, visible, foreground) == (input && visible && foreground),
+                        "the local pointer may move while the user is not driving a visible, focused viewer");
+
+        var finished = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            try { finished.TrySetResult(CheckViewerPointerGuard()); }
+            catch (Exception ex) { finished.TrySetException(ex); }
+        }) { IsBackground = true };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        return finished.Task.WaitAsync(TimeSpan.FromSeconds(10)).GetAwaiter().GetResult();
+    }
+
+    private static unsafe string CheckViewerPointerGuard()
+    {
+        using var window = new SeatWindow(new SeatOptions());
+        window.CreateHiddenViewer();
+        Require(PointerGuard.Installed,
+            "mstscax.dll's SetCursorPos import was not found, so a program in the seat can move the real pointer");
+        IntPtr[] targets = PointerGuard.ImportTargets();
+        Require(targets.Length > 0 && targets.All(PointerGuard.IsGate), "an import of SetCursorPos still reaches user32 directly");
+        Require(PointerGuard.Install() && PointerGuard.ImportTargets().SequenceEqual(targets), "reinstalling changed an intact patch");
+
+        long suppressed = PointerGuard.Suppressed, forwarded = PointerGuard.Forwarded;
+        bool Moves(IntPtr target)
+        {
+            // One pixel, so even a broken gate cannot throw the pointer across the screen.
+            // Retried because the user may nudge the mouse onto that pixel themselves.
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                var before = Core.Input.InputInjector.CursorPosition();
+                var aim = new System.Drawing.Point(before.X > 0 ? before.X - 1 : before.X + 1, before.Y);
+                Require(((delegate* unmanaged<int, int, int>)target)(aim.X, aim.Y) == 1, "a suppressed pointer move reported failure to the control");
+                if (Core.Input.InputInjector.CursorPosition() != aim) return false;
+            }
+            return true;
+        }
+        foreach (bool viewOnly in new[] { true, false })
+        {
+            window.ViewOnly = viewOnly;
+            foreach (IntPtr target in targets)
+                Require(!Moves(target), $"a hidden viewer moved the real pointer (view only: {viewOnly})");
+        }
+        Require(PointerGuard.Suppressed >= suppressed + 2 * targets.Length && PointerGuard.Forwarded == forwarded,
+            "the gate forwarded a pointer move from a hidden viewer");
+
+        // mstscax.dll calls from its own threads, which the runtime has never seen. The gate is
+        // shut here (proved above), so the argument a raw thread start cannot supply is unused.
+        window.ViewOnly = true;
+        suppressed = PointerGuard.Suppressed;
+        IntPtr thread = CreateThread(IntPtr.Zero, UIntPtr.Zero, targets[0], IntPtr.Zero, 0, out _);
+        Require(thread != IntPtr.Zero, "could not start a native thread");
+        try
+        {
+            Require(WaitForSingleObject(thread, 5000) == 0 && GetExitCodeThread(thread, out uint result) && result == 1,
+                "the gate did not answer a call from a native thread");
+        }
+        finally { CloseHandle(thread); }
+        Require(PointerGuard.Suppressed == suppressed + 1 && PointerGuard.Forwarded == forwarded,
+            "a native-thread call was not suppressed");
+        return $"{targets.Length} mstscax.dll import(s) gated; a hidden viewer cannot move the real pointer, from managed or native threads";
+    }
+
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     private delegate int EventInvoke(IntPtr self, int id, ref Guid iid, uint locale, ushort flags,
         ref System.Runtime.InteropServices.ComTypes.DISPPARAMS args, IntPtr result, IntPtr exception, IntPtr argumentError);
 
     [DllImport("oleaut32.dll")]
     private static extern int VariantClear(IntPtr variant);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr CreateThread(IntPtr attributes, UIntPtr stackSize, IntPtr start, IntPtr parameter, uint flags, out uint threadId);
+
+    [DllImport("kernel32.dll")]
+    private static extern uint WaitForSingleObject(IntPtr handle, uint milliseconds);
+
+    [DllImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetExitCodeThread(IntPtr thread, out uint exitCode);
+
+    [DllImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CloseHandle(IntPtr handle);
 
     public static string SetupListener()
     {

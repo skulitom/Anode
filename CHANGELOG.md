@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Fixed the viewer moving the real mouse pointer. When a program in the seat called `SetCursorPos`
+  (SDL games do on every switch between relative and absolute mouse mode), the Remote Desktop control
+  applied the server's pointer-position update to the user's desktop whenever the real pointer was
+  over the viewer's rectangle, even with the viewer view-only, unfocused or hidden. Measured: 5 of 5
+  seat cursor moves teleported the real pointer within 2 ms. The daemon now gates `mstscax.dll`'s
+  `SetCursorPos` import inside its own process: moves reach the real pointer only while the viewer
+  is visible, focused and control is taken. `anode status` reports `pointerGuard`; a quick check
+  exercises the patched import and the opt-in `scripts/test-pointer-isolation.ps1` proves it against
+  a live seat. Restart an existing daemon to load the guard. See the
+  [investigation record](bugreports/2026-09-18-viewer-moves-the-real-pointer.md).
 - Added `seat_lease` / `anode lease` for exclusive desktop acquisition, renewal and release.
   Leases expire without renewal and reject stale queued actions; in-flight operations finish
   before ownership can transfer. Stop remains immediate and global.

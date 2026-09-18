@@ -82,6 +82,7 @@ Start a seat once (`anode start --hidden`), then run:
 powershell -ExecutionPolicy Bypass -File scripts\test-desktop.ps1
 powershell -ExecutionPolicy Bypass -File scripts\test-development.ps1 -InstallBrowserTools
 powershell -ExecutionPolicy Bypass -File scripts\test-development.ps1 -VerifyInput
+powershell -ExecutionPolicy Bypass -File scripts\test-pointer-isolation.ps1 -PlacePointer
 ```
 
 The native fixture covers Windows Forms and WPF: text, buttons, toggles, list selection, slider
@@ -91,6 +92,22 @@ and headed Chrome inside the seat, verifies both process sessions, exercises for
 mobile layout, and saves browser plus seat screenshots. Its browser context uses a separate temporary
 profile, without copying the user's browser accounts. Output is under `output/playwright/development`;
 native output is under `artifacts/desktop-test`. Both suites leave the viewer state unchanged.
+
+`scripts\test-pointer-isolation.ps1` checks that a program moving the seat's cursor cannot move the
+real pointer. A probe in the seat calls `SetCursorPos` between two far-apart points, as an SDL game
+does, while a watcher on the parent desktop samples the real pointer every 1-2 ms. The Remote Desktop
+control only attempts a local move while the real pointer is over the viewer's rectangle (hidden or
+not), so a run with the pointer elsewhere would pass on a broken daemon too. Each phase therefore
+waits for your pointer to enter the printed rectangle; `-PlacePointer` moves it there instead, which
+is the only time the test itself moves your pointer. It passes when no jump landed in the viewer's
+rectangle within 250 ms of a seat move, `pointerGuard.forwarded` did not grow and
+`pointerGuard.suppressed` did. A run in which nothing was suppressed is reported as inconclusive,
+never as a pass. The default run tests the viewer as it is (normally hidden and view-only);
+`-IncludeVisible` also tests the opposite visibility, which activates the viewer on your desktop, and
+`-IncludeControl` verifies that moves are forwarded once you take control, which moves your pointer
+by design. The probe moves the seat's cursor, so hold the lease and do not run it under a game in
+play. Output is under `artifacts/pointer-test`. `selftest --quick` covers the patch itself without a
+seat: it calls through `mstscax.dll`'s import slot and requires the pointer to stay put.
 
 Node.js/npm and Chrome must be installed for the browser fixture. `-InstallBrowserTools` installs
 Playwright 1.63.0 only under ignored `artifacts/development-browser-tools`. Repeated runs can omit it.

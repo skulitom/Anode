@@ -122,6 +122,7 @@ internal static class SelfTest
         Check(results, "UI condition waits", () => DevelopmentChecks.Waits().GetAwaiter().GetResult());
         Check(results, "development validation", DevelopmentChecks.Validation);
         Check(results, "hidden viewer startup", DevelopmentChecks.HiddenViewer);
+        Check(results, "viewer pointer guard", DiagnosticsChecks.ViewerPointerGuard);
         Check(results, "RDP extended settings", DiagnosticsChecks.RdpSettings);
         Check(results, "RDP event callbacks", DiagnosticsChecks.RdpCallbacks);
         Check(results, "RDP handshake diagnostics", DiagnosticsChecks.RdpHandshakeFailure);

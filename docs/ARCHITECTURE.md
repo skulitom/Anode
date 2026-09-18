@@ -146,6 +146,20 @@ that isolation could leak, because it is a window on your desktop that forwards 
 refusing your input (`EnableWindow(false)` on the control, which blocks input while the picture keeps
 painting) and you opt in with **Take control**.
 
+**The viewer may not move your pointer.** Disabling the control stops input going *to* the seat, not
+pointer moves coming *from* it. When a program in the seat calls `SetCursorPos`, the RDP server sends
+a pointer-position update and `mstscax.dll` applies it with `SetCursorPos` on your desktop whenever
+your pointer is over the control's rectangle, whether the control is disabled, unfocused or hidden.
+The control has no setting for this, so `Daemon/PointerGuard.cs` replaces that one entry in
+`mstscax.dll`'s import table, in the daemon process only, with a gate. The gate is evaluated on each
+call and forwards only while the viewer is visible, in the foreground and control is taken, which is
+how any Remote Desktop client behaves; otherwise it returns success without moving anything. All six
+call sites in the module go through that single import slot. Delay-load tables are walked as well and
+slots are matched by name and by resolved address, so API-set redirection cannot hide the import.
+`status.pointerGuard` reports whether the patch is installed and how many moves it suppressed or
+forwarded. If a future `mstscax.dll` stops importing `SetCursorPos`, the quick self-test and status
+say so instead of failing silently.
+
 **No-activate on first show.** A seat coming up must not steal the keystroke you are in the middle of
 typing. The window is created with `WS_EX_NOACTIVATE`, which is cleared once connected so that later
 clicks behave normally.

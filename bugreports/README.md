@@ -19,6 +19,11 @@ These checks do not establish game-controller support. Liftoff and an
 isolated Steam client were launched in the seat while the main Steam client stayed
 running; gameplay and the vision pilot have not been validated.
 
+The [September 18 record](2026-09-18-viewer-moves-the-real-pointer.md) covers the viewer moving the
+real mouse pointer when a seat program called `SetCursorPos`, the measurements that showed the
+Remote Desktop control only checks whether the pointer is over its rectangle, and the import gate
+that fixes it. Its live verification against a restarted daemon is still outstanding.
+
 `fix-rdp-listener.ps1` is the administrator script used for a specific private-key
 permission failure. It creates and binds a certificate, grants NETWORK SERVICE
 read access to that certificate's key, and restarts Remote Desktop Services. It
