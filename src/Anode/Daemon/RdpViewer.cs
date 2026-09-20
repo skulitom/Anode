@@ -184,7 +184,7 @@ internal sealed class RdpViewer : AxHost
     internal static void ConfigureCredentialPrompt(IMsRdpCredentialPrompt prompt, bool enabled)
     {
         // Unattended starts must not open authentication dialogs on the parent
-        // desktop. Only an explicit --sign-in enables Windows' own prompt.
+        // desktop. Only --sign-in or the viewer's Sign in action enables the prompt.
         // Never retrieve the password or pass it through CLI, pipes, or logs.
         prompt.SetAllowCredentialSaving(false);
         prompt.SetAllowPromptingForCredentials(enabled);

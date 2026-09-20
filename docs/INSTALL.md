@@ -33,7 +33,7 @@ Useful options:
 
 ```powershell
 # Choose a version and register installed Codex/Claude Code CLIs as well.
-powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Version 0.4.0 -Client Auto
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Version 0.5.0 -Client Auto
 # A dedicated custom folder; leave PATH alone.
 powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -InstallDirectory C:\Tools\Anode -NoPath
 ```
@@ -105,7 +105,8 @@ anode capabilities | Out-Host
 
 The first two commands do not start a seat. `start` creates the background session;
 `capabilities` checks actual capture and known input blockers. If sign-in fails after Windows
-Hello/PIN login, use `anode start --hidden --sign-in` to request Windows' own credential dialog.
+Hello/PIN login, open the viewer from the tray icon and click **Sign in…** in the header to request
+Windows' credential dialog. For a new daemon, use `anode start --sign-in`.
 See [Troubleshooting](TROUBLESHOOTING.md) for readiness, capture and input problems.
 
 ## Update

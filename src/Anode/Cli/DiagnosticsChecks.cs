@@ -92,6 +92,49 @@ internal static class DiagnosticsChecks
         finally { Marshal.FinalReleaseComObject(control); }
     }
 
+    public static async Task<string> ViewerSignIn()
+    {
+        int hostStarts = 0, logoffs = 0, disconnects = 0;
+        using var daemon = new AnodeDaemon(new SeatOptions(), () => 42, () => null,
+            () => { hostStarts++; return Task.CompletedTask; },
+            _ => { logoffs++; return 42; }, () => disconnects++);
+        daemon.OnViewerLogonError(0);
+        Require((await daemon.StatusAsync()).Str("state") == "logon-error", "automatic login did not fail");
+
+        await daemon.ReconnectAsync(promptForCredentials: true);
+        var status = await daemon.StatusAsync();
+        Require(status.Bool("signInPrompt") == true && status.Str("state") == "connecting"
+            && status.Str("lastError") is null && logoffs == 0, "Sign in did not recover in place from failed automatic login");
+        daemon.OnViewerConnected();
+        daemon.OnViewerLogonError(0);
+        Require((await daemon.StatusAsync()).Str("state") == "signing-in" && hostStarts == 0,
+            "interactive password retry failed or started a host before login");
+        daemon.OnViewerLoginComplete();
+        Require(hostStarts == 1, "interactive login did not start the host");
+
+        await daemon.ReconnectAsync();
+        Require((await daemon.StatusAsync()).Bool("signInPrompt") == false && logoffs == 0,
+            "ordinary Reconnect retained the manual prompt or signed the seat out");
+        daemon.OnViewerLogonError(0);
+        Require((await daemon.StatusAsync()).Str("state") == "logon-error", "ordinary reconnect allowed interactive retries");
+
+        await daemon.ReconnectAsync(promptForCredentials: true);
+        await daemon.StopSeatAsync("injected sign-in test; no live seat");
+        daemon.OnViewerLoginComplete();
+        Require((await daemon.StatusAsync()).Str("state") == "stopped" && hostStarts == 1
+            && logoffs == 1 && disconnects == 1, "Stop did not cancel manual sign-in");
+        Task<JsonObject> starting = daemon.StartSeatAsync();
+        Require((await daemon.StatusAsync()).Bool("signInPrompt") == false,
+            "a later unattended start inherited the toolbar's credential prompt");
+        daemon.OnViewerLogonError(0);
+        Require((await starting.WaitAsync(TimeSpan.FromSeconds(2))).Bool("ok") == false, "unattended startup hid login failure");
+
+        using var blocked = new AnodeDaemon(new SeatOptions(), () => null, () => "listener missing");
+        await blocked.ReconnectAsync(promptForCredentials: true);
+        Require((await blocked.StatusAsync()).Str("lastError") == "listener missing", "manual sign-in bypassed prerequisites");
+        return "manual sign-in retries, login gating, Stop and later unattended startup verified without connecting a viewer";
+    }
+
     public static string RdpHandshakeFailure()
     {
         DateTime started = DateTime.UtcNow;

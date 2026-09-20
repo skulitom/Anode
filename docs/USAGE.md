@@ -74,6 +74,10 @@ The viewer appears **without taking focus**, so a seat can come up mid-sentence 
 keystrokes. It starts in **view only**: your stray clicks do not reach the seat. Press
 **Take control** when you want to drive it yourself.
 
+Press **Sign in…** in the header next to **Reconnect** to open Windows' credential dialog.
+This also retries a failed automatic sign-in without restarting Anode or signing out the seat.
+Enter your Windows account password in that dialog; Anode does not retrieve or save it.
+
 ```powershell
 anode status                 # what the seat is doing
 anode show / anode hide      # the viewer, not the seat
@@ -217,8 +221,8 @@ More in [docs/ARCHITECTURE.md](ARCHITECTURE.md) and [docs/PROTOCOL.md](PROTOCOL.
   sessions at once. Browsers work if you give the seat its own profile directory.
 - **Startup programs run in the seat too.** Anything in your Run key or Startup folder launches when
   the seat signs in, which can mean two copies of a tray app.
-- **PIN sign-in.** If automatic seat sign-in fails after PIN/Windows Hello login, start a new daemon
-  with `anode start --sign-in`. Windows asks for the seat credentials in its own dialog while your
+- **PIN sign-in.** If automatic seat sign-in fails after PIN/Windows Hello login, press **Sign in…**
+  in the viewer header (or start Anode with `anode start --sign-in`). Windows asks for credentials while your
   current desktop stays signed in. Anode does not retrieve or save the password; a new seat may
   require the prompt again.
 - **Exclusive fullscreen and protected video** do not capture. Use borderless windowed.

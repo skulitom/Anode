@@ -25,6 +25,7 @@ internal sealed class AnodeDaemon : IDisposable
     private volatile bool _stopRequested;
     private int _stopVersion;
     private bool _reconnecting;
+    private bool _promptForCredentials;
     private int _connectionAttempt;
     private readonly Func<uint?> _findChild;
     private readonly Func<string?> _blockingSummary;
@@ -45,6 +46,7 @@ internal sealed class AnodeDaemon : IDisposable
         Func<Task>? startHost = null, Func<bool, uint?>? logoff = null, Action? disconnectViewer = null)
     {
         _options = options;
+        _promptForCredentials = options.PromptForCredentials;
         _findChild = findChild ?? ChildSession.TryGetId;
         _blockingSummary = blockingSummary ?? Preconditions.BlockingSummary;
         _startHost = startHost ?? BringUpSeatAsync;
@@ -95,6 +97,7 @@ internal sealed class AnodeDaemon : IDisposable
         _window = new SeatWindow(_options);
         _window.StopSeatRequested += () => _ = StopSeatAsync("stopped from the viewer");
         _window.ReconnectRequested += () => _ = ReconnectAsync();
+        _window.SignInRequested += () => _ = ReconnectAsync(promptForCredentials: true);
         _window.QuitRequested += Quit;
         _window.Viewer.Connected += OnViewerConnected;
         _window.Viewer.LoginComplete += OnViewerLoginComplete;
@@ -128,16 +131,16 @@ internal sealed class AnodeDaemon : IDisposable
         if (_stopRequested) return;
         try
         {
-            SetState("connecting", _options.PromptForCredentials
+            SetState("connecting", _promptForCredentials
                 ? "Sign in to the seat using the Windows credential dialog. Your current desktop stays signed in."
                 : "Creating the seat...");
-            if (_options.PromptForCredentials) _window!.ClearNoActivate();
+            if (_promptForCredentials) _window!.ClearNoActivate();
             DateTime started = DateTime.UtcNow;
             int attempt = Interlocked.Increment(ref _connectionAttempt);
-            _window!.Viewer.ConnectToChildSession(_options);
+            _window!.Viewer.ConnectToChildSession(_options with { PromptForCredentials = _promptForCredentials });
             // During an explicit prompt Windows may retry after a failed credential
             // attempt. Its intermediate event-log failures are not terminal yet.
-            if (!_options.PromptForCredentials)
+            if (!_promptForCredentials)
                 _ = MonitorConnectionAsync(started, attempt, _bringUpCancellation.Token);
         }
         catch (Exception ex)
@@ -176,6 +179,7 @@ internal sealed class AnodeDaemon : IDisposable
     {
         lock (_lifecycleGate)
         {
+            if (_reconnecting) return;
             if (_stopRequested || _bringUpCancellation.IsCancellationRequested)
             {
                 _window?.Viewer.Disconnect();
@@ -190,7 +194,7 @@ internal sealed class AnodeDaemon : IDisposable
     {
         lock (_lifecycleGate)
         {
-            if (_stopRequested || _bringUpCancellation.IsCancellationRequested) return;
+            if (_stopRequested || _reconnecting || _bringUpCancellation.IsCancellationRequested) return;
         }
         // Connected only confirms the RDP transport. A reserved child-session ID
         // can exist before Windows has logged in and cannot host a process yet.
@@ -199,6 +203,8 @@ internal sealed class AnodeDaemon : IDisposable
 
     internal void OnViewerLogonError(int code)
     {
+        lock (_lifecycleGate)
+            if (_stopRequested || _reconnecting || _bringUpCancellation.IsCancellationRequested) return;
         // OnLogonError also reports continuing login and dialogs, not only failures:
         // https://learn.microsoft.com/windows/win32/termserv/imstscaxevents-onlogonerror
         if (code is -2 or -4 or -5 or 3)
@@ -206,7 +212,7 @@ internal sealed class AnodeDaemon : IDisposable
             Log.Info($"Windows sign-in notification {code}; waiting for completed login");
             return;
         }
-        if (_options.PromptForCredentials && code is 0 or 1 or 2 or unchecked((int)0xC000006D) or unchecked((int)0xC0000224))
+        if (_promptForCredentials && code is 0 or 1 or 2 or unchecked((int)0xC000006D) or unchecked((int)0xC0000224))
         {
             Log.Warn($"Windows requested another sign-in attempt (code {code})");
             _window?.SetStatus("Windows needs your attention in the sign-in dialog. The seat is not ready yet.");
@@ -251,7 +257,7 @@ internal sealed class AnodeDaemon : IDisposable
     {
         lock (_lifecycleGate)
         {
-            if (_stopRequested) return;
+            if (_stopRequested || _reconnecting) return;
             _bringUpCancellation.Cancel();
             _hostReady = false;
             SetState(state, message);
@@ -365,20 +371,75 @@ internal sealed class AnodeDaemon : IDisposable
         return null;
     }
 
-    private async Task ReconnectAsync()
+    // Called from the toolbar; keep the UI context for all ActiveX operations.
+    internal async Task ReconnectAsync(bool promptForCredentials = false)
     {
-        await _seatGate.WaitAsync().ConfigureAwait(false);
-        try { PrepareStart(); }
-        finally { _seatGate.Release(); }
-        SetState("connecting", "Reconnecting the viewer...");
-        lock (_lifecycleGate) _reconnecting = true;
-        _window?.BeginInvoke(new Action(() => _window.Viewer.Disconnect()));
-        await Task.Delay(600).ConfigureAwait(false);
-        _window?.BeginInvoke(new Action(() =>
+        int stopVersion;
+        lock (_lifecycleGate)
+        {
+            if (_reconnecting || _state == "stopping") return;
+            stopVersion = _stopVersion;
+            _reconnecting = true;
+            // Let an old host startup release the seat gate before retrying.
+            _bringUpCancellation.Cancel();
+        }
+        _window?.SetReconnectEnabled(false);
+        CancellationToken cancel = default;
+        try
+        {
+            await _seatGate.WaitAsync();
+            try
+            {
+                lock (_lifecycleGate)
+                {
+                    if (stopVersion != Volatile.Read(ref _stopVersion)) return;
+                    if (_blockingSummary() is { } blocked)
+                    {
+                        SetState("error", blocked);
+                        return;
+                    }
+                    PrepareStart();
+                    _reconnecting = true;
+                    _promptForCredentials = promptForCredentials || _options.PromptForCredentials;
+                    cancel = _bringUpCancellation.Token;
+                    _hostReady = false;
+                    DisposeSeatClient();
+                    _window?.SetSeatInfo(_sessionId, false);
+                    SetState("connecting", "Reconnecting the viewer...");
+                }
+            }
+            finally { _seatGate.Release(); }
+
+            // Disconnect only the viewer, never log off the existing seat.
+            _window?.Viewer.Disconnect();
+            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+            while (_window?.Viewer.ConnectionState is > 0)
+            {
+                if (DateTime.UtcNow >= deadline)
+                    throw new TimeoutException("The viewer did not disconnect. Try Sign in or Reconnect again.");
+                await Task.Delay(50, cancel);
+            }
+            lock (_lifecycleGate)
+            {
+                cancel.ThrowIfCancellationRequested();
+                if (stopVersion != Volatile.Read(ref _stopVersion)) return;
+                _reconnecting = false;
+            }
+            if (_window is not null) BeginConnect();
+        }
+        catch (OperationCanceledException) when (cancel.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            Log.Error("could not reconnect the viewer", ex);
+            lock (_lifecycleGate)
+                if (stopVersion == Volatile.Read(ref _stopVersion))
+                    SetState("error", $"Could not reconnect the seat: {ex.Message}");
+        }
+        finally
         {
             lock (_lifecycleGate) _reconnecting = false;
-            BeginConnect();
-        }));
+            _window?.SetReconnectEnabled(true);
+        }
     }
 
     // ------------------------------------------------------------------ stopping
@@ -446,21 +507,29 @@ internal sealed class AnodeDaemon : IDisposable
                 SetState("error", blocked);
                 return JsonLine.Fail(blocked);
             }
-            _hostReady = false;
-            PrepareStart();
-            SetState("connecting", "Creating the seat...");
-            _window?.BeginInvoke(new Action(() =>
+            lock (_lifecycleGate)
             {
-                if (_stopRequested) return;
-                // A pipe timeout does not disconnect the viewer. Reconnect the
-                // host directly instead of waiting for an RDP event that won't fire.
-                if (_window.Viewer.ConnectionState == 1)
+                if (!_reconnecting)
                 {
-                    if (_window.Viewer.LoginCompleted) _ = _startHost();
-                    else OnViewerConnected();
+                    if (_state is not ("connecting" or "signing-in" or "starting-agent"))
+                        _promptForCredentials = _options.PromptForCredentials;
+                    _hostReady = false;
+                    PrepareStart();
+                    SetState("connecting", "Creating the seat...");
+                    _window?.BeginInvoke(new Action(() =>
+                    {
+                        if (_stopRequested || _reconnecting) return;
+                        // A pipe timeout does not disconnect the viewer. Reconnect the
+                        // host directly instead of waiting for an RDP event that won't fire.
+                        if (_window.Viewer.ConnectionState == 1)
+                        {
+                            if (_window.Viewer.LoginCompleted) _ = _startHost();
+                            else OnViewerConnected();
+                        }
+                        else BeginConnect();
+                    }));
                 }
-                else BeginConnect();
-            }));
+            }
         }
         finally { _seatGate.Release(); }
 
@@ -473,7 +542,7 @@ internal sealed class AnodeDaemon : IDisposable
                 return JsonLine.Fail(string.IsNullOrEmpty(_lastError) ? $"Seat startup ended in state '{_state}'." : _lastError);
             await Task.Delay(300).ConfigureAwait(false);
         }
-        return JsonLine.Fail(_options.PromptForCredentials && _state is "connecting" or "signing-in"
+        return JsonLine.Fail(_promptForCredentials && _state is "connecting" or "signing-in"
             ? "Windows has not finished signing in. Complete the credential dialog in Anode, then check `anode status`."
             : "The seat did not become ready in time.");
     }
@@ -637,7 +706,7 @@ internal sealed class AnodeDaemon : IDisposable
             ["agentReady"] = _hostReady,
             ["viewerConnection"] = _window?.Viewer.ConnectionState ?? 0,
             ["loginComplete"] = _window?.Viewer.LoginCompleted ?? false,
-            ["signInPrompt"] = _options.PromptForCredentials && _state is "connecting" or "signing-in",
+            ["signInPrompt"] = _promptForCredentials && _state is "connecting" or "signing-in",
             ["viewerVisible"] = _window?.Visible ?? false,
             ["viewOnly"] = _window?.ViewOnly ?? true,
             ["pointerGuard"] = PointerGuard.Status(),

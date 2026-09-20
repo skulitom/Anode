@@ -1,7 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 — 2026-09-21
 
+- Added **Sign in…** beside **Reconnect** in the viewer header to request Windows credentials
+  from a running Anode instance, without signing out the seat or closing its programs.
 - Fixed the viewer moving the real mouse pointer. When a program in the seat called `SetCursorPos`
   (SDL games do on every switch between relative and absolute mouse mode), the Remote Desktop control
   applied the server's pointer-position update to the user's desktop whenever the real pointer was

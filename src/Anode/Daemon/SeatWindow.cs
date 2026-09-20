@@ -22,6 +22,7 @@ internal sealed class SeatWindow : Form
     private readonly ToolStripButton _controlButton = new();
     private readonly ToolStripButton _fullScreenButton = new();
     private readonly ToolStripButton _reconnectButton = new();
+    private readonly ToolStripButton _signInButton = new();
     private readonly ToolStripLabel _headline = new();
     private readonly StatusStrip _statusBar = new();
     private readonly ToolStripStatusLabel _statusLabel = new();
@@ -41,6 +42,7 @@ internal sealed class SeatWindow : Form
     public event Action? StopSeatRequested;
     public event Action? QuitRequested;
     public event Action? ReconnectRequested;
+    public event Action? SignInRequested;
 
     public SeatWindow(SeatOptions options)
     {
@@ -123,6 +125,11 @@ internal sealed class SeatWindow : Form
         _reconnectButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
         _reconnectButton.Click += (_, _) => ReconnectRequested?.Invoke();
 
+        _signInButton.Text = "Sign in…";
+        _signInButton.ToolTipText = "Reconnect with the Windows credential dialog. The seat and its programs keep running.";
+        _signInButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+        _signInButton.Click += (_, _) => SignInRequested?.Invoke();
+
         _headline.Alignment = ToolStripItemAlignment.Right;
         _headline.ForeColor = Color.FromArgb(161, 161, 170);
         _headline.Text = "starting";
@@ -134,6 +141,7 @@ internal sealed class SeatWindow : Form
             _controlButton,
             _fullScreenButton,
             _reconnectButton,
+            _signInButton,
             _headline
         });
     }
@@ -171,6 +179,13 @@ internal sealed class SeatWindow : Form
     }
 
     // ------------------------------------------------------------------ status
+
+    public void SetReconnectEnabled(bool enabled)
+    {
+        if (InvokeRequired) { BeginInvoke(new Action(() => SetReconnectEnabled(enabled))); return; }
+        _reconnectButton.Enabled = enabled;
+        _signInButton.Enabled = enabled;
+    }
 
     public void SetStatus(string text)
     {

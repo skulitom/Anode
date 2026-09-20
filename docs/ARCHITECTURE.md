@@ -16,7 +16,7 @@ A child session is a loopback Remote Desktop session tied to the signed-in user'
 [documented since Windows 8](https://learn.microsoft.com/en-us/windows/win32/termserv/child-sessions).
 It is created by hosting the Remote Desktop ActiveX control, setting the `ConnectToChildSession`
 extended property, and connecting to `localhost`. Windows attempts to reuse the current user's
-credentials; when delegation fails, explicit `--sign-in` allows a native credential prompt without
+credentials; when delegation fails, **Sign in…** in the viewer or `--sign-in` allows a native credential prompt without
 signing out the parent. Windows gives the child no lock screen or screen saver and terminates it when
 the parent session terminates. Exactly one may be connected at a time. Because it is a real session,
 it has its own everything: desktop, input queue, focus, window list, processes.

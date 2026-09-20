@@ -80,8 +80,9 @@ anode start --hidden | Out-Host
 anode capabilities | Out-Host
 ```
 
-If Windows Hello/PIN sign-in prevents automatic login, use `anode start --hidden --sign-in` to
-request the native Windows credential dialog. See [sign-in troubleshooting](docs/TROUBLESHOOTING.md).
+If Windows Hello/PIN sign-in prevents automatic login, open the viewer from the Anode tray icon
+and click **Sign in…** in its header to request the Windows credential dialog. When starting Anode,
+you can also use `anode start --sign-in`. See [sign-in troubleshooting](docs/TROUBLESHOOTING.md).
 
 Then ask your agent:
 

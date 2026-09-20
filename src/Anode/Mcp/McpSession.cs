@@ -87,7 +87,7 @@ internal sealed class McpSession
                             ["serverInfo"] = new JsonObject
                             {
                                 ["name"] = "anode", ["title"] = "Anode background Windows desktop",
-                                ["version"] = typeof(McpSession).Assembly.GetName().Version?.ToString(3) ?? "0.4.0",
+                                ["version"] = typeof(McpSession).Assembly.GetName().Version?.ToString(3) ?? "0.5.0",
                                 ["websiteUrl"] = "https://github.com/skulitom/Anode"
                             },
                             ["instructions"] = AgentGuide.Instructions

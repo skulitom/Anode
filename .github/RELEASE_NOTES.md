@@ -23,12 +23,23 @@ anode capabilities | Out-Host
 the discoverable `anode-desktop` skill. Use `--no-skill` for MCP registration alone.
 Restart the agent afterward. Other MCP clients can launch `anode.exe` with the argument `mcp`.
 
-## Agent discovery in 0.4.0
+## What's new in 0.5.0
 
-Agents receive guidance for choosing Anode for native Windows UI work and headed app testing
-while keeping direct tools for work that does not need a desktop. `anode_guide` and
-`anode guide --json` work before setup. **`seat_status` no longer starts a desktop**; use
-`seat_start` when needed. Customized skill copies are preserved during configuration.
+**Desktop leases.** `seat_lease` and `anode lease` give one agent exclusive use of the seat, with
+renewal, idle expiry and scoped release. Desktop tools now require a lease: MCP clients acquire one
+automatically, CLI workflows pass an agent ID and token. Stale queued actions are rejected while
+in-flight operations finish, and Stop stays immediate and global.
+
+**The viewer no longer moves the real mouse pointer.** A program in the seat calling `SetCursorPos`
+(SDL games do it on every switch between relative and absolute mouse mode) teleported the pointer on
+your own desktop, even with the viewer hidden or view-only. Anode now gates that call inside its own
+process, and `anode status` reports `pointerGuard`.
+
+**Sign in…** beside **Reconnect** in the viewer header retries a failed automatic sign-in, or
+requests the Windows credential dialog, without restarting Anode or closing the seat's programs.
+
+**Upgrading:** restart existing daemon and seat-host processes after installing, so they load the
+new protocol and the pointer guard.
 See [the agent guide](https://github.com/skulitom/Anode/blob/main/docs/FOR-AGENTS.md).
 
 Requires 64-bit Windows 10/11 Pro, Enterprise or Education, or Windows Server with a Remote Desktop

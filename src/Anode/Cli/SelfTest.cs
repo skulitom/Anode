@@ -125,6 +125,7 @@ internal static class SelfTest
         Check(results, "viewer pointer guard", DiagnosticsChecks.ViewerPointerGuard);
         Check(results, "RDP extended settings", DiagnosticsChecks.RdpSettings);
         Check(results, "RDP event callbacks", DiagnosticsChecks.RdpCallbacks);
+        Check(results, "viewer sign-in", () => DiagnosticsChecks.ViewerSignIn().GetAwaiter().GetResult());
         Check(results, "RDP handshake diagnostics", DiagnosticsChecks.RdpHandshakeFailure);
         Check(results, "RDP listener probe", () => DiagnosticsChecks.Listener().GetAwaiter().GetResult());
         Check(results, "setup listener repair", DiagnosticsChecks.SetupListener);

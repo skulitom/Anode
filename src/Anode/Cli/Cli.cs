@@ -307,7 +307,7 @@ internal static partial class Cli
             {
                 if (options.Flag("sign-in"))
                 {
-                    Console.Error.WriteLine("Anode is already running. To change its sign-in mode, run `anode quit`, then `anode start --sign-in`.");
+                    Console.Error.WriteLine("Anode is already running. Open its viewer from the tray icon or with `anode show`, then click Sign in in the header.");
                     return 2;
                 }
                 return Report(await RequestAsync(already, "seat.start", timeoutMs: 180_000));

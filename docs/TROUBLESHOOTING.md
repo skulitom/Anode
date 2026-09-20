@@ -90,19 +90,21 @@ Anode reads that value and connects to whatever it says.
 Two causes.
 
 **You sign in to Windows with a PIN.** PIN/Windows Hello authentication has limitations in child
-sessions. To request credentials for the seat while leaving your current desktop signed in, use:
+sessions. To request credentials for the seat while leaving your current desktop signed in,
+press **Sign in…** next to **Reconnect** in the viewer header. If the viewer is hidden, open it
+from the Anode tray icon. This retries sign-in without restarting Anode or closing seat programs.
+You can also request the prompt when starting Anode:
 
 ```powershell
 anode start --sign-in
 ```
 
-If Anode is already running, `anode quit` first; that closes programs in its seat. The new daemon
-shows the native Windows credential dialog. Enter your account password there; the PIN may not
+Anode shows the native Windows credential dialog. Enter your account password there; the PIN may not
 work. Anode does not retrieve or save the password and disables the dialog's save-credentials
 option. `--sign-in` cannot be combined with `--hidden`. Windows may request credentials again
 when you create another seat. Anode waits for Windows to complete login before launching its host;
 a connected viewer or reserved child-session ID alone does not mean sign-in has succeeded.
-Ordinary starts disable Windows credential prompting; use `--sign-in` only when you intend to
+Ordinary starts disable Windows credential prompting; use **Sign in…** or `--sign-in` when you intend to
 interact with the dialog. Stop requests viewer disconnection even if Windows logoff fails.
 
 Microsoft documents the PIN
