@@ -6,8 +6,8 @@ not isolated from, and how to stop it.
 
 ## What `anode setup` changes
 
-Four settings, all documented, all reversible, applied only after you approve one UAC prompt.
-Decline the prompt and nothing changes.
+Four settings, all documented and reversible by hand, applied only after you approve one UAC prompt.
+Decline the prompt and nothing changes. `anode setup --undo` reverts child sessions only.
 
 | Setting | Key | Default | Anode sets | Why |
 | --- | --- | --- | --- | --- |
@@ -42,12 +42,22 @@ It deliberately leaves Remote Desktop enabled, because other software on your ma
 on it and silently disabling someone's RDP is worse than leaving a setting they can see. Turn it off
 yourself in **Settings → System → Remote Desktop**, or set `fDenyTSConnections` back to `1`.
 
+`--undo` first signs out any running seat, closing its programs. It does not remove the optional
+`--fps 60` or `--gpu` values. If you set them, remove them from an elevated PowerShell and reboot:
+
+```powershell
+Remove-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations' -Name DWMFRAMEINTERVAL
+Remove-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name bEnumerateHWBeforeSW
+```
+
+Leave `bEnumerateHWBeforeSW` alone if your organization's Group Policy sets it.
+
 ## Per-user background rendering
 
 Before creating its RDP viewer, the daemon sets the DWORD
 `HKCU\Software\Microsoft\Terminal Server Client\RemoteDesktop_SuppressWhenMinimized`
 to `2`. This affects other RDP clients launched by the same user as well as Anode.
-It changes rendering behaviour, not authentication or firewall settings. Anode saves
+It changes rendering behavior, not authentication or firewall settings. Anode saves
 the previous value in `rdp-rendering-backup.json` in its state directory. Unexpected
 registry types are left unchanged and logged. To restore the saved value after
 stopping Anode, run `anode rendering --restore` with the same `--state-dir` if used.
@@ -117,7 +127,7 @@ parent session. Nothing survives your sign-out.
 `anode ps kill` refuses to touch any process outside the seat's session id, so a confused agent
 cannot reach across and kill something of yours.
 
-## Running an agent in the seat
+## Agents, leases and command jobs
 
 Desktop leases coordinate agents sharing one Windows identity; agent IDs are cooperative labels,
 not authenticated principals. A same-user program can impersonate an ID or use native Windows APIs.
@@ -139,7 +149,9 @@ stopping it. The service may recreate a helper; this is not an automatic recurri
 
 - Give it the **MCP server**, not a shell in your session. The tool surface is deliberately narrow.
 - The daemon and an agent share one seat. **Your stop button always wins**, because the daemon owns
-  the lifecycle and the agent is a client.
+  the lifecycle and the agent is a client. Over MCP, only `seat_start` and `seat_lease` acquisition
+  start a seat; other tools report that Anode or its seat is not running instead of bringing back
+  a seat you stopped.
 - Watch the log at `%LOCALAPPDATA%\Anode\anode.log`. Every launch, stop and failure is recorded with a
   timestamp and a role.
 - The CLI/MCP runtime has no telemetry, update check or remote control endpoint. The seat uses

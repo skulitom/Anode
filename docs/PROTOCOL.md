@@ -56,10 +56,11 @@ See [Microsoft's pipe option documentation](https://learn.microsoft.com/en-us/do
 | `seat.identity` | | `{session, parentSession}` from Windows; used by the seat host to verify its session before serving input |
 | `doctor` | | `{checks: [{name, state, detail, fix}]}` |
 | `seat.start` | | `{session}` when ready |
-| `seat.stop` | `reason` | `{stopped, session}` |
+| `seat.stop` (alias `kill`) | `reason` | `{stopped, session}` |
 | `seat.show` | | |
 | `seat.hide` | | |
 | `seat.control` | `viewOnly` | `{viewOnly}` |
+| `lease` | `action`, `ttlSeconds`, `cancelJobs`, `agentId`, `leaseToken` | `{agentId, ownerAgentId, expiresInMs, operationRunning, leaseToken, summary}`; `acquire` starts the seat if needed; the request then goes to the seat host, which owns the lease, on an independent connection. See [multiple agents](MULTI-AGENT.md). |
 | `quit` | | stops the seat, then exits Anode |
 
 `status` result:
@@ -80,7 +81,8 @@ See [Microsoft's pipe option documentation](https://learn.microsoft.com/en-us/do
   "logPath": "C:\\Users\\you\\AppData\\Local\\Anode\\anode.log",
   "logError": null,
   "seat":  { "session": 3, "pid": 9120, "user": "you", "screen": {"width":1280,"height":720}, "cursor": {"x":640,"y":360} },
-  "steam": { "steamExe": "D:\\STEAM\\steam.exe", "runningSessions": [3], "summary": "Steam is running inside the seat..." }
+  "steam": { "steamExe": "D:\\STEAM\\steam.exe", "seatSession": 3, "runningSessions": [3],
+             "runningOutsideSeat": false, "summary": "Steam is running inside the seat..." }
 }
 ```
 
@@ -98,7 +100,7 @@ not protected; see [Troubleshooting](TROUBLESHOOTING.md#my-real-pointer-jumps-wh
 
 ## Operations the seat host owns
 
-Anything the daemon does not recognise is forwarded to the seat host unchanged. A new seat capability
+Anything the daemon does not recognize is forwarded to the seat host unchanged. A new seat capability
 therefore needs no daemon change.
 
 ### State
@@ -150,17 +152,19 @@ See [DEVELOPMENT-TESTING.md](DEVELOPMENT-TESTING.md) for bounds, exit semantics 
 
 ### Input
 
-All coordinates are pixels on the seat's screen, origin top left. Keys are sent as scan codes by
-default (`scanCode: false` to send virtual-key events instead), which is what makes games see them.
+All coordinates are pixels on the seat's screen, origin top left. Keys are sent as scan codes, which
+is what makes games see them; only `input.keydown`/`input.keyup` accept `scanCode: false` to send
+virtual-key events instead. An operation that has an MCP tool is checked against that tool's input
+schema, so its row lists every argument it accepts.
 
 | `op` | Arguments |
 | --- | --- |
 | `input.move` | `x`,`y` (absolute) or `dx`,`dy` (relative, for games that read raw motion) |
-| `input.click` | `button`, `x`, `y`, `count`, `holdMs` |
+| `input.click` | `button`, `x`, `y`, `count` |
 | `input.down` / `input.up` | `button`, `x`, `y` |
-| `input.drag` | `fromX`, `fromY`, `toX`, `toY`, `button`, `steps`, `stepMs` |
+| `input.drag` | `fromX`, `fromY`, `toX`, `toY`, `button` |
 | `input.scroll` | `amount` (negative is down), `horizontal` |
-| `input.key` | `keys` (`"ctrl+shift+esc"`), `holdMs`, `scanCode` |
+| `input.key` | `keys` (`"ctrl+shift+esc"`), `holdMs` |
 | `input.keydown` / `input.keyup` | `key`, `scanCode` |
 | `input.text` | `text`, `perCharMs` |
 
@@ -173,8 +177,8 @@ Buttons: `left`, `right`, `middle`, `x1`, `x2`. Key names: letters, digits, `f1`
 | `op` | Arguments | Result |
 | --- | --- | --- |
 | `run` | `path`, `args` (array), `cwd` | `{pid, path, session}` |
-| `steam.status` | | `{steamExe, runningSessions, summary}` |
-| `steam.launch` | `appId`, `args`, `force`, `startClient`, `clientWarmupMs` | `{appId, session, note}` |
+| `steam.status` | | `{steamExe, seatSession, runningSessions, runningOutsideSeat, summary}` |
+| `steam.launch` | `appId`, `args`, `force` | `{appId, session, note}` |
 | `ps.list` | `windowedOnly` | `{session, processes:[{pid,name,title,started,memoryMb}]}` |
 | `ps.kill` | `pid` or `name` | `{killed}` |
 
@@ -224,41 +228,70 @@ $reader.ReadLine() | ConvertFrom-Json | ConvertTo-Json -Depth 6
 ## MCP mapping
 
 `anode mcp` is a thin translation of the same operations into Model Context Protocol tools. Each tool
-maps to exactly one `op`, so there is no second implementation to keep in step.
+except `anode_guide` maps to exactly one `op`, so there is no second implementation to keep in step.
 
 | Tool | `op` | Tool | `op` |
 | --- | --- | --- | --- |
-| `seat_status` | `status` | `seat_click` | `input.click` |
-| `seat_start` | `seat.start` | `seat_move` | `input.move` |
-| `seat_stop` | `seat.stop` | `seat_drag` | `input.drag` |
-| `seat_show` / `seat_hide` | `seat.show` / `seat.hide` | `seat_scroll` | `input.scroll` |
-| `seat_screenshot` | `screenshot` | `seat_key` | `input.key` |
-| `seat_run` | `run` | `seat_type` | `input.text` |
-| `steam_status` | `steam.status` | `gamepad_attach` | `gamepad.attach` |
-| `steam_launch` | `steam.launch` | `gamepad_detach` | `gamepad.detach` |
-| `seat_processes` | `ps.list` | `gamepad_set` | `gamepad.set` |
-| `seat_kill_process` | `ps.kill` | `gamepad_tap` | `gamepad.tap` |
-| `seat_windows` | `desktop.windows` | `seat_observe` | `desktop.observe` |
-| `seat_window` | `desktop.window` | `seat_element` | `desktop.element` |
-| | | `gamepad_reset` | `gamepad.reset` |
+| `anode_guide` | none; answered locally | `seat_click` | `input.click` |
+| `seat_status` | `status` | `seat_move` | `input.move` |
+| `seat_lease` | `lease` | `seat_drag` | `input.drag` |
+| `seat_start` | `seat.start` | `seat_scroll` | `input.scroll` |
+| `seat_stop` | `seat.stop` | `seat_key` | `input.key` |
+| `seat_show` / `seat_hide` | `seat.show` / `seat.hide` | `seat_type` | `input.text` |
+| `seat_capabilities` | `desktop.capabilities` | `gamepad_attach` | `gamepad.attach` |
+| `seat_screenshot` | `screenshot` | `gamepad_detach` | `gamepad.detach` |
+| `seat_run` | `run` | `gamepad_set` | `gamepad.set` |
+| `steam_status` | `steam.status` | `gamepad_tap` | `gamepad.tap` |
+| `steam_launch` | `steam.launch` | `gamepad_reset` | `gamepad.reset` |
+| `seat_processes` | `ps.list` | `seat_windows` | `desktop.windows` |
+| `seat_kill_process` | `ps.kill` | `seat_observe` | `desktop.observe` |
+| `seat_exec` | `exec.start` | `seat_window` | `desktop.window` |
+| `seat_job` | `exec.read` | `seat_element` | `desktop.element` |
+| | | `seat_wait` | `desktop.wait` |
 
-There are 32 tools. `seat_lease` maps to `lease`; acquisition can start a hidden seat, while its
-status, renewal and release do not start one. MCP assigns an agent ID, remembers the acquired
-token and supplies it on desktop calls. `anode_guide` returns the embedded operating guide locally, without a daemon,
-setup or waiting behind long tool calls. `seat_capabilities`, `seat_wait`, `seat_exec` and `seat_job` map to
-`desktop.capabilities`, `desktop.wait`, `exec.start` and `exec.read` respectively.
-`seat_screenshot` returns an MCP image block plus capture-size
-text. Desktop tools return a readable summary and `structuredContent`;
-`seat_observe` additionally returns an image block when capture succeeds, keeping
-the image's base64 data out of `structuredContent` to avoid duplication.
+There are 32 tools. MCP assigns an agent ID (or uses `ANODE_AGENT_ID` from its environment),
+remembers the token returned by `seat_lease` acquire or renew, and supplies both on desktop calls.
+`anode_guide` returns the embedded operating guide without a daemon, setup or waiting behind long
+tool calls.
 
-`seat_status` never starts a daemon. With no daemon it returns a successful result containing
-`state: stopped` and `daemonRunning: false`; with one running it returns that daemon's status.
-Tools marked as starting the daemon (`seat_start` and live tools whose descriptions say so)
-launch a hidden daemon through the shared launcher and wait for readiness. Teardown tools do
-not start anything. Only `anode_guide` and `seat_status` carry `readOnlyHint: true`;
-auto-starting observations and arbitrary input/application actions use conservative annotations.
-Titles and initialization instructions provide task-selection guidance. See [For agents](FOR-AGENTS.md).
+Only `seat_start` and `seat_lease` with `action: "acquire"` start anything: with no daemon running
+they launch a hidden one through the shared launcher, and they wait for the seat to be ready.
+`seat_status` never starts a daemon. With none running it returns a successful result containing
+`state: stopped`, `daemonRunning: false`, `agentId`, `ownerAgentId: null` and a `summary` that says
+to acquire a lease; with one running it returns that daemon's status. `seat_capabilities`,
+`seat_processes` and `steam_status` likewise report a stopped seat instead of starting one, and
+`seat_show` and `seat_hide` return an error. A lease-requiring tool that finds no daemon forgets
+its token and returns an error asking for a new acquisition; it never relaunches a daemon a person
+quit. The same holds when a person stops the seat but Anode keeps running (the Stop button, the
+hotkey, `anode kill` or another agent's `seat_stop`): the daemon answers `errorCode: "seat_stopped"`,
+diagnostics report `state: stopped` with `daemonRunning: true`, and lease-requiring tools forget
+their token and ask for a new acquisition. The first call after Anode quits reports the same
+instead of a lost connection; it is never resent.
+
+A result with a `summary` returns it as text. When `seat_observe` also returns an image block, the
+result carries no `structuredContent`; the text then gives the capture size and each control's
+automation ID and bounds, so selectors and coordinates work from text alone. Otherwise
+`structuredContent` holds the result without its `summary`. `seat_screenshot` returns an image
+block plus capture-size text. Errors from the daemon or seat host return `isError: true` with the
+failure object, including any `errorCode`, in `structuredContent`.
+
+Annotations follow each tool's effect. `anode_guide`, `seat_status`, `seat_windows`, `seat_observe`,
+`seat_screenshot`, `seat_wait`, `seat_capabilities`, `seat_processes` and `steam_status` are
+read-only (`readOnlyHint: true`). `seat_windows`, `seat_observe`, `seat_screenshot` and `seat_wait`
+return whatever the seat's apps and web pages show, so they set `openWorldHint: true` to mark that
+content as untrusted; the other read-only tools set it false. `seat_start` and `seat_hide` are additive
+(`destructiveHint: false`, `idempotentHint: true`, `openWorldHint: false`). Every other tool keeps
+conservative hints (`destructiveHint: true`, `idempotentHint: false`, `openWorldHint: true`),
+including `seat_show`, which puts the viewer on the user's screen. `annotations.title` repeats the
+tool's title. Annotations describe effects; they are not approval overrides, and they never make a
+timed-out action safe to replay. Titles and initialization instructions provide task-selection
+guidance. See [For agents](FOR-AGENTS.md).
+
+The server also offers two prompts, answered locally like `anode_guide`: `desktop_test` takes no
+arguments and returns the lease workflow for the app or task the user names, and `desktop_guide`
+returns the full guide. In Claude Code, `/mcp__anode__desktop_test` runs one (its `/` menu lists it
+as `/anode:desktop_test`); in VS Code, `/mcp.anode.desktop_test`. The names follow the server name
+in the client's configuration. An unknown prompt name returns JSON-RPC error `-32602`.
 
 The stdio server supports MCP versions `2024-11-05`, `2025-03-26`, `2025-06-18` and `2025-11-25`.
 An unsupported version negotiates `2025-11-25` rather than echoing a version the server does not know.
@@ -271,6 +304,6 @@ new tool calls are rejected while Stop is pending. A cancelled command already d
 daemon may have executed or may still be running until the seat stops. Anode never replays it.
 
 `notifications/cancelled` cancels the matching request without a response. Closing stdin cancels
-outstanding requests and exits the MCP server; it does not sign out the seat. These behaviours follow
+outstanding requests and exits the MCP server; it does not sign out the seat. These behaviors follow
 the MCP [lifecycle](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle) and
 [cancellation](https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/cancellation) specifications.

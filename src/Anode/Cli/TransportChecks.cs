@@ -209,7 +209,9 @@ internal static class TransportChecks
                 "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"ping\"}",
                 "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"tools/call\",\"params\":{\"name\":\"unknown-selftest-tool\",\"arguments\":{}}}",
                 "{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"unknown-selftest-method\"}",
-                "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"tools/call\",\"params\":{\"name\":\"anode_guide\",\"arguments\":{}}}"
+                "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"tools/call\",\"params\":{\"name\":\"anode_guide\",\"arguments\":{}}}",
+                "{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"prompts/list\"}",
+                "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"prompts/get\",\"params\":{\"name\":\"desktop_guide\"}}"
             };
             foreach (string message in messages) await process.StandardInput.WriteLineAsync(message);
             process.StandardInput.Close();
@@ -217,11 +219,12 @@ internal static class TransportChecks
             Require(process.ExitCode == 0, $"MCP exited with {process.ExitCode}: {await stderr}");
             var replies = (await stdout).Split('\n', StringSplitOptions.RemoveEmptyEntries)
                 .Select(line => JsonLine.Parse(line) ?? throw new InvalidOperationException("MCP wrote non-JSON output")).ToArray();
-            Require(replies.Length == 8, "unexpected MCP reply count (including notification responses)");
+            Require(replies.Length == 10, "unexpected MCP reply count (including notification responses)");
             Require(replies[0].Obj("error")?.Int("code") == -32700, "malformed JSON did not return a parse error");
             for (int i = 1; i < replies.Length; i++)
                 Require(replies[i].Int("id") == i && replies[i].Str("jsonrpc") == "2.0", "MCP reply lost its id or version");
-            Require(replies[1].Obj("result")?.Obj("serverInfo")?.Str("name") == "anode", "MCP initialization failed");
+            Require(replies[1].Obj("result")?.Obj("serverInfo")?.Str("name") == "anode"
+                && replies[1].Obj("result")?.Obj("capabilities")?.Obj("prompts") is not null, "MCP initialization failed");
             var listed = replies[2].Obj("result")?["tools"] as JsonArray;
             Require(listed is { Count: 32 } && JsonNode.DeepEquals(replies[2]["result"], replies[3]["result"]), "MCP tool discovery is incomplete or unstable");
             Require(listed!.OfType<JsonObject>().Select(t => t.Str("name")).Distinct().Count() == listed!.Count, "duplicate tool names");
@@ -232,7 +235,10 @@ internal static class TransportChecks
             Require(replies[6].Obj("error")?.Int("code") == -32601, "unknown method was not reported as an error");
             Require((replies[7].Obj("result")?["content"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault()?.Str("text") == Mcp.AgentGuide.Text,
                 "published MCP guide differs from the embedded skill");
-            return "initialize, 32 tools, embedded guide, notifications, ping, malformed JSON and errors over stdio";
+            Require(replies[8].Obj("result")?["prompts"] is JsonArray { Count: 2 }
+                && (replies[9].Obj("result")?["messages"]?[0]?["content"] as JsonObject)?.Str("text") == Mcp.AgentGuide.Text,
+                "MCP prompts are missing or differ from the embedded skill");
+            return "initialize, 32 tools, embedded guide, prompts, notifications, ping, malformed JSON and errors over stdio";
         }
         finally
         {

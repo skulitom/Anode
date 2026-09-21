@@ -1,8 +1,8 @@
 {
-  "$comment": "Correct the command path to wherever anode.exe lives, then merge this into your MCP client's config. Claude Desktop reads claude_desktop_config.json; Claude Code accepts `claude mcp add anode -- C:\\Tools\\anode\\anode.exe mcp`.",
+  "$comment": "Merge the anode entry into your MCP client's config and correct the path if anode.exe lives elsewhere. `timeout` (milliseconds) is read by Claude Code only; other clients ignore it, so start the seat with `anode start --hidden` before the first request. Claude Desktop: https://github.com/skulitom/Anode/blob/main/docs/CONNECTING-AGENTS.md#claude-desktop",
   "mcpServers": {
     "anode": {
-      "command": "C:\\Tools\\anode\\anode.exe",
+      "command": "C:\\Users\\you\\AppData\\Local\\Programs\\Anode\\anode.exe",
       "args": ["mcp"],
       "timeout": 420000
     }

@@ -13,8 +13,11 @@
     <Version>0.5.0</Version>
     <Company>Anode</Company>
     <Product>Anode</Product>
-    <Description>A virtual seat for agents on Windows: an isolated child session with its own input, focus, display, virtual gamepad and an MCP control surface.</Description>
+    <AssemblyTitle>Anode background Windows desktop</AssemblyTitle>
+    <Description>Background Windows desktop for AI agents: native GUI automation, screenshots and app testing.</Description>
+    <Copyright>Copyright (c) 2026 skulitom. MIT License.</Copyright>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\..\assets\anode.ico</ApplicationIcon>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
     <Platforms>x64</Platforms>
@@ -32,6 +35,8 @@
 
   <ItemGroup>
     <EmbeddedResource Include="..\..\skills\anode-desktop\SKILL.md" LogicalName="Anode.AgentSkill" />
+    <!-- The viewer and tray select sizes from this multi-frame icon at run time. -->
+    <EmbeddedResource Include="..\..\assets\anode.ico" LogicalName="Anode.Icon" />
     <Content Include="..\..\skills\anode-desktop\**\*" Link="skills\anode-desktop\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
     <Content Include="..\..\scripts\connect-agents.ps1" Link="connect-agents.ps1" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
     <!-- WPF supplies UI Automation and the opt-in interoperability test fixture. -->

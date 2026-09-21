@@ -1,7 +1,8 @@
 # Connecting an agent
 
 Anode speaks the Model Context Protocol on stdin and stdout. Any MCP client can hold a seat; this
-page covers the two terminal agents most people use on Windows, plus the generic form.
+page covers Claude Code and Codex CLI, which `anode configure` registers for you, then Claude
+Desktop, VS Code, Cursor and the generic form.
 
 The shape is the same for all of them. **The agent runs in your session and the seat is one of its
 tools.** It does not run inside the seat, it does not touch your desktop, and it cannot take your
@@ -59,8 +60,9 @@ The manual instructions below are alternatives to `anode configure`.
 claude mcp add --transport stdio --scope user anode -- "$env:LOCALAPPDATA\Programs\Anode\anode.exe" mcp
 ```
 
-`-s user` makes the seat available in every project. Drop it for `local` (this project only, the
-default), or use `-s project` to write a `.mcp.json` that you commit and your teammates get.
+`--scope user` (`-s user`) makes the seat available in every project. Drop it for `local` (this
+project only, the default), or use `--scope project` to write a `.mcp.json` that you commit and
+your teammates get.
 
 Check it:
 
@@ -69,11 +71,29 @@ claude mcp list
 claude mcp get anode
 ```
 
-Inside a session, `/mcp` shows the server and its tools.
+Inside a session, `/mcp` shows the server and its tools. The prompts `/mcp__anode__desktop_test`
+and `/mcp__anode__desktop_guide` start a guided desktop test or show the full guide.
 
 Current Claude Code supports `"timeout": 420000` on the Anode server entry in
-`~/.claude.json` (milliseconds), which the setup script writes. Older clients can start the
+`~/.claude.json` (milliseconds), which `anode configure` writes. Older clients can start the
 seat first. See the [official Claude Code MCP documentation](https://code.claude.com/docs/en/mcp).
+
+**Or install the plugin.** With `anode` on your PATH (install.ps1's default or Scoop), run inside
+Claude Code:
+
+```text
+/plugin marketplace add skulitom/Anode
+/plugin install anode@anode
+```
+
+The plugin registers the same MCP server by its bare `anode` command, with the 420-second
+timeout, and bundles the skill as `/anode:anode-desktop`. It does not install `anode.exe` or run
+`anode setup`. Start a new session to load its tools. Claude Code names plugin tools
+`mcp__plugin_anode_anode__<tool>` instead of `mcp__anode__<tool>`; to find the prompts, type `/`
+and search for `desktop_test`. Use the plugin or `anode configure claude`, not both: Claude Code
+would list the tools and the skill twice. To switch to the plugin, run
+`claude mcp remove --scope user anode` and delete the `anode-desktop` folder from
+[the Claude Code skill location](FOR-AGENTS.md#skill-installation-and-control).
 
 ## 2. Codex CLI
 
@@ -81,20 +101,21 @@ seat first. See the [official Claude Code MCP documentation](https://code.claude
 codex mcp add anode -- "$env:LOCALAPPDATA\Programs\Anode\anode.exe" mcp
 ```
 
-That writes into `~/.codex/config.toml`:
+That writes the command and arguments into `~/.codex/config.toml` (or `%CODEX_HOME%\config.toml`).
+Then add `tool_timeout_sec = 420` to the same table yourself, so a cold Windows seat can finish
+signing in; `anode configure codex` does this for you:
 
 ```toml
 [mcp_servers.anode]
 command = 'C:\Users\you\AppData\Local\Programs\Anode\anode.exe'
 args = ["mcp"]
-tool_timeout_sec = 420
+tool_timeout_sec = 420   # added by hand or by anode configure
 ```
 
-Add `tool_timeout_sec = 420` to that server entry to allow a cold Windows seat to finish
-signing in. The CLI add command stores the command and arguments; the timeout is a separate
-configuration setting. Codex's default tool timeout is 60 seconds, shorter than Anode's startup
-wait. See the [official MCP configuration documentation](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
-Starting the seat with `anode start` before connecting the agent also avoids that first-call wait.
+Codex's default tool timeout is 60 seconds, shorter than Anode's startup wait. See the
+[official MCP configuration documentation](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
+Starting the seat with `anode start --hidden` before connecting the agent also avoids that
+first-call wait.
 
 You can equally write the entry by hand. Check it:
 
@@ -109,6 +130,8 @@ different session; connecting this server does not redirect them into the seat.
 
 ## 3. Any other MCP client
 
+Most clients accept this entry under an `mcpServers` key:
+
 ```json
 {
   "mcpServers": {
@@ -120,25 +143,105 @@ different session; connecting this server does not redirect them into the seat.
 }
 ```
 
-The only argument is `mcp`; no environment variables or remote endpoint are required. See [PROTOCOL.md](PROTOCOL.md) for the tool list
-and for the named-pipe interface underneath, if you would rather skip MCP entirely.
+Use the absolute path to your `anode.exe`; the default install location is shown. The only
+argument is `mcp`; no environment variables or remote endpoint are required. See
+[PROTOCOL.md](PROTOCOL.md) for the tool list and for the named-pipe interface underneath, if you
+would rather skip MCP entirely.
+
+Per-server timeout keys are client-specific: Claude Code reads `timeout` (milliseconds) and Codex
+`tool_timeout_sec` (seconds), which `anode configure` sets. Other clients may give up on a request
+after 60 seconds, before a cold seat finishes signing in. With those clients, run
+`anode start --hidden | Out-Host` before the first request; the agent then acquires its lease as
+usual.
+
+### Claude Desktop
+
+1. [Install Anode](INSTALL.md) and run `anode setup` once.
+2. In Claude Desktop, open **Settings > Developer > Edit Config** and add the `anode` entry above
+   under `mcpServers`, with the absolute path to `anode.exe`. The standard installer's file is
+   `%APPDATA%\Claude\claude_desktop_config.json`. A Microsoft Store (MSIX) install may read
+   `%LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\claude_desktop_config.json`
+   instead; if the tools do not appear, edit the file that exists there.
+3. Quit Claude Desktop completely, including its tray icon, then reopen it.
+4. Run `anode start --hidden | Out-Host` before the first request, so a cold seat start does not
+   exceed Claude Desktop's request timeout.
+5. Ask for desktop work. The agent calls `seat_lease` with `action: "acquire"`, renews before
+   expiry and releases when finished; [section 5](#5-tell-the-agent-how-to-use-it) has
+   instructions you can add to a project.
+
+Claude Desktop writes the server's stderr to `%APPDATA%\Claude\logs\mcp-server-anode.log`
+(standard install). See the
+[official guide to local MCP servers](https://modelcontextprotocol.io/docs/develop/connect-local-servers).
+
+### VS Code
+
+VS Code uses a `servers` key with `"type": "stdio"`. Run **MCP: Open User Configuration** from
+the Command Palette for every workspace, or edit `.vscode/mcp.json` for one workspace:
+
+```json
+{
+  "servers": {
+    "anode": {
+      "type": "stdio",
+      "command": "C:\\Users\\you\\AppData\\Local\\Programs\\Anode\\anode.exe",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Or add it from PowerShell. This form uses the bare `anode` command, so it relies on the PATH entry
+from install.ps1 or Scoop; restart VS Code after installing Anode so it sees the new PATH:
+
+```powershell
+code --add-mcp '{\"name\":\"anode\",\"command\":\"anode\",\"args\":[\"mcp\"]}'
+```
+
+The backslashes keep the inner quotes when PowerShell passes the JSON to `code`. VS Code asks
+you to trust the server when it first starts, and asks for approval before tools that are not
+marked read-only. Type `/` in chat to find the prompts, `/mcp.anode.desktop_test` and
+`/mcp.anode.desktop_guide`. See the
+[VS Code MCP documentation](https://code.visualstudio.com/docs/agent-customization/mcp-servers).
+
+### Cursor
+
+Cursor reads `%USERPROFILE%\.cursor\mcp.json` for every project, or `.cursor\mcp.json` in one
+project, with the `mcpServers` shape. Cursor expands `${env:NAME}` in `command`, so the default
+install location needs no user name:
+
+```json
+{
+  "mcpServers": {
+    "anode": {
+      "type": "stdio",
+      "command": "${env:LOCALAPPDATA}\\Programs\\Anode\\anode.exe",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+For a custom folder, Scoop or a portable copy, use that `anode.exe` path instead. See the
+[Cursor MCP documentation](https://cursor.com/docs/mcp).
 
 ## 4. Who starts the daemon
 
 Either of you. It makes a small difference worth knowing about.
 
-**You start it** (recommended when you are going to watch):
+**You start it** (recommended when you are going to watch, and with clients that time out after
+60 seconds):
 
 ```powershell
-anode start
+anode start | Out-Host             # or: anode start --hidden | Out-Host
 ```
 
 The seat is up before the agent's first tool call, so the first call is fast, and the viewer is
-already on screen.
+already on screen unless you pass `--hidden`.
 
-**The agent starts it.** `seat_start` or another auto-starting live tool brings the seat up.
-`seat_status` only checks availability; `anode_guide` returns guidance locally. Anode launches the daemon
-with its viewer hidden. Use `seat_show` only when the user wants to watch. It launches
+**The agent starts it.** `seat_lease` with `action: "acquire"` or `seat_start` brings the seat
+up; desktop tools are refused until the agent holds a lease. `seat_status` and the other tools
+only report that Anode is not running; `anode_guide` returns guidance locally. Anode launches the
+daemon with its viewer hidden. Use `seat_show` only when the user wants to watch. It launches
 through the Task Scheduler rather than as a child process, specifically because Claude Code and Codex
 put their subprocesses in a job object: a daemon started the naive way would die with the agent and
 strand a child session with no owner. As launched, the daemon outlives the agent, and closing your
@@ -158,11 +261,13 @@ Put this in `CLAUDE.md` for Claude Code, or `AGENTS.md` for Codex:
 The `anode` MCP server gives you a seat: a second Windows session with its own screen, pointer and
 keyboard focus. Apps share the user's profile, and virtual gamepads are machine-wide.
 
-- Call `seat_status` first. If there is no seat, call `seat_start`.
-- Acquire with `seat_lease {action: "acquire"}` before desktop work; renew before expiry and
-  release after fixture cleanup. MCP supplies its identity/token automatically. Configure a
-  unique `ANODE_AGENT_ID` per independent agent for restart recovery. See [multiple agents](MULTI-AGENT.md).
-  Use `seat_capabilities` to probe actual screenshot availability.
+- Call `seat_status` first; it never starts anything. Before desktop work, call
+  `seat_lease {action: "acquire"}`; it starts a hidden seat if needed. Desktop tools are refused
+  until you hold the lease. Renew before expiry (default 120 seconds) and release after fixture
+  cleanup. MCP supplies its identity/token automatically. Configure a unique `ANODE_AGENT_ID`
+  per independent agent for restart recovery. See
+  [multiple agents](https://github.com/skulitom/Anode/blob/main/docs/MULTI-AGENT.md).
+- Use `seat_capabilities` to probe actual screenshot availability.
 - Use `seat_exec` with an absolute cwd for builds, test runners and development servers.
   Read/cancel through `seat_job`; save its cursor for incremental output. Use action=list
   to recover IDs after a disconnected client. Never replay an uncertain command start.
@@ -200,18 +305,30 @@ agent returns an image. Show the viewer only when the user wants to watch.
 
 For repeatable native and browser tests, see [DEVELOPMENT-TESTING.md](DEVELOPMENT-TESTING.md).
 
-If it does not: `anode status`, then `anode doctor`, then the log at `%LOCALAPPDATA%\Anode\anode.log`,
-which records every role including the one running inside the seat. More in
-[TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+If it does not work, check the daemon and the machine:
+
+```powershell
+anode status | Out-Host
+anode doctor | Out-Host
+```
+
+Then read the log at `%LOCALAPPDATA%\Anode\anode.log`, which records every role including the one
+running inside the seat. More in [TROUBLESHOOTING.md](TROUBLESHOOTING.md); lease errors are under
+[desktop leases](TROUBLESHOOTING.md#desktop-leases).
 
 ## The other arrangement: the agent inside the seat
 
 Everything above puts the agent in your session. You can also put the agent itself in the seat and
-let it use its own computer-use tools there:
+let it use its own computer-use tools there. Launching a program needs a desktop lease:
 
 ```powershell
-anode start
-anode run "C:\Program Files\WindowsApps\...\wt.exe"     # or cmd.exe, or your editor
+anode start | Out-Host
+$env:ANODE_AGENT_ID = 'my-terminal'
+$lease = anode lease acquire | Out-String | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0) { throw 'Desktop acquisition failed.' }
+$env:ANODE_LEASE_TOKEN = $lease.leaseToken
+anode run "C:\Program Files\WindowsApps\...\wt.exe" | Out-Host    # or cmd.exe, or your editor
+anode lease release | Out-Host
 ```
 
 Then run the agent in that terminal. A capture/input backend running in that session

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Anode.Core.Util;
 
 namespace Anode.Cli;
 
@@ -7,37 +8,30 @@ internal static partial class Cli
     private static int Guide(string[] args)
     {
         if (args.Length > 1 || (args.Length == 1 && args[0] != "--json"))
-        {
-            Console.Error.WriteLine("usage: anode guide [--json]");
-            return 2;
-        }
+            throw new UsageException("guide takes only --json.");
         Console.WriteLine(args.Length == 0 ? Mcp.AgentGuide.Text : Mcp.AgentGuide.Info().ToJsonString());
         return 0;
     }
 
-    private static int Configure(string[] args)
+    /// <summary>The client and skill choice, or a usage error before anything is registered.</summary>
+    internal static (string Client, bool NoSkill) ConfigureArguments(string[] args)
     {
-        const string usage = "usage: anode configure [auto|codex|claude|both] [--no-skill]";
-        if (args.Length == 1 && args[0] is "--help" or "-h")
-        {
-            Console.WriteLine(usage);
-            Console.WriteLine("Registers Anode and its discoverable desktop skill for installed Codex/Claude Code CLIs, with backups. Default: auto.");
-            Console.WriteLine("Use --no-skill for MCP registration only. Existing customized skills are preserved.");
-            Console.WriteLine("Does not start a seat or change machine settings. Restart your agent afterward.");
-            return 0;
-        }
         bool noSkill = args.Contains("--no-skill", StringComparer.Ordinal);
         var positional = args.Where(arg => arg != "--no-skill").ToArray();
         string client = positional.FirstOrDefault()?.ToLowerInvariant() ?? "auto";
         if (positional.Length > 1 || args.Length - positional.Length > 1 || client is not ("auto" or "codex" or "claude" or "both"))
-        {
-            Console.Error.WriteLine(usage);
-            return 2;
-        }
+            throw new UsageException("configure takes one client (auto, codex, claude or both) and optionally --no-skill.");
+        return (client, noSkill);
+    }
 
+    // `configure --help` is answered by the shared help table before this runs.
+    private static int Configure(string[] args)
+    {
+        var (client, noSkill) = ConfigureArguments(args);
         string script = Path.Combine(AppContext.BaseDirectory, "connect-agents.ps1");
         if (!File.Exists(script))
-            throw new FileNotFoundException("The connector script is missing. Extract the complete Anode release archive next to anode.exe.", script);
+            throw new FileNotFoundException("The connector script is missing. Extract the complete release next to anode.exe, "
+                + $"or register manually with `{Environment.ProcessPath} mcp`: {Links.Connecting}#3-any-other-mcp-client", script);
         var start = new ProcessStartInfo(Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe"))
         {

@@ -39,6 +39,18 @@ if (-not $NoSkill) {
 }
 & $Anode version | Out-Host
 if ($LASTEXITCODE -ne 0) { throw 'Anode executable check failed.' }
+# Read the Claude config before any client changes; PowerShell rejects JSON keys that differ only in case.
+$claudeConfigPath = Join-Path $(if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { $env:USERPROFILE }) '.claude.json'
+$claudeExisting = $null
+if ('Claude' -in $clients -and (Test-Path -LiteralPath $claudeConfigPath)) {
+    try { $claudeExisting = [IO.File]::ReadAllText($claudeConfigPath) | ConvertFrom-Json }
+    catch {
+        # Claude Code can record one project under two drive-letter spellings, which PowerShell cannot parse.
+        throw ("Cannot read ${claudeConfigPath}: $($_.Exception.Message.TrimEnd('.', ' ')). No settings changed. " +
+            "Run 'anode configure codex' to register Codex alone; for Claude Code, register Anode by hand or use its plugin: " +
+            'https://github.com/skulitom/Anode/blob/main/docs/CONNECTING-AGENTS.md#1-claude-code')
+    }
+}
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
 function Backup-Config([string]$Path) {
     if (Test-Path -LiteralPath $Path) {
@@ -116,15 +128,11 @@ if ('Codex' -in $clients) {
 }
 if ('Claude' -in $clients) {
     $null = Get-Command claude -ErrorAction Stop
-    $configRoot = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { $env:USERPROFILE }
-    $configPath = Join-Path $configRoot '.claude.json'
+    $configPath = $claudeConfigPath
     Backup-Config $configPath
-    if (Test-Path -LiteralPath $configPath) {
-        $existing = [IO.File]::ReadAllText($configPath) | ConvertFrom-Json
-        if ($existing.mcpServers.anode) {
-            & claude mcp remove --scope user anode | Out-Host
-            if ($LASTEXITCODE -ne 0) { throw 'Could not update the existing user-scoped Anode server.' }
-        }
+    if ($claudeExisting.mcpServers.anode) {
+        & claude mcp remove --scope user anode | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw 'Could not update the existing user-scoped Anode server.' }
     }
     & claude mcp add --transport stdio --scope user anode -- $Anode mcp | Out-Host
     if ($LASTEXITCODE -ne 0) { throw 'Claude Code registration failed.' }
@@ -136,7 +144,14 @@ if ('Claude' -in $clients) {
     Save-Config $configPath $before ($settings | ConvertTo-Json -Depth 100)
     & claude mcp get anode | Out-Host
     if ($LASTEXITCODE -ne 0) { throw 'Claude Code Anode connection check failed.' }
+    Write-Host 'Claude Code: Anode registered, tool timeout 420 seconds.'
     $skillRoot = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $env:USERPROFILE '.claude' }
     Install-AgentSkill (Join-Path $skillRoot 'skills\anode-desktop')
 }
-Write-Host 'Ready. Open a new agent session to load Anode tools; existing sessions may retain their previous tool catalog.'
+Write-Host 'Ready. Start a new agent session (open sessions keep their old tool list), then ask it to call anode_guide.'
+if ('Claude' -in $clients) { Write-Host 'Check in Claude Code: /mcp lists anode as connected.' }
+if ('Codex' -in $clients) { Write-Host 'Check in Codex: codex mcp list shows anode.' }
+# Quote the registered path when a bare 'anode' would not run it, as after install.ps1 -NoPath.
+$onPath = Get-Command anode -ErrorAction SilentlyContinue
+$anodeCommand = if ($onPath -and $onPath.Source -eq $Anode) { 'anode' } else { "& '" + $Anode.Replace("'", "''") + "'" }
+Write-Host "If seat tools report missing prerequisites, run: $anodeCommand doctor | Out-Host"

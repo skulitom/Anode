@@ -1,0 +1,80 @@
+{
+  "manifest_version": "0.3",
+  "name": "anode",
+  "display_name": "Anode background Windows desktop",
+  "version": "0.5.0",
+  "description": "Background Windows desktop for AI agents: native GUI automation, screenshots and app testing.",
+  "long_description": "Runs apps in a Windows child session with its own screen, pointer and keyboard focus, so an agent can automate native UI, take screenshots and run headed app/browser tests while you keep working. Requires 64-bit Windows 10/11 Pro, Enterprise or Education (or Windows Server with an RDP host) and a one-time `anode setup` as administrator. Shares your files, account and network; it is not a security sandbox.",
+  "author": {
+    "name": "skulitom",
+    "url": "https://github.com/skulitom"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/skulitom/Anode"
+  },
+  "homepage": "https://github.com/skulitom/Anode",
+  "documentation": "https://github.com/skulitom/Anode/blob/main/docs/CONNECTING-AGENTS.md#claude-desktop",
+  "support": "https://github.com/skulitom/Anode/issues",
+  "icon": "icon.png",
+  "server": {
+    "type": "binary",
+    "entry_point": "server/anode.exe",
+    "mcp_config": {
+      "command": "${__dirname}/server/anode.exe",
+      "args": ["mcp"],
+      "env": {
+        "ANODE_AGENT_ID": "${user_config.agent_id}"
+      }
+    }
+  },
+  "tools": [
+    { "name": "seat_lease", "description": "Acquire, renew, release or check the desktop lease that coordinates agents." },
+    { "name": "anode_guide", "description": "Explain when and how to use Anode's tools; works before machine setup." },
+    { "name": "seat_capabilities", "description": "Report screen capture availability and known input blockers." },
+    { "name": "seat_exec", "description": "Start a build, test or server as a command job and collect its output." },
+    { "name": "seat_job", "description": "Read, list or cancel your command jobs." },
+    { "name": "seat_wait", "description": "Wait for an accessible control to appear, disappear or change state." },
+    { "name": "seat_windows", "description": "List windows on the background desktop." },
+    { "name": "seat_observe", "description": "Inspect a window's accessibility tree, text and optional screenshot." },
+    { "name": "seat_window", "description": "Focus, raise, restore, maximize, minimize, move or close a window." },
+    { "name": "seat_element", "description": "Invoke, set, toggle, select or scroll an observed accessible control." },
+    { "name": "seat_status", "description": "Report whether the background desktop is running; never starts it." },
+    { "name": "seat_start", "description": "Start the hidden background Windows desktop (the seat)." },
+    { "name": "seat_stop", "description": "Sign the seat out, closing every program in it." },
+    { "name": "seat_screenshot", "description": "Capture the background desktop's screen as an image." },
+    { "name": "seat_run", "description": "Launch a program, document or shortcut on the background desktop." },
+    { "name": "steam_status", "description": "Report where Steam is running." },
+    { "name": "steam_launch", "description": "Start a Steam game on the background desktop." },
+    { "name": "seat_processes", "description": "List programs running on the background desktop." },
+    { "name": "seat_kill_process", "description": "Close one program on the background desktop." },
+    { "name": "seat_click", "description": "Click at a point on the background desktop." },
+    { "name": "seat_move", "description": "Move the background desktop's mouse pointer." },
+    { "name": "seat_drag", "description": "Drag with the mouse on the background desktop." },
+    { "name": "seat_scroll", "description": "Turn the mouse wheel on the background desktop." },
+    { "name": "seat_key", "description": "Press a key or key combination on the background desktop." },
+    { "name": "seat_type", "description": "Type text into the focused control on the background desktop." },
+    { "name": "gamepad_attach", "description": "Plug in a virtual Xbox 360 controller, visible machine-wide." },
+    { "name": "gamepad_detach", "description": "Unplug the virtual controller." },
+    { "name": "gamepad_set", "description": "Set virtual controller buttons, sticks and triggers." },
+    { "name": "gamepad_tap", "description": "Briefly press one virtual controller button or trigger." },
+    { "name": "gamepad_reset", "description": "Release every virtual controller button and center its sticks." },
+    { "name": "seat_show", "description": "Show the viewer window so you can watch or take control." },
+    { "name": "seat_hide", "description": "Hide the viewer window; the seat keeps running." }
+  ],
+  "keywords": ["windows", "desktop-automation", "ui-automation", "computer-use", "gui-testing", "screenshots", "accessibility"],
+  "license": "MIT",
+  "privacy_policies": ["https://github.com/skulitom/Anode/blob/main/docs/PRIVACY.md"],
+  "compatibility": {
+    "platforms": ["win32"]
+  },
+  "user_config": {
+    "agent_id": {
+      "type": "string",
+      "title": "Agent ID",
+      "description": "Stable Anode agent ID (letters, digits, . _ -) used to recover a lease after Claude Desktop restarts.",
+      "required": false,
+      "default": "claude-desktop"
+    }
+  }
+}

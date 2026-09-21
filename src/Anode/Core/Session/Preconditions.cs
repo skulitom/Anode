@@ -108,7 +108,7 @@ internal static class Preconditions
         checks.Add(RemoteDesktopAllowed()
             ? new Check("Remote Desktop host", CheckLevel.Pass, "fDenyTSConnections = 0")
             : new Check("Remote Desktop host", CheckLevel.Fail, "fDenyTSConnections = 1 (Remote Desktop is off)",
-                "Run: anode setup   (this sets fDenyTSConnections to 0; it does not open any firewall port)"));
+                "Run `anode setup` (sets fDenyTSConnections to 0; opens no firewall port)."));
 
         checks.Add(RdpListener.Check());
 
@@ -118,19 +118,19 @@ internal static class Preconditions
         checks.Add(childEnabled
             ? new Check("Child sessions", CheckLevel.Pass, "enabled")
             : new Check("Child sessions", CheckLevel.Fail, "disabled",
-                "Run: anode setup   (calls WTSEnableChildSessions, needs one administrator prompt)"));
+                "Run `anode setup` (calls WTSEnableChildSessions; one administrator prompt)."));
 
         int? interval = FrameInterval();
         checks.Add(interval == 15
             ? new Check("Seat frame rate", CheckLevel.Pass, "DWMFRAMEINTERVAL = 15 (up to 60 fps)")
             : new Check("Seat frame rate", CheckLevel.Warn,
                 interval is null ? "DWMFRAMEINTERVAL not set (capped at 30 fps)" : $"DWMFRAMEINTERVAL = {interval}",
-                "Optional. Run: anode setup --fps 60   (needs a reboot to take effect)"));
+                "Optional. Run `anode setup --fps 60` (takes effect after a reboot)."));
 
         checks.Add(Setup.GpuPreferred()
             ? new Check("Seat graphics", CheckLevel.Pass, "bEnumerateHWBeforeSW = 1 (seat may use the GPU)")
             : new Check("Seat graphics", CheckLevel.Warn, "the seat will render on the software adapter",
-                "Optional, and worth it for games. Run: anode setup --gpu   (needs a reboot to take effect)"));
+                "Optional, and worth it for games. Run `anode setup --gpu` (takes effect after a reboot)."));
 
         checks.Add(ViGEmBusPresent()
             ? new Check("Virtual gamepad", CheckLevel.Pass, "ViGEm bus driver responds")
@@ -143,7 +143,7 @@ internal static class Preconditions
             existing is null ? "none" : sessionExists switch
             {
                 false => $"none (Windows retained child ID {existing.Value}, but that session is absent)",
-                true => $"child session {existing.Value} exists; use `anode status` to check sign-in and agent readiness",
+                true => $"child session {existing.Value} exists; use `anode status` to check sign-in and host readiness",
                 null => $"Windows reports child ID {existing.Value}; could not verify whether that session exists"
             }));
 

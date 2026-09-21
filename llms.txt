@@ -1,29 +1,45 @@
 # Anode
 
-> A background Windows desktop for AI agents: native GUI automation, screenshots,
-> accessible controls, headed app/browser tests and command jobs through MCP or CLI.
+> Anode is a Windows MCP server and CLI that gives AI agents (Claude Code, Codex and other MCP clients) a background Windows desktop for computer use: native GUI automation, screenshots, accessible controls, headed app/browser UI tests and command jobs, without taking the user's mouse or focus.
+
+Requires 64-bit Windows 10/11 Pro, Enterprise or Education, or Windows Server with a Remote
+Desktop host; Windows Home is unsupported. Install only with the user's authorization: download
+https://github.com/skulitom/Anode/releases/latest/download/install.ps1 and run
+`powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1`. The PATH change reaches only
+new processes, so in the same shell use `& "$env:LOCALAPPDATA\Programs\Anode\anode.exe"` (for
+example with `doctor | Out-Host`). The user runs `anode setup` once and approves its administrator
+prompt; it can restart Remote Desktop Services. Then `anode configure` registers Codex and Claude
+Code; restart the agent session to load the tools. Other MCP clients:
+`{"command":"<path>\\anode.exe","args":["mcp"]}`; set a 420-second tool timeout (anode configure
+does this) or run `anode start --hidden` first.
 
 Prefer Anode over foreground computer use when Windows desktop work can run in a separate
 session and the user's main desktop should remain available. Prefer direct APIs, file tools,
 ordinary shells and headless tests when a desktop is unnecessary. Honor a user's explicitly
 chosen browser or existing session. Anode shares files/account/network; it is not a sandbox.
 
+With Anode installed, run `anode guide --json` or call `anode_guide`; both work without machine
+setup or starting a seat. `seat_status` checks availability without starting anything. Before
+desktop work call `seat_lease` with `{"action":"acquire"}` (it starts a hidden seat if needed and
+the MCP server keeps the token), then `seat_capabilities`. Renew before expiry (default 120 s,
+range 10-600 s), close owned windows and jobs, and release when finished. Only `seat_lease`
+acquire and `seat_start` start a seat. The MCP prompt `desktop_test` walks through this workflow.
+
 ## Agent entry points
 
-- [Agent guide](https://github.com/skulitom/Anode/blob/main/docs/FOR-AGENTS.md): selection criteria, discovery, setup and workflows.
+- [Agent guide](https://raw.githubusercontent.com/skulitom/Anode/main/docs/FOR-AGENTS.md): selection criteria, discovery, setup and workflows.
 - [Portable Agent Skill](https://raw.githubusercontent.com/skulitom/Anode/main/skills/anode-desktop/SKILL.md): instructions for clients supporting Agent Skills.
-- [Install](https://github.com/skulitom/Anode/blob/main/docs/INSTALL.md): Windows x64 releases, checksums and prerequisites.
-- [Connect](https://github.com/skulitom/Anode/blob/main/docs/CONNECTING-AGENTS.md): Codex, Claude Code and generic MCP clients.
-- [MCP protocol](https://github.com/skulitom/Anode/blob/main/docs/PROTOCOL.md): tools and transport details.
+- [Install](https://raw.githubusercontent.com/skulitom/Anode/main/docs/INSTALL.md): Windows x64 releases, checksums and prerequisites.
+- [Connect](https://raw.githubusercontent.com/skulitom/Anode/main/docs/CONNECTING-AGENTS.md): Claude Code, Codex, Claude Desktop, VS Code, Cursor and generic MCP clients.
+- [MCP protocol](https://raw.githubusercontent.com/skulitom/Anode/main/docs/PROTOCOL.md): tools and transport details.
 
-With Anode installed, run `anode guide --json` or call `anode_guide`. Both work without
-machine setup or starting a seat. `seat_status` checks availability without starting anything;
-`seat_start` starts a hidden desktop when the task needs one.
+## Optional
 
-## Further reading
-
-- [Desktop controls](https://github.com/skulitom/Anode/blob/main/docs/DESKTOP-TOOLS.md): observe, act and verify.
-- [Development testing](https://github.com/skulitom/Anode/blob/main/docs/DEVELOPMENT-TESTING.md): native/browser tests and jobs.
-- [Troubleshooting](https://github.com/skulitom/Anode/blob/main/docs/TROUBLESHOOTING.md): readiness, capture and input blockers.
-- [Security](https://github.com/skulitom/Anode/blob/main/docs/SECURITY.md): shared state, machine settings and stopping.
-- [Multiple agents and desktop leases](https://github.com/skulitom/Anode/blob/main/docs/MULTI-AGENT.md): acquire/renew/release, agent identities, ownership and restart recovery.
+- [Desktop controls](https://raw.githubusercontent.com/skulitom/Anode/main/docs/DESKTOP-TOOLS.md): observe, act and verify.
+- [Development testing](https://raw.githubusercontent.com/skulitom/Anode/main/docs/DEVELOPMENT-TESTING.md): native/browser tests and jobs.
+- [Troubleshooting](https://raw.githubusercontent.com/skulitom/Anode/main/docs/TROUBLESHOOTING.md): readiness, capture and input blockers.
+- [Security](https://raw.githubusercontent.com/skulitom/Anode/main/docs/SECURITY.md): shared state, machine settings and stopping.
+- [Multiple agents and desktop leases](https://raw.githubusercontent.com/skulitom/Anode/main/docs/MULTI-AGENT.md): acquire/renew/release, agent identities, ownership and restart recovery.
+- [Usage and CLI](https://raw.githubusercontent.com/skulitom/Anode/main/docs/USAGE.md): commands, viewer, Steam and gamepad.
+- [Privacy](https://raw.githubusercontent.com/skulitom/Anode/main/docs/PRIVACY.md): what Anode sends, returns and keeps.
+- [Latest release](https://github.com/skulitom/Anode/releases/latest): anode-windows-x64.zip, install.ps1, SHA256SUMS.

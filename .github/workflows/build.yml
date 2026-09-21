@@ -28,9 +28,9 @@ jobs:
         run: dotnet build Anode.sln -c Release --no-restore --nologo
 
       - name: Publish
-        run: ./scripts/build.ps1 -Package
+        run: ./scripts/build.ps1 -Package -Mcpb
 
-      # The quick self-test covers only environment-independent behaviour: key-name
+      # The quick self-test covers only environment-independent behavior: key-name
       # resolution, gamepad name mapping, pipe deadlines/cancellation, MCP stdio,
       # launch quoting, session identity, desktop reference/worker limits, report
       # escaping and readable child-session APIs. Live accessibility uses the
@@ -54,6 +54,15 @@ jobs:
       - name: Test installation and configuration
         run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-install.ps1
 
+      # Versions, checksums, archive entries and payload, the MCPB bundle and any distribution
+      # manifests. Runs only `anode version` and `anode mcp` (initialize and tools/list).
+      - name: Check distribution
+        run: ./scripts/test-distribution.ps1
+
+      - name: Check documentation
+        run: ./scripts/check-docs.ps1 -Anode dist/anode.exe
+
+      # The .mcpb is for manual Claude Desktop testing only; release.yml does not publish it yet.
       - uses: actions/upload-artifact@v4
         with:
           name: anode-windows-x64
@@ -61,4 +70,5 @@ jobs:
             artifacts/release/anode-windows-x64.zip
             artifacts/release/install.ps1
             artifacts/release/SHA256SUMS
+            artifacts/release/anode-windows-x64.mcpb
           if-no-files-found: error

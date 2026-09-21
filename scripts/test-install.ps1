@@ -18,8 +18,12 @@ function Expect-Failure([scriptblock]$Action, [string]$Pattern) {
 }
 try {
     # The archive must install into an arbitrary path without setup or an installed runtime.
-    & $installer -PackagePath $package -ChecksumPath $checksums -InstallDirectory $installation -NoPath
+    $installOutput = @(& $installer -PackagePath $package -ChecksumPath $checksums -InstallDirectory $installation -NoPath 6>&1 | ForEach-Object { "$_" }) -join "`n"
+    Write-Host $installOutput
     $exe = Join-Path $installation 'anode.exe'
+    $quotedExe = "& '" + $exe.Replace("'", "''") + "'"
+    Assert ($installOutput.Contains("$quotedExe doctor | Out-Host") -and $installOutput.Contains("$quotedExe configure | Out-Host")) 'Next steps must use the installed path without PATH.'
+    Assert (-not $installOutput.Contains('Added to your user PATH') -and $installOutput.Contains('#set-up-and-connect')) 'Installer closing text is wrong for -NoPath.'
     $version = (& $exe version | Out-String).Trim()
     Assert ($LASTEXITCODE -eq 0 -and $version -match '^anode \d+\.\d+\.\d+$') 'Installed executable failed.'
     $guide = (& $exe guide --json | Out-String) | ConvertFrom-Json
@@ -56,7 +60,9 @@ Write-Output 'connector-output-ok'
 
     $sentinel = Join-Path $installation 'user-note.txt'
     Set-Content -LiteralPath $sentinel -Value 'keep this'
-    & $installer -PackagePath $package -ChecksumPath $checksums -InstallDirectory $installation -NoPath
+    $updateOutput = @(& $installer -PackagePath $package -ChecksumPath $checksums -InstallDirectory $installation -NoPath 6>&1 | ForEach-Object { "$_" }) -join "`n"
+    Write-Host $updateOutput
+    Assert ($updateOutput.Contains('Reopen agent sessions') -and -not $updateOutput.Contains('Next:')) 'Repeat installation must not repeat first-run steps.'
     Assert ((Get-Content -LiteralPath $sentinel -Raw).Trim() -eq 'keep this') 'Update removed unrelated data.'
     Write-Host '[ok] repeat installation preserves unrelated files'
 
@@ -109,6 +115,29 @@ Write-Output 'connector-output-ok'
     Set-Content -LiteralPath $unsafeHash -Value ((Get-FileHash -LiteralPath $unsafeZip).Hash + '  unsafe.zip')
     Expect-Failure { & $installer -PackagePath $unsafeZip -ChecksumPath $unsafeHash -InstallDirectory $installation -NoPath } 'Unsafe archive path'
     Write-Host '[ok] archive traversal rejected'
+
+    # Exercise the download path with local assets; no network access.
+    # Globals: the mocks run inside install.ps1, whose $Version parameter hides this script's $version.
+    $global:AnodeTestAssets = $ArchiveDirectory
+    $global:AnodeTestTag = 'v' + $version.Substring(6)
+    function Invoke-RestMethod {
+        param([string]$Uri, [hashtable]$Headers, [int]$TimeoutSec)
+        [pscustomobject]@{ tag_name = $global:AnodeTestTag; assets = @('anode-windows-x64.zip', 'SHA256SUMS' | ForEach-Object {
+            [pscustomobject]@{ name = $_; size = (Get-Item -LiteralPath (Join-Path $global:AnodeTestAssets $_)).Length
+                browser_download_url = "https://github.com/skulitom/Anode/releases/download/$global:AnodeTestTag/$_" } }) }
+    }
+    function Invoke-WebRequest {
+        param([switch]$UseBasicParsing, [Uri]$Uri, [string]$OutFile, [int]$TimeoutSec)
+        if ($ProgressPreference -ne 'SilentlyContinue') { throw 'Download progress was not suppressed.' }
+        Microsoft.PowerShell.Management\Copy-Item -LiteralPath (Join-Path $global:AnodeTestAssets ([IO.Path]::GetFileName($Uri.AbsolutePath))) -Destination $OutFile
+    }
+    try {
+        $downloaded = Join-Path $workspace 'downloaded'
+        $downloadOutput = @(& $installer -InstallDirectory $downloaded -NoPath 6>&1 | ForEach-Object { "$_" }) -join "`n"
+    } finally { Remove-Item -LiteralPath Function:\Invoke-RestMethod, Function:\Invoke-WebRequest }
+    Assert ($downloadOutput -match 'Downloading v\d+\.\d+\.\d+/anode-windows-x64\.zip \(\d+ MB\)' -and
+        (Test-Path -LiteralPath (Join-Path $downloaded 'anode.exe'))) "Release download path failed: $downloadOutput"
+    Write-Host '[ok] release download path without progress redraws'
 
     # A separate process owns fake client homes and fake CLIs. No real client is invoked.
     $clientRoot = Join-Path $workspace 'clients'

@@ -26,6 +26,7 @@ if ($InstallDirectory.Contains(';')) { throw 'The installation path must not con
 $InstallDirectory = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($InstallDirectory).TrimEnd('\')
 if ($InstallDirectory -eq [IO.Path]::GetPathRoot($InstallDirectory).TrimEnd('\')) { throw 'Choose a dedicated installation folder, not a drive root.' }
 $markerPath = Join-Path $InstallDirectory '.anode-install.json'
+$marker = $null
 if ((Test-Path -LiteralPath $InstallDirectory) -and @(Get-ChildItem -LiteralPath $InstallDirectory -Force).Count -gt 0) {
     if (-not (Test-Path -LiteralPath $markerPath -PathType Leaf)) {
         throw "Folder is not an installer-managed Anode installation: $InstallDirectory. Choose an empty folder."
@@ -46,17 +47,24 @@ try {
         try {
             $release = Invoke-RestMethod -Uri "https://api.github.com/repos/skulitom/Anode/releases/$endpoint" -Headers @{ 'User-Agent' = 'Anode-installer' } -TimeoutSec 60
         } catch { throw "Cannot find the Anode release ($Version). Check your connection or download from https://github.com/skulitom/Anode/releases. $($_.Exception.Message)" }
-        # Resolve both assets from the same release; latest may change during a download.
-        foreach ($name in @('anode-windows-x64.zip','SHA256SUMS')) {
-            $asset = @($release.assets | Where-Object { $_.name -eq $name })
-            if ($asset.Count -ne 1) { throw "Release $($release.tag_name) is missing $name." }
-            $url = [Uri]$asset[0].browser_download_url
-            if ($url.Scheme -ne 'https' -or $url.Host -ne 'github.com' -or -not $url.AbsolutePath.StartsWith('/skulitom/Anode/releases/download/')) {
-                throw 'Unexpected release asset URL.'
+        # Windows PowerShell redraws progress for every chunk, which slows large downloads many times over.
+        $savedProgress = $ProgressPreference
+        try {
+            $ProgressPreference = 'SilentlyContinue'
+            # Resolve both assets from the same release; latest may change during a download.
+            foreach ($name in @('anode-windows-x64.zip','SHA256SUMS')) {
+                $asset = @($release.assets | Where-Object { $_.name -eq $name })
+                if ($asset.Count -ne 1) { throw "Release $($release.tag_name) is missing $name." }
+                $url = [Uri]$asset[0].browser_download_url
+                if ($url.Scheme -ne 'https' -or $url.Host -ne 'github.com' -or -not $url.AbsolutePath.StartsWith('/skulitom/Anode/releases/download/')) {
+                    throw 'Unexpected release asset URL.'
+                }
+                $bytes = [double]$asset[0].size
+                $size = if ($bytes -ge 1MB) { '{0:0} MB' -f ($bytes / 1MB) } else { '{0:0} KB' -f [math]::Max(1, $bytes / 1KB) }
+                Write-Host "Downloading $($release.tag_name)/$name ($size)"
+                Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile (Join-Path $scratch $name) -TimeoutSec 300
             }
-            Write-Host "Downloading $($release.tag_name)/$name"
-            Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile (Join-Path $scratch $name) -TimeoutSec 300
-        }
+        } finally { $ProgressPreference = $savedProgress }
         $PackagePath = Join-Path $scratch 'anode-windows-x64.zip'
         $ChecksumPath = Join-Path $scratch 'SHA256SUMS'
     }
@@ -158,19 +166,34 @@ try {
         $entries = @($userPath -split ';' | Where-Object { $_ })
         if (-not @($entries | Where-Object { [Environment]::ExpandEnvironmentVariables($_).Trim('"').TrimEnd('\') -ieq $InstallDirectory }).Count) {
             [Environment]::SetEnvironmentVariable('Path', (($entries + $InstallDirectory) -join ';'), 'User')
+            Write-Host 'Added to your user PATH. Open a new terminal to use anode by name.'
         }
         # This also makes anode available immediately when invoked in this PowerShell process.
         if (-not @($env:Path -split ';' | Where-Object { $_.Trim('"').TrimEnd('\') -ieq $InstallDirectory }).Count) {
             $env:Path += ';' + $InstallDirectory
         }
-        Write-Host 'Added to your user PATH. Open a new terminal to use anode by name.'
     }
-    Write-Host "Installed $versionOutput in $InstallDirectory" -ForegroundColor Green
+    $newVersion = $versionOutput.Substring(6)
+    $previous = if ($marker) { [string]$marker.version } else { $null }
+    if ($previous -and $previous -ne $newVersion) { Write-Host "Updated Anode $previous -> $newVersion in $InstallDirectory" -ForegroundColor Green }
+    else { Write-Host "Installed $versionOutput in $InstallDirectory" -ForegroundColor Green }
     if ($Client -ne 'None') {
         & (Join-Path $InstallDirectory 'connect-agents.ps1') -Client $Client -Anode (Join-Path $InstallDirectory 'anode.exe')
     }
-    Write-Host "Next: & '$InstallDirectory\anode.exe' doctor | Out-Host"
-    Write-Host 'Then: anode setup (one UAC prompt), anode configure, anode start --hidden.'
+    $anodeCommand = if ($NoPath) { "& '" + (Join-Path $InstallDirectory 'anode.exe').Replace("'", "''") + "'" } else { 'anode' }
+    if ($previous) {
+        Write-Host 'Reopen agent sessions that use Anode so they load the installed version.'
+    } else {
+        $steps = @(
+            @('doctor', 'checks prerequisites; changes nothing'),
+            @('setup', 'one administrator prompt'))
+        if ($Client -eq 'None') { $steps += , @('configure', 'registers Codex/Claude Code; then start a new agent session') }
+        $steps += , @('start --hidden', 'starts the background desktop')
+        $width = ($steps | ForEach-Object { "$anodeCommand $($_[0]) | Out-Host".Length } | Measure-Object -Maximum).Maximum
+        Write-Host $(if ($NoPath) { 'Next:' } else { 'Next, in a new terminal:' })
+        foreach ($step in $steps) { Write-Host ('  ' + "$anodeCommand $($step[0]) | Out-Host".PadRight($width) + '  # ' + $step[1]) }
+    }
+    Write-Host 'Guide: https://github.com/skulitom/Anode#set-up-and-connect'
 } finally {
     $resolvedScratch = [IO.Path]::GetFullPath($scratch)
     $tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'

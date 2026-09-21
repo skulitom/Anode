@@ -61,6 +61,26 @@ Binaries and scripts are currently **unsigned**. SmartScreen or an organization'
 policy may block them. Checksums detect a corrupt or mismatched download, not publisher identity.
 Get the files from this repository's releases and follow your organization's policy.
 
+## Other ways to install
+
+**Scoop.** This repository is also a Scoop bucket:
+
+```powershell
+scoop bucket add anode https://github.com/skulitom/Anode
+scoop install anode/anode
+```
+
+Scoop puts `anode` on your PATH. Continue with the [one-time machine setup](#one-time-machine-setup)
+and [agent configuration](#configure-your-agent) below. Scoop refuses to update while Anode is
+running, so run `anode quit | Out-Host` and close MCP clients using Anode before
+`scoop update anode`.
+
+**Claude Code plugin.** The plugin registers the MCP server and the `anode-desktop` skill in
+Claude Code; it does not install `anode.exe`. Install Anode first (above or Scoop) so `anode` is on
+your PATH, run the machine setup, then follow
+[the plugin instructions](CONNECTING-AGENTS.md#1-claude-code). Use the plugin or
+`anode configure claude`, not both.
+
 ## One-time machine setup
 
 ```powershell
@@ -86,13 +106,14 @@ anode configure claude | Out-Host
 ```
 
 The command detects CLIs on PATH, uses their registration commands, keeps timestamped backups
-beside existing settings, configures a 420-second tool timeout, and installs the `anode-desktop`
-skill for automatic selection in suitable desktop tasks. Add `--no-skill` for MCP registration
-alone. Customized skills are preserved; [locations and update behavior](FOR-AGENTS.md) are documented.
-`both` requires both CLIs and
-checks they exist before changing either client. `auto` with neither installed prints guidance.
-No approval policies change. No seat starts. Restart the agent to reload tools.
-For manual configuration and Claude Desktop, see [Connecting agents](CONNECTING-AGENTS.md).
+beside existing settings, configures a 420-second tool timeout and installs the `anode-desktop`
+skill. The argument is `auto` (default), `codex`, `claude` or `both`; `both` checks that both
+CLIs exist before changing either, and `auto` with neither installed prints guidance. Add
+`--no-skill` for MCP registration alone. Customized skills are preserved
+([skill locations](FOR-AGENTS.md#skill-installation-and-control)). No approval policies change
+and no seat starts. Restart the agent to reload tools. For Claude Desktop, see
+[Claude Desktop](CONNECTING-AGENTS.md#claude-desktop); for manual configuration, VS Code and
+Cursor, see [Connecting agents](CONNECTING-AGENTS.md).
 
 ## Verify the installation
 
@@ -123,19 +144,24 @@ verifies the new package before copying, and rolls back file copies if replaceme
 The stable executable path keeps client registrations working. Reopen the agent afterward.
 Use `-Version` to choose a previous release with the same package format.
 Portable users should extract a fresh folder, then run its `anode configure` to update paths.
+Scoop users run `anode quit | Out-Host`, close MCP clients using Anode, then `scoop update anode`.
 
 ## Remove
 
 1. Save work, run `anode quit`, and close MCP clients using Anode.
 2. Remove registrations with `codex mcp remove anode` and/or
-   `claude mcp remove --scope user anode`. For other clients, remove only their Anode entry.
+   `claude mcp remove --scope user anode`, or `/plugin uninstall anode@anode` in Claude Code if
+   you used the plugin. For other clients, remove only their Anode entry.
    Remove the `anode-desktop` skill folder from the [client skill locations](FOR-AGENTS.md#skill-installation-and-control)
    if installed; MCP registration and skills are independent.
 3. Optionally run `anode rendering --restore` to restore the saved per-user RDP rendering value,
    and `anode setup --undo` to disable child sessions. Remote Desktop remains enabled;
    [security documentation](SECURITY.md) explains why and how to disable it separately.
+   If you ran `setup` with `--fps 60` or `--gpu`, also remove the values they set
+   ([how](SECURITY.md#what-anode-setup-changes)).
 4. Delete the installation folder you chose (default `%LOCALAPPDATA%\Programs\Anode`) and remove
    that exact entry from your user PATH in **Edit environment variables for your account**.
+   Scoop users run `scoop uninstall anode` instead.
 5. Logs and saved rendering state remain in `%LOCALAPPDATA%\Anode`. Keep them for troubleshooting
    or delete them after restoring settings. Client config backups remain beside the originals.
 
@@ -148,4 +174,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build.ps1 -QuickTest
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install.ps1 -PackagePath artifacts\release\anode-windows-x64.zip -ChecksumPath artifacts\release\SHA256SUMS
 ```
 
-See [Contributing](../CONTRIBUTING.md) for verification and releases.
+If Anode is already running from `dist\`, add `-OutputDirectory artifacts\pkg-build` to the
+build command so it does not overwrite the running executable; the package still lands in
+`artifacts\release`. See [Contributing](../CONTRIBUTING.md) for verification and releases.

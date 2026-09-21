@@ -23,31 +23,63 @@ The repository's [llms.txt](../llms.txt) is a compact documentation index. The
 workflow. It can be read directly, copied into an Agent Skills client, or installed through
 `anode configure`. The skill does not download software or change settings when loaded.
 
-Anode requires Windows 10/11 Pro, Enterprise or Education, or a Windows Server RDP host.
-The release targets x64. Use [the installation guide](INSTALL.md) within the user's authorized
+Anode requires 64-bit Windows 10/11 Pro, Enterprise or Education, or a Windows Server RDP host.
+Windows Home is unsupported. Use [the installation guide](INSTALL.md) within the user's authorized
 scope; `anode doctor` reads prerequisites, while `anode setup` changes machine settings through UAC.
 
 ## Discovery after installation
 
 ```powershell
 anode guide | Out-Host          # selection and operating guide, no seat required
-anode guide --json | Out-Host   # name, version, instructions, guide and docs URL
-anode configure | Out-Host     # register installed CLIs and the discoverable skill
+anode guide --json | Out-Host   # name, version, description, instructions, guide and docs URL
+anode configure | Out-Host      # register installed CLIs and the discoverable skill
 ```
 
-The MCP server's initialization message describes when to use Anode. Tool names, descriptive
-titles and task-oriented descriptions help clients find it through tool search. Search for
-**Anode background Windows desktop**, **native UI automation**, or **headed app testing**.
+The MCP server's initialization message describes when to use Anode and the lease workflow.
+Tool names, descriptive titles and task-oriented descriptions help clients find it through tool
+search. Search for **Anode background Windows desktop**, **native UI automation**, or
+**headed app testing**.
+
+The server also offers two MCP prompts, which clients show as slash commands. `desktop_test`
+asks the agent to test the app or task the user names, following the workflow below.
+`desktop_guide` returns the full guide. Claude Code's `/` menu lists them as
+`/anode:desktop_test (MCP)` and `/anode:desktop_guide (MCP)`, and typing
+`/mcp__anode__desktop_test` also runs one; VS Code uses `/mcp.anode.desktop_test` and
+`/mcp.anode.desktop_guide`. The names follow the server name in the client's configuration.
 
 `anode_guide` returns the same workflow embedded in the executable, even before setup and while
-other tools are busy. `seat_status` is a read-only observation and returns `state: stopped` when
-there is no daemon. It no longer creates a desktop. Call `seat_start` when the task needs one.
-Other live-seat tools still auto-start a hidden seat where documented.
+other tools are busy. Prompts are also answered locally.
 
-Tool annotations are conservative: only guide/status advertise read-only behavior. Capture and
-inspection tools can start a seat, and input or application commands can affect shared files and
-services. Annotations describe effects; they are not an approval override or a guarantee that
-timed-out actions are safe to replay. See the [MCP tool specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools).
+## Starting a seat
+
+`seat_status` is read-only: it never starts a daemon or seat and returns `state: stopped` when
+Anode is not running. Call `seat_lease` with `{"action":"acquire"}` (or `seat_start`) when the
+task needs a desktop; only those two start a seat, and they start it with the viewer hidden.
+Other tools that need a daemon report that Anode is not running instead of starting it. On the
+CLI, only `anode start`, `anode up` and `anode lease acquire` start a seat.
+
+Desktop tools are refused until you hold a lease. A seat started by `seat_start` still needs
+`seat_lease` acquisition before screenshots, observation, input, launches or command jobs.
+
+## Tool annotations
+
+Annotations help clients decide which calls need an approval prompt:
+
+| Group | Hints | Tools |
+| --- | --- | --- |
+| Read-only | `readOnlyHint: true`, `openWorldHint: false` | `anode_guide`, `seat_status`, `seat_capabilities`, `seat_processes`, `steam_status` |
+| Read-only, seat content | `readOnlyHint: true`, `openWorldHint: true` (returns untrusted app and web content) | `seat_windows`, `seat_observe`, `seat_screenshot`, `seat_wait` |
+| Additive | `readOnlyHint: false`, `destructiveHint: false`, `idempotentHint: true`, `openWorldHint: false` | `seat_start`, `seat_hide` |
+| Conservative | `destructiveHint: true`, `idempotentHint: false`, `openWorldHint: true` | every other tool |
+
+Read-only tools observe and never start a seat. Some still need your lease: `seat_windows`,
+`seat_observe`, `seat_screenshot` and `seat_wait`. `seat_start` and `seat_hide` at most start a
+hidden seat or hide the viewer. The conservative group changes the shared desktop, files, jobs or
+machine: input, launches, command jobs, window and element actions, process termination, Steam
+launches, the virtual gamepad, `seat_lease` (release can cancel jobs), `seat_stop`, and
+`seat_show`, which puts the viewer on the user's screen. Annotations describe effects; they are
+not an approval override or a guarantee that timed-out actions are safe to replay. See the
+[MCP tool specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools).
 
 ## Skill installation and control
 
@@ -66,6 +98,10 @@ The skill is eligible for automatic selection. Clients decide whether to load it
 cannot guarantee a model will choose Anode. Invoke it explicitly as `$anode-desktop` in Codex
 or `/anode-desktop` in Claude Code when useful.
 
+The [Claude Code plugin](CONNECTING-AGENTS.md#1-claude-code) bundles the same skill as
+`/anode:anode-desktop` with the MCP server. Use the plugin or `anode configure claude`, not both;
+otherwise the tools and the skill appear twice.
+
 For MCP registration alone, use `anode configure --no-skill` or
 `scripts\connect-agents.ps1 -NoSkill`. This leaves an existing skill intact. To remove the skill,
 delete only its `anode-desktop` folder from the location above; MCP registration is independent.
@@ -79,19 +115,26 @@ source. It never edits global `AGENTS.md`, `CLAUDE.md`, tool allowlists or appro
 
 For an authorized request to test a native app:
 
-1. `seat_status`, then `seat_lease {action: "acquire"}`. Acquisition starts a hidden seat if needed;
-   wait if another agent owns it. Renew before expiry; MCP remembers the identity/token.
-2. `seat_capabilities` to check actual capture/input blockers.
-3. `seat_run` to launch an owned fixture; `seat_windows` to locate its actual window.
-4. `seat_observe` to discover controls; `seat_element` with a fresh snapshot for offered actions.
-5. `seat_wait` for the resulting state, or a fresh screenshot when pixels matter.
-6. Close the owned fixture and release with `seat_lease {action: "release"}`. Keep unrelated apps
-   and jobs running; `cancelJobs: true` requests cancellation only for your command jobs.
+1. `seat_status`. It never starts anything.
+2. `seat_lease {action: "acquire"}`. Acquisition starts a hidden seat if needed and the MCP
+   server keeps the token. If another agent owns the desktop (`seat_busy`), wait and retry.
+   Renew with `{action: "renew"}` before expiry: the default is 120 seconds, and `ttlSeconds`
+   accepts 10 to 600.
+3. `seat_capabilities` to check actual capture/input blockers.
+4. `seat_run` to launch an owned fixture; `seat_windows` to locate its actual window.
+5. `seat_observe` to discover controls; `seat_element` with a fresh snapshot for offered actions.
+   `seat_wait` for the resulting state, or a fresh screenshot when pixels matter.
+6. Close the owned fixture and cancel owned command jobs. Keep unrelated apps and jobs running.
+7. `seat_lease {action: "release"}`. `cancelJobs: true` requests cancellation only for your
+   command jobs.
 
 For delayed UI, use waits. For builds/servers, save command job IDs and read incremental output.
 For visual-only controls, use a fresh screenshot and original-screen coordinates. Keep the viewer
 hidden unless the user wants it. If capture fails, use accessible controls or diagnose the failure;
 do not switch to the main desktop. `seat_stop` closes **all** apps in the shared seat.
+[Desktop leases](TROUBLESHOOTING.md#desktop-leases) explains `seat_busy`, `lease_expired` and
+`stale_lease` errors.
 
 The [skill](../skills/anode-desktop/SKILL.md) has the full operating workflow;
+[multiple agents](MULTI-AGENT.md) covers leases and recovery;
 [desktop tools](DESKTOP-TOOLS.md) and [development testing](DEVELOPMENT-TESTING.md) provide examples.

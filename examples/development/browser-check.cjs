@@ -1,4 +1,5 @@
-// Run through `anode exec`, never directly on the parent desktop.
+// Headed Playwright fixture for scripts/test-development.ps1, run inside Anode's seat via `anode exec` (needs a desktop lease), never on the parent desktop.
+// Arguments: <folder containing node_modules/playwright> <output folder>. After browser-ready.json it waits up to 30 s for a release-browser marker from the harness.
 const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');

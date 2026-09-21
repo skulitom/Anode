@@ -23,12 +23,51 @@ Keep changes focused and describe what changed, why, and which checks passed. Fo
 the Anode version, Windows edition/build, `doctor` output and the smallest reproduction. Review
 logs for personal information before attaching them.
 
+## Build while Anode is running
+
+A running Anode daemon or MCP client started from `dist\anode.exe` locks it, so the default build
+cannot replace it. Build and package into separate folders instead, then test that package:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build.ps1 -OutputDirectory artifacts\pkg-build -ArchiveDirectory artifacts\pkg-release -Package
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\test-install.ps1 -ArchiveDirectory artifacts\pkg-release
+```
+
+`test-install.ps1` installs into a temporary folder, exercises the installer's update, rollback and
+refusal paths, and runs the connector against fake client homes. It never touches your PATH, real
+client settings or the running daemon. Add `-QuickTest` to the build for the private-pipe quick
+self-test; `-Test` runs the full self-test. Use a separate `git worktree` for parallel work so
+builds do not share `src\Anode\obj` and `bin`.
+
+Every build talks to the same control pipe. While a daemon is running, do not run `start`, `up`,
+`lease` or any other seat command from the new build: it would act on the running seat.
+
+## Icon and social preview
+
+`assets/anode.svg` is the master mark. `python assets/make-assets.py` regenerates
+`anode-512.png`, `anode.ico` and `social-preview.png` from the same geometry (Python 3, Pillow and
+Segoe UI); change the SVG and the script together. The executable, viewer and tray use `anode.ico`.
+
 ## Release process
 
-1. Update the version in `src/Anode/Anode.csproj`, `CHANGELOG.md` and any pinned install examples.
-2. Review `.github/RELEASE_NOTES.md`, which is the user-facing release body.
-3. Run the checks above, push the changes and confirm Windows CI passes.
-4. Tag the tested commit with the matching version, such as `v0.4.0`, and push the tag.
+1. Update the version in `src/Anode/Anode.csproj`, rename `## Unreleased` in `CHANGELOG.md` to the
+   version and date, and update pinned install examples such as `docs/INSTALL.md`.
+2. Update `.github/RELEASE_NOTES.md`, which is the user-facing release body, including its
+   `What's new in` heading.
+3. When tools or commands changed, bring the tool count in `README.md`, `docs/USAGE.md` and
+   `docs/PROTOCOL.md`, the PROTOCOL.md tool mapping, `llms.txt`, the instructions in
+   `src/Anode/Mcp/AgentGuide.cs`, the [command reference](docs/USAGE.md#command-reference) and the
+   release notes in line with the code.
+4. Set the new version in `server.json`, `.claude-plugin/plugin.json` and
+   `packaging/mcpb/manifest.json`. Where a listing repeats the one-line description, keep it
+   identical: "Background Windows desktop for AI agents: native GUI automation, screenshots and
+   app testing."
+5. Run the checks above plus `scripts\test-distribution.ps1` and `scripts\check-docs.ps1`, push the
+   changes and confirm Windows CI passes.
+6. Tag the tested commit with the matching version, such as `v0.5.0`, and push the tag.
+7. After the release is published, set the version, the archive URL and its SHA-256 from the
+   release's `SHA256SUMS` in `bucket/anode.json` and `packaging/winget/*` (winget expects the hash
+   in upper case), then push. Scoop users get the update from that commit.
 
 The Release workflow checks the tag against the project version, builds a self-contained x64
 binary, runs quick and installation checks, then publishes the ZIP, installer and SHA-256 sums.
@@ -38,3 +77,5 @@ Release publishing requires repository contents write permission. Normal build j
 The archive has a stable asset name, `anode-windows-x64.zip`, for download links and installers.
 `SHA256SUMS` covers that archive and `install.ps1`. Checksums are not signatures; code signing and
 package-manager listings can be added separately when their distribution requirements are met.
+The Scoop bucket and the Claude Code plugin marketplace are served from this repository. The MCP
+Registry, winget and MCP Bundle manifests are maintained here but not yet published.

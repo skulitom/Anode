@@ -23,3 +23,6 @@ desktop.ini
 # Logs / local state
 *.log
 %LOCALAPPDATA%/
+
+# Python bytecode from assets/make-assets.py
+__pycache__/

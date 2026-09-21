@@ -1,0 +1,17 @@
+{
+  "name": "anode",
+  "owner": {
+    "name": "skulitom",
+    "url": "https://github.com/skulitom"
+  },
+  "description": "Anode for Claude Code: the anode MCP server and the anode-desktop skill. Needs anode.exe on PATH; install Anode first (docs/INSTALL.md).",
+  "plugins": [
+    {
+      "name": "anode",
+      "source": "./",
+      "description": "Background Windows desktop for AI agents: native GUI automation, screenshots and app testing.",
+      "category": "development",
+      "tags": ["windows", "desktop-automation", "ui-automation", "gui-testing"]
+    }
+  ]
+}

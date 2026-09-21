@@ -156,8 +156,10 @@ internal static class AgentChecks
             return Task.FromResult(JsonLine.Ok());
         }));
         daemon.Start();
-        using var a = new McpServer(pipe, () => launches++, agentId: "A");
-        using var b = new McpServer(pipe, () => launches++, agentId: "B");
+        // Readiness passes, so an unexpected start attempt reaches (and fails in) the counting launcher.
+        void Launch() { launches++; throw new InvalidOperationException("an MCP ownership check tried to launch a daemon"); }
+        using var a = new McpServer(pipe, Launch, () => null, agentId: "A");
+        using var b = new McpServer(pipe, Launch, () => null, agentId: "B");
         Task<JsonObject> Call(McpServer client, string tool, JsonObject args) => client.CallAsync(tool, args, CancellationToken.None);
         var acquire = new JsonObject { ["action"] = "acquire" };
         Require((await Call(a, "seat_type", new JsonObject { ["text"] = "missing lease" })).Bool("isError") == true && actions == 0 && launches == 0,
@@ -165,13 +167,57 @@ internal static class AgentChecks
         string token = (await Call(a, "seat_lease", acquire)).Obj("structuredContent")!.Str("leaseToken")!;
         Require((await Call(a, "seat_type", new JsonObject { ["text"] = "owned" })).Bool("isError") != true && actions == 1, "MCP did not attach its cached identity and token");
         Require((await Call(b, "seat_lease", acquire)).Obj("structuredContent")?.Str("errorCode") == "seat_busy", "MCP hid ownership contention");
-        using var resumed = new McpServer(pipe, agentId: "A");
+        using var resumed = McpChecks.Isolated(pipe, "A");
         Require((await Call(resumed, "seat_lease", acquire)).Obj("structuredContent")?.Str("leaseToken") == token, "stable MCP identity could not resume ownership");
         await Call(resumed, "seat_lease", new JsonObject { ["action"] = "release" });
         await Call(b, "seat_lease", acquire);
         Require((await Call(a, "seat_type", new JsonObject { ["text"] = "stale" })).Bool("isError") == true && actions == 1, "old MCP connection acted after handoff");
         Require((await Call(b, "seat_type", new JsonObject { ["text"] = "new owner" })).Bool("isError") != true && actions == 2, "new MCP owner could not act");
-        return "MCP identities, cached tokens, errors, stable restart recovery and stale-connection refusal";
+        Require(launches == 0, "MCP ownership started a daemon");
+
+        // The user quits Anode while an agent still caches its token: desktop calls must not relaunch it.
+        int staleLaunches = 0, staleReadiness = 0;
+        string stalePipe = "anode-selftest-" + Guid.NewGuid().ToString("N");
+        var staleLease = new DesktopLease();
+        using var staleDaemon = new JsonPipeServer(stalePipe, request => staleLease.HandleAsync(request, (_, _) => Task.FromResult(JsonLine.Ok())));
+        staleDaemon.Start();
+        using var stale = new McpServer(stalePipe,
+            () => { staleLaunches++; throw new InvalidOperationException("a cached lease token launched a daemon"); },
+            () => { staleReadiness++; return null; }, "C");
+        Require((await Call(stale, "seat_lease", acquire)).Bool("isError") != true && stale.HoldsLease, "stale-token fixture could not acquire");
+        staleDaemon.Dispose();
+        // The first call discovers the closed connection and reports the quit; it is never replayed.
+        var quit = await Call(stale, "seat_screenshot", new JsonObject());
+        Require(quit.Bool("isError") == true && McpChecks.Text(quit) == McpServer.LeaseEnded && !stale.HoldsLease,
+            "a lease-gated call after quit kept its token or hid the acquire hint");
+        var next = await Call(stale, "seat_type", new JsonObject { ["text"] = "after quit" });
+        Require(next.Bool("isError") == true && McpChecks.Text(next).Contains("seat_lease action=acquire"), "a call after quit did not ask for a new lease");
+        Require(staleLaunches == 0 && staleReadiness == 0, "a stale lease token started or prepared to start a daemon");
+
+        // A person stops the seat while Anode keeps running: desktop calls drop the token and ask
+        // for a new lease, and diagnostics report the stopped seat instead of failing.
+        bool seatStopped = false;
+        string stoppedPipe = "anode-selftest-" + Guid.NewGuid().ToString("N");
+        var stoppedLease = new DesktopLease();
+        using var stoppedDaemon = new JsonPipeServer(stoppedPipe, request =>
+        {
+            if (!seatStopped) return stoppedLease.HandleAsync(request, (_, _) => Task.FromResult(JsonLine.Ok()));
+            var refused = JsonLine.Fail("The seat is stopped.");
+            refused["errorCode"] = "seat_stopped";
+            refused["state"] = "stopped";
+            return Task.FromResult(refused);
+        });
+        stoppedDaemon.Start();
+        using var stopped = McpChecks.Isolated(stoppedPipe, "D");
+        Require((await Call(stopped, "seat_lease", acquire)).Bool("isError") != true && stopped.HoldsLease, "stopped-seat fixture could not acquire");
+        seatStopped = true;
+        var gated = await Call(stopped, "seat_screenshot", new JsonObject());
+        Require(gated.Bool("isError") == true && McpChecks.Text(gated) == McpServer.SeatStoppedLease && !stopped.HoldsLease,
+            "a lease-gated call on a stopped seat kept its token or hid the acquire hint");
+        var diagnostics = (await Call(stopped, "seat_capabilities", new JsonObject())).Obj("structuredContent");
+        Require(diagnostics?.Str("state") == "stopped" && diagnostics.Bool("daemonRunning") == true && diagnostics.Str("summary") == McpServer.SeatStopped,
+            "diagnostics on a stopped seat failed instead of reporting it");
+        return "MCP identities, cached tokens, errors, stable restart recovery, stale-connection refusal, no relaunch after quit and stopped-seat reporting";
     }
 
     public static async Task<string> StartupAndStop()

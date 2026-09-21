@@ -1,16 +1,18 @@
 # Inspect and control the background desktop
 
-Before desktop work, [acquire a desktop lease](MULTI-AGENT.md) and renew it before expiry.
-CLI examples require ANODE_AGENT_ID and ANODE_LEASE_TOKEN; MCP supplies both after acquisition.
-Opt-in live scripts require an existing lease and renew it for the test. Release after cleanup.
-
 Anode can enumerate windows, read accessible controls and text, and act on those
 controls inside the verified child session. This works through the CLI and MCP
 without a computer-use overlay on your main desktop.
 
+> **Before you start:** hold a [desktop lease](MULTI-AGENT.md) and renew it before expiry.
+> CLI examples need `ANODE_AGENT_ID` and `ANODE_LEASE_TOKEN`; MCP supplies both after `seat_lease`
+> acquisition. Opt-in live scripts renew an existing lease but never acquire one. Release after
+> cleanup.
+
 ## A typical workflow
 
-Start a seat with `anode start --hidden`, then use:
+Start a seat with `anode start --hidden` and [acquire a lease](MULTI-AGENT.md#cli-workflow), then
+use:
 
 ```powershell
 anode windows --query notepad
@@ -97,14 +99,16 @@ See [capture troubleshooting](TROUBLESHOOTING.md#hidden-viewer-capture-fails).
 
 Anode shares your user profile and installed apps. Some applications reuse an
 existing instance in another session. Steam needs special handling when its main
-client must remain on your desktop; see the Steam notes in the README. Virtual
-gamepads remain visible across Windows sessions.
+client must remain on your desktop; see [Launch a Steam game](USAGE.md#launch-a-steam-game-with-a-joystick)
+and [Steam troubleshooting](TROUBLESHOOTING.md#steam-opens-the-game-on-my-screen-instead).
+Virtual gamepads remain visible across Windows sessions.
 
 ## Verification
 
 `anode selftest --quick` checks argument validation, reference expiry, no replay,
 worker timeouts, presentation escaping and MCP discovery without accessing a
-desktop. To run the opt-in integration test against an already ready seat:
+desktop. From a source checkout, run the opt-in integration test against an already
+ready seat while holding a lease:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/test-desktop.ps1 -Anode .\dist\anode.exe

@@ -106,8 +106,14 @@ internal static class DesktopChecks
         Require(!html.Contains("<img onerror=bad>") && !html.Contains("<script>bad()") && html.Contains("&lt;img"), "Report failed to escape untrusted app text.");
         result["window"]!["title"] = "Unsafe\u001b[2J title";
         result["elements"]![0]!["toggleState"] = "On";
+        result["elements"]![0]!["automationId"] = "Name" + (char)27 + "Box";
+        result["elements"]![0]!["bounds"] = new JsonObject { ["x"] = -5, ["y"] = 20, ["width"] = 300, ["height"] = 24 };
+        result["screenshot"] = new JsonObject { ["width"] = 640, ["height"] = 360, ["sourceWidth"] = 1920, ["sourceHeight"] = 1080 };
         string summary = DesktopPresentation.Summary(result);
         Require(!summary.Contains('\u001b') && summary.Contains("toggle: On"), "Summary lost control state or exposed terminal escape codes.");
-        return "HTML report escapes titles, control names and text; report remains standalone";
+        // Clients that receive only text still need wait selectors, pixel fallback and the capture scale.
+        Require(summary.Contains("#Name Box @-5,20,300,24") && summary.Contains("Screenshot 640x360 (captured at 1920x1080)"),
+            "Summary lost automation IDs, bounds or capture geometry.");
+        return "HTML report escapes untrusted app text; text summary keeps automation IDs, bounds and capture geometry";
     }
 }

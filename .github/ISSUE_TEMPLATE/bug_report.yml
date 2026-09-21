@@ -9,7 +9,7 @@ body:
     id: version
     attributes:
       label: Anode version
-      description: Output of anode version
+      description: Output of `anode version`
     validations:
       required: true
   - type: input
@@ -26,16 +26,21 @@ body:
       options: [PowerShell installer, Portable release ZIP, Built from source]
     validations:
       required: true
+  - type: dropdown
+    id: client
+    attributes:
+      label: Agent client
+      options: [Claude Code, Codex CLI, Claude Desktop, Other MCP client, CLI only]
   - type: textarea
     id: reproduction
     attributes:
       label: Steps to reproduce
-      description: Include the command or MCP client, what you expected, and what happened.
+      description: What you ran or asked the agent, what you expected, and what happened.
     validations:
       required: true
   - type: textarea
     id: diagnostics
     attributes:
       label: Diagnostics
-      description: Paste relevant doctor / capabilities output and log excerpts. Logs are in %LOCALAPPDATA%\Anode\anode.log.
+      description: 'Paste the output of `anode doctor`, `anode status --json` and `anode capabilities --json`, plus relevant lines from the log. `status --json` reports its `logPath`, usually %LOCALAPPDATA%\Anode\anode.log. Remove personal information.'
       render: text

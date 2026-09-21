@@ -246,12 +246,19 @@ internal static class SeatHost
                 return RunProgram(r, ChildSession.CurrentSessionId());
 
             case "steam.status":
+            {
+                // Clients that read only structured results need the verdict as data, not just in the summary.
+                uint session = ChildSession.CurrentSessionId();
+                int[] running = Core.Steam.Steam.RunningSessions();
                 return JsonLine.Ok(new JsonObject
                 {
                     ["steamExe"] = Core.Steam.Steam.FindExecutable(),
-                    ["runningSessions"] = new JsonArray(Core.Steam.Steam.RunningSessions().Select(s => (JsonNode)s).ToArray()),
-                    ["summary"] = Core.Steam.Steam.Describe(ChildSession.CurrentSessionId())
+                    ["seatSession"] = (int)session,
+                    ["runningSessions"] = new JsonArray(running.Select(s => (JsonNode)s).ToArray()),
+                    ["runningOutsideSeat"] = running.Any(s => s != (int)session),
+                    ["summary"] = Core.Steam.Steam.Describe(session)
                 });
+            }
 
             case "steam.launch":
             {

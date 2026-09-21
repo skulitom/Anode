@@ -56,6 +56,11 @@ internal static class SelfTest
             return "15 buttons, 4 axes, 2 triggers";
         });
 
+        Check(results, "CLI help routing", CliChecks.HelpRouting);
+        Check(results, "CLI argument checks", CliChecks.Arguments);
+        Check(results, "CLI help and messages", CliChecks.HelpText);
+        Check(results, "CLI mcp --help", CliChecks.McpHelp);
+
         if (includeEnvironment) Check(results, "screen capture", () =>
         {
             var shot = ScreenCapture.Capture(maxWidth: 640, format: "jpeg", jpegQuality: 70);

@@ -31,6 +31,7 @@ from its own executable path; upgrading the file does not replace already runnin
 | Daemon | `anode up` | yours | Own the seat's lifecycle, host the viewer, serve the control pipe |
 | Seat host | `anode __seat-host` | the seat | Input, capture, launching, gamepad, process control |
 | Desktop worker | `anode __desktop-worker` | the seat | Bounded window inspection and UI Automation on an MTA thread |
+| Command worker | `anode __exec-worker` | the seat | One `seat_exec` job, inside a Windows job object |
 | CLI | `anode <cmd>` | yours | Thin client of the control pipe |
 | MCP server | `anode mcp` | yours | Thin client of the control pipe, speaking JSON-RPC on stdio |
 | Elevated setup | `anode __apply-setup` | yours, elevated | The only code that changes machine state |
@@ -42,7 +43,7 @@ from its own executable path; upgrading the file does not replace already runnin
    ├──────────────┤   │   anode up  (daemon)         │   │                          │
    │  anode CLI   │──▶│                              │   │   SendInput              │
    └──────────────┘   │   ┌────────────────────────┐ │   │   CopyFromScreen         │
-    \\.\pipe\          │   │ SeatWindow             │ │   │   Process.Start          │
+    \\.\pipe\         │   │ SeatWindow             │ │   │   Process.Start          │
     anode-control     │   │  ┌──────────────────┐  │ │   │   ViGEm gamepad          │
                       │   │  │ RDP ActiveX      │──┼─┼──▶│   (all session-local)    │
                       │   │  │ ConnectToChild.. │  │ │   │                          │
@@ -126,11 +127,12 @@ machine-global. Clients and servers use `PipeOptions.CurrentUserOnly`, restricti
 connections to the same Windows identity and elevation level. Deadlines include
 queue time; timed-out requests close their connection and are never replayed.
 
-The daemon handles the handful of operations it owns (`status`, `seat.stop`, `seat.start`,
-`seat.show`, `seat.hide`, `seat.control`, `doctor`, `quit`) and **forwards everything else** to the
-seat host unchanged. Adding a capability to the seat therefore needs no daemon change, and the CLI
-and MCP server never diverge because there is only one implementation. Full operation list in
-[PROTOCOL.md](PROTOCOL.md).
+The daemon handles the handful of operations it owns (`ping`, `status`, `seat.identity`, `doctor`,
+`seat.start`, `seat.stop` and its alias `kill`, `seat.show`, `seat.hide`, `seat.control`, `quit`, and
+`lease`, which starts the seat for an acquisition before forwarding it) and **forwards everything
+else** to the seat host unchanged. Adding a capability to the seat therefore needs no daemon change,
+and the CLI and MCP server never diverge because there is only one implementation. Full operation
+list in [PROTOCOL.md](PROTOCOL.md).
 
 ## Design decisions worth defending
 

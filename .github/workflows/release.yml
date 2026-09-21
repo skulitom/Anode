@@ -22,6 +22,9 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: write
+      # Build provenance attestations.
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -45,10 +48,24 @@ jobs:
         run: ./scripts/build.ps1 -QuickTest -Package
       - name: Test installation and configuration
         run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-install.ps1
+      - name: Check distribution
+        run: ./scripts/test-distribution.ps1 -Release
+      # Verify a download with: gh attestation verify anode-windows-x64.zip --repo skulitom/Anode
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            artifacts/release/anode-windows-x64.zip
+            artifacts/release/install.ps1
+      # anode-windows-x64.mcpb (build.ps1 -Mcpb) is not published until it passes a live Claude Desktop test.
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          gh release create $env:RELEASE_TAG artifacts/release/anode-windows-x64.zip artifacts/release/install.ps1 artifacts/release/SHA256SUMS --verify-tag --title "Anode $env:RELEASE_TAG" --notes-file .github/RELEASE_NOTES.md --latest
+          # Only the highest stable version becomes Latest, so a backport never moves installers back.
+          $highest = git tag --list 'v*' | Where-Object { $_ -match '^v\d+\.\d+\.\d+$' } |
+              Sort-Object { [version]$_.Substring(1) } | Select-Object -Last 1
+          $latest = ($env:RELEASE_TAG -ceq $highest).ToString().ToLowerInvariant()
+          gh release create $env:RELEASE_TAG artifacts/release/anode-windows-x64.zip artifacts/release/install.ps1 artifacts/release/SHA256SUMS --verify-tag --title "Anode $env:RELEASE_TAG" --notes-file .github/RELEASE_NOTES.md "--latest=$latest"
           if ($LASTEXITCODE -ne 0) { throw 'Release publication failed.' }

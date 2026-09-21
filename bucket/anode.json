@@ -1,0 +1,35 @@
+{
+    "version": "0.5.0",
+    "description": "Background Windows desktop for AI agents: native GUI automation, screenshots and app testing.",
+    "homepage": "https://github.com/skulitom/Anode",
+    "license": "MIT",
+    "notes": [
+        "Anode needs 64-bit Windows 10/11 Pro, Enterprise or Education (or Windows Server with an RDP host).",
+        "Check prerequisites, then enable child sessions once; setup asks for administrator approval:",
+        "  anode doctor | Out-Host",
+        "  anode setup | Out-Host",
+        "Register Anode with the Codex and Claude Code CLIs found on PATH:",
+        "  anode configure | Out-Host",
+        "Before 'scoop update anode', save work in the seat, run 'anode quit' (it closes every seat application) and close MCP clients using Anode; Scoop refuses to update while Anode processes run.",
+        "Guide: https://github.com/skulitom/Anode/blob/main/docs/INSTALL.md"
+    ],
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/skulitom/Anode/releases/download/v0.5.0/anode-windows-x64.zip",
+            "hash": "8c27806d50c165b6ce5dcb6484169680b6f8de184de1c715520dd440dc0c13b8"
+        }
+    },
+    "##": "PATH entry instead of bin: Scoop's shim frees its console before starting a GUI-subsystem exe, which leaves anode.exe no console to attach for CLI output.",
+    "env_add_path": ".",
+    "checkver": "github",
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/skulitom/Anode/releases/download/v$version/anode-windows-x64.zip",
+                "hash": {
+                    "url": "$baseurl/SHA256SUMS"
+                }
+            }
+        }
+    }
+}

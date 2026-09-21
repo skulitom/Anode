@@ -1,5 +1,49 @@
 # Changelog
 
+## Unreleased
+
+- MCP server instructions and the `anode-desktop` skill now lead with the lease workflow:
+  `seat_status`, `seat_lease` acquisition, `seat_capabilities`, the work, cleanup, release.
+- **Breaking:** only `seat_start` and `seat_lease` acquisition start a seat over MCP.
+  `seat_capabilities`, `seat_processes` and `steam_status` report a stopped seat instead of
+  starting one, and a stale lease token no longer relaunches a daemon the user quit. When a person
+  stops the seat or quits Anode, diagnostics report a stopped seat and desktop tools ask for a new
+  lease instead of returning pipe errors. `steam_status` adds `seatSession` and `runningOutsideSeat`.
+- Observation tools are annotated read-only and `seat_start`/`seat_hide` additive, so clients that
+  honor annotations need not ask for approval on every observation. Claude Code asks before every
+  `seat_stop`, even when Anode's tools are allowlisted. Every tool has an explicit title, and input
+  schemas list enum values and ranges that match validation; unlisted values such as screenshot
+  format `jpg` are now rejected instead of passing through.
+- The MCP `initialize` result carries a description, and a blank `ANODE_AGENT_ID` counts as unset.
+- Results with an image block no longer repeat the control tree in `structuredContent`, which made
+  Codex drop `seat_observe` screenshots and Claude Code receive every tree twice. Text summaries
+  now carry automation IDs and bounds.
+- Added the MCP prompts `desktop_test` and `desktop_guide`, which clients such as Claude Code and
+  VS Code list as slash commands.
+- **Breaking:** the CLI rejects unknown options and malformed input with exit code 2 before
+  anything runs. `<command> --help` never runs the command, and `anode help <command>` describes
+  one command. `doctor` names the next step and accepts `--json`; `status --json` prints a stopped
+  result when Anode is not running.
+  Double-clicking `anode.exe` explains how to run it from a terminal instead of doing nothing, and
+  `anode quit` returns once Anode has exited, so a following `anode start` applies its options.
+- Anode has an icon (`assets/anode.svg`, `anode.ico`), used by the executable, viewer and tray, and
+  a repository social preview image. The executable's file properties describe Anode.
+- Viewer and tray: **Sign in…** and **Help** in the tray menu, and startup errors that name their
+  remedy and troubleshooting section.
+- The installer hides the slow Windows PowerShell progress bar, reports download sizes and prints
+  next steps; `anode configure` validates the Claude Code settings before changing anything and
+  says how to verify the registration.
+- Release archives use `/` entry names and LF checksums, releases carry build-provenance
+  attestations, and only the highest version is marked Latest. `build.ps1` refuses to overwrite an
+  `anode.exe` that is in use. `scripts/test-distribution.ps1` and `scripts/check-docs.ps1` check
+  versions, checksums, manifests, tool counts and documentation links in CI.
+- Distribution: a Claude Code plugin marketplace (`/plugin marketplace add skulitom/Anode`, then
+  `/plugin install anode@anode`) and a Scoop bucket
+  (`scoop bucket add anode https://github.com/skulitom/Anode`, then `scoop install anode/anode`).
+  MCP Registry, winget and MCP Bundle metadata are prepared but not yet published.
+- Documentation: Claude Desktop, VS Code and Cursor setup, a CLI command reference, desktop lease
+  troubleshooting and a privacy statement.
+
 ## 0.5.0 — 2026-09-21
 
 - Added **Sign in…** beside **Reconnect** in the viewer header to request Windows credentials
@@ -13,15 +57,16 @@
   is visible, focused and control is taken. `anode status` reports `pointerGuard`; a quick check
   exercises the patched import and the opt-in `scripts/test-pointer-isolation.ps1` proves it against
   a live seat. Restart an existing daemon to load the guard. See the
-  [investigation record](bugreports/2026-09-18-viewer-moves-the-real-pointer.md).
+  [investigation record](https://github.com/skulitom/Anode/blob/main/bugreports/2026-09-18-viewer-moves-the-real-pointer.md).
 - Added `seat_lease` / `anode lease` for exclusive desktop acquisition, renewal and release.
   Leases expire without renewal and reject stale queued actions; in-flight operations finish
   before ownership can transfer. Stop remains immediate and global.
 - Added per-agent MCP identities, stable-ID recovery, owner-scoped command jobs and optional
   job cancellation on release. Release/expiry clear desktop references and held input/controllers.
-- Desktop tools now require a lease. CLI workflows supply an agent ID and token; MCP supplies
-  them automatically after acquisition. Updated guides and private-pipe regression checks.
-  Restart existing daemon/seat-host processes to load the new protocol.
+- **Breaking:** desktop tools now require a lease. CLI scripts must run `anode lease acquire`
+  and pass `ANODE_AGENT_ID`/`ANODE_LEASE_TOKEN`; MCP supplies them automatically after `seat_lease`
+  acquisition. Updated guides and private-pipe regression checks. Quit Anode before updating so
+  the daemon and seat host load the new protocol.
 - Explicitly publish the connector script and portable skill beside the executable so clean
   and incremental package builds include the files required by installation/configuration.
 
@@ -81,7 +126,7 @@ the vision pilot and application types beyond the recorded fixtures remain unver
 - Kept accessibility in verified child-session workers with deadlines, expiring
   references, password-value omission and no replay of uncertain actions.
 - Made automatic CLI/MCP daemon startup hide the viewer. Added a reversible
-  per-user RDP rendering preference and hide-on-minimize behaviour. Hidden capture
+  per-user RDP rendering preference and hide-on-minimize behavior. Hidden capture
   still requires validation on the reported machine after a daemon restart.
 - Fixed listener readiness, service restart when setup requires it, detached-daemon
   log paths, actionable startup errors, RDP interop and child-session verification.

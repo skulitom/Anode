@@ -22,6 +22,13 @@ internal static class DesktopPresentation
         if (node.Obj("scroll") is { } scroll) parts.Add($"scroll: horizontal {scroll["horizontalPercent"]}%, vertical {scroll["verticalPercent"]}%");
         return Line(string.Join("; ", parts));
     }
+
+    /// <summary>Capture geometry for clients that receive the image without structured fields.</summary>
+    public static string? Capture(JsonObject? screenshot) => screenshot?.Int("width") is { } width
+        ? $"Screenshot {width}x{screenshot.Int("height")} (captured at {screenshot.Int("sourceWidth")}x{screenshot.Int("sourceHeight")}); "
+          + "input coordinates use the captured size."
+        : null;
+
     public static string Summary(JsonObject result)
     {
         var text = new StringBuilder();
@@ -35,13 +42,18 @@ internal static class DesktopPresentation
         else if (result["elements"] is JsonArray elements)
         {
             text.AppendLine($"{Line(result.Obj("window")?.Str("title"))} — {result.Str("windowId")}");
+            if (Capture(result.Obj("screenshot")) is { } capture) text.AppendLine(capture);
             text.AppendLine(result.Str("snapshotId") is { } snapshot
                 ? $"Snapshot {snapshot}; expires in 90 seconds and is consumed by an action."
                 : "Diagnostic observation only; call seat_observe before taking control actions.");
+            // #automationId feeds seat_wait selectors; @x,y,width,height (seat pixels) is the pixel fallback.
             foreach (var node in elements.OfType<JsonObject>())
             {
                 text.Append(' ', Math.Min(node.Int("depth") ?? 0, 12) * 2);
                 text.Append($"[{node.Str("id")}] {node.Str("role")} \"{Line(node.Str("name"))}\"");
+                if (node.Str("automationId") is { Length: > 0 } automationId) text.Append(" #" + Line(automationId));
+                if (node.Obj("bounds") is { } bounds)
+                    text.Append($" @{bounds.Int("x")},{bounds.Int("y")},{bounds.Int("width")},{bounds.Int("height")}");
                 if (State(node) is { Length: > 0 } state) text.Append(" [" + state + "]");
                 if (node.Bool("password") == true) text.Append(" [password: content omitted]");
                 if (node["actions"] is JsonArray actions && actions.Count > 0) text.Append(" {" + string.Join(", ", actions) + "}");

@@ -11,12 +11,17 @@ Use separate agent IDs for independent tasks. Agents deliberately using the same
 
 ## MCP workflow
 
-1. Call `seat_lease` with `{"action":"acquire"}`. It starts a hidden seat if needed.
-2. Check capabilities, observe the desktop, act, then verify while holding the lease.
-3. Call `seat_lease` with `{"action":"renew"}` before expiry, including during a long task.
-4. Close your owned fixtures while holding the lease. Call `seat_lease` with
+1. Call `seat_status` to see whether a seat is running; it never starts one.
+2. Call `seat_lease` with `{"action":"acquire"}`. It starts a hidden seat if needed.
+3. Call `seat_capabilities` for capture and input blockers, then observe the desktop, act and
+   verify while holding the lease.
+4. Call `seat_lease` with `{"action":"renew"}` before expiry, including during a long task.
+5. Close your owned fixtures while holding the lease. Call `seat_lease` with
    `{"action":"release","cancelJobs":true}` to request cancellation of your command jobs
    and release the desktop. Omit `cancelJobs` to leave noninteractive jobs running.
+
+Only acquisition and `seat_start` start a seat over MCP. Status, capabilities, process and Steam
+diagnostics report a stopped seat instead, and desktop tools refuse to run without a lease.
 
 The MCP server assigns a random agent ID and remembers its lease token. Tokens are automatically
 attached to desktop calls; the model does not need to repeat them. `seat_lease` with
@@ -75,6 +80,10 @@ Job reads and cancellation need `ANODE_AGENT_ID`, but not a live lease.
 - `seat_stop`, `anode kill`, the tray/viewer Stop and the emergency hotkey still stop **the entire
   seat** immediately without a lease. Use them when the whole seat should stop. Human viewer
   control can also interrupt the agent's workflow.
+- When a person quits Anode, the seat and its lease normally end with it. An MCP server still
+  holding the old token reports "Anode is not running or your lease ended", forgets the token and
+  does not restart anything. Acquire again only when desktop work should continue, then observe
+  afresh.
 
 ## Protocol and upgrades
 

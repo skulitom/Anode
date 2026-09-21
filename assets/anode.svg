@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="title">
+  <title id="title">Anode</title>
+  <rect x="8" y="24" width="240" height="208" rx="36" fill="#18181b"/>
+  <rect x="24" y="40" width="208" height="176" rx="20" fill="#ffa31a"/>
+  <path d="M88 64V179L117 150L140 202L162 192L141 145H169Z" fill="#18181b"/>
+</svg>

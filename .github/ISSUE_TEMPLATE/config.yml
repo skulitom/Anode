@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Troubleshooting guide
+    url: https://github.com/skulitom/Anode/blob/main/docs/TROUBLESHOOTING.md
+    about: Setup, sign-in, desktop lease, capture and input problems, with the fixes that usually work.
+  - name: Agent guide
+    url: https://github.com/skulitom/Anode/blob/main/docs/FOR-AGENTS.md
+    about: When agents should use Anode and how to connect and drive it.

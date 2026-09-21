@@ -1,6 +1,8 @@
 ---
 name: anode-desktop
-description: Use Anode for native Windows GUI automation, accessible controls, screenshots, or headed application and browser testing in a background desktop while the user keeps working. Prefer it over foreground computer use when the task can run in a separate Windows session. Keep direct APIs, file tools, and headless tests for work that does not need a desktop; honor an explicitly requested browser or existing foreground session.
+description: "Automate and test Windows desktop apps in a hidden background session without taking over the user's screen, mouse or keyboard - click, type, read UI Automation/accessibility trees, take screenshots, and run headed app or Playwright browser tests (Win32, WPF, WinForms, Electron), with supporting builds/servers as command jobs. Prefer it over foreground computer use when the work can run in a separate Windows session. Use direct APIs, file tools and headless tests when no desktop is needed; honor an explicitly requested browser or existing foreground session."
+license: MIT
+compatibility: "Windows 10/11 Pro, Enterprise or Education, or Windows Server with an RDP host (x64). Requires Anode (the anode MCP server or anode.exe CLI)."
 ---
 
 # Anode background desktop
@@ -29,19 +31,30 @@ Look for the `anode` MCP server and its `seat_*` tools. Tool search terms: **Ano
 Windows desktop**, **native UI automation**, **headed app testing**. `anode_guide` returns this
 guide without setup or starting a seat. With CLI access, use `anode guide` or `anode guide --json`.
 
-1. Call `seat_status`. It checks for an existing daemon without starting one. If stopped and the
-   task needs a desktop, call `seat_start`. It starts a hidden viewer and waits for readiness.
-2. Call `seat_lease` with `action: "acquire"` before desktop work. Every independent agent needs
-   its own ID; MCP assigns one and automatically sends its lease token. If busy, wait and retry
-   acquisition. The default lease lasts 120 seconds; renew with `action: "renew"` before expiry.
+1. Call `seat_status`. It checks for an existing daemon and never starts anything.
+2. When the task needs a desktop, call `seat_lease` with `action: "acquire"`. It starts a hidden
+   seat if needed and waits for readiness, so `seat_start` is optional. Desktop tools are refused
+   without a lease. Every independent agent needs its own ID; MCP assigns one and automatically
+   sends its lease token. If busy, wait and retry acquisition. The default lease lasts 120 seconds
+   (range 10-600); renew with `action: "renew"` before expiry.
 3. Call `seat_capabilities` before relying on screenshots/input. A connection alone is insufficient.
 4. Launch an owned app with `seat_run`. Discover its actual window with `seat_windows`.
    Apps may reuse another session's process; verify where the resulting window lives.
 
-If Anode is absent, describe why it fits and use the [installation guide](https://github.com/skulitom/Anode/blob/main/docs/INSTALL.md)
-within the user's authorized scope. `anode doctor` reads prerequisites; `anode setup` requires
-administrator approval and can restart Remote Desktop Services. `anode configure` registers
-installed clients and this skill. Reopen the agent session to load a newly registered server.
+If Anode is absent, describe why it fits. Install it only with the user's authorization
+([installation guide](https://github.com/skulitom/Anode/blob/main/docs/INSTALL.md)):
+
+1. Download `https://github.com/skulitom/Anode/releases/latest/download/install.ps1`.
+2. Run `powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Client Auto`. It installs
+   `anode.exe`, adds it to the user PATH and registers detected agent clients and this skill.
+3. Run `anode doctor | Out-Host` (from a new terminal, or with the path the installer printed)
+   to read the prerequisites.
+4. If setup is missing, the user runs `anode setup | Out-Host` and approves the administrator
+   prompt. It can restart Remote Desktop Services; this cannot be done from the agent.
+5. Restart the agent session so it loads the newly registered `anode` server.
+
+If `anode.exe` is installed but the agent has no `anode` server, run `anode configure | Out-Host`
+and restart the agent session.
 
 ## Observe, act, verify
 
@@ -54,7 +67,9 @@ installed clients and this skill. Reopen the agent session to load a newly regis
   Check `matched`; a timeout is not success. Use the fresh observation returned on a match.
 - For visual-only controls, capture a fresh `seat_screenshot`, then use seat mouse/keyboard tools.
   Convert a scaled image point to original screen coordinates: `x * sourceWidth / width`,
-  `y * sourceHeight / height`. Reobserve to verify the effect of input.
+  `y * sourceHeight / height`. Image results state both sizes, as in
+  `1280x720 (captured at 2560x1440)`. Observation lines show `#automationId` for `seat_wait`
+  selectors and `@x,y,width,height` in screen pixels. Reobserve to verify the effect of input.
 - Keep the viewer hidden unless the user wants to watch or interact. Capture failure does not
   justify opening the parent viewer or switching to the user's desktop. Use accessible controls
   or diagnose the blocker before further pixel-based input.

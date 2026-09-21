@@ -83,12 +83,13 @@ internal sealed class McpSession
                         response = Result(id, new JsonObject
                         {
                             ["protocolVersion"] = selected,
-                            ["capabilities"] = new JsonObject { ["tools"] = new JsonObject() },
+                            ["capabilities"] = new JsonObject { ["tools"] = new JsonObject(), ["prompts"] = new JsonObject() },
                             ["serverInfo"] = new JsonObject
                             {
                                 ["name"] = "anode", ["title"] = "Anode background Windows desktop",
-                                ["version"] = typeof(McpSession).Assembly.GetName().Version?.ToString(3) ?? "0.5.0",
-                                ["websiteUrl"] = "https://github.com/skulitom/Anode"
+                                ["version"] = typeof(McpSession).Assembly.GetName().Version?.ToString(3) ?? "unknown",
+                                ["description"] = AgentGuide.Description,
+                                ["websiteUrl"] = Links.Repository
                             },
                             ["instructions"] = AgentGuide.Instructions
                         });
@@ -98,6 +99,21 @@ internal sealed class McpSession
                         break;
                     case "tools/list":
                         response = Result(id, new JsonObject { ["tools"] = Tools.Definitions() });
+                        break;
+                    // Prompts are static guidance: answer them here, never behind a tool or a daemon.
+                    case "prompts/list":
+                        response = Result(id, new JsonObject { ["prompts"] = AgentGuide.Prompts() });
+                        break;
+                    case "prompts/get":
+                        if (String(parameters?["name"]) is not { Length: > 0 } promptName
+                            || (parameters!.ContainsKey("arguments") && parameters["arguments"] is not JsonObject))
+                        {
+                            response = Error(id, -32602, "prompts/get requires a prompt name and an optional arguments object");
+                            break;
+                        }
+                        response = AgentGuide.Prompt(promptName) is { } prompt
+                            ? Result(id, prompt)
+                            : Error(id, -32602, $"Unknown prompt '{promptName}'. Use desktop_test or desktop_guide.");
                         break;
                     case "tools/call":
                         if (String(parameters?["name"]) is not { Length: > 0 } name

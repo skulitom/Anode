@@ -218,7 +218,8 @@ internal sealed class AnodeDaemon : IDisposable
             _window?.SetStatus("Windows needs your attention in the sign-in dialog. The seat is not ready yet.");
             return;
         }
-        FailStartup("logon-error", $"The seat could not sign in (error {code}).");
+        // The daemon is still running, so `anode start --sign-in` would be refused here.
+        FailStartup("logon-error", $"The seat could not sign in (error {code}). With Windows Hello or a PIN, the user can open the viewer (`anode show` or the tray icon), click Sign in in its header and enter the account password. See {Links.Troubleshooting}#it-asks-for-a-password-every-time");
     }
 
     internal void OnViewerDisconnected(int reason)
@@ -247,7 +248,7 @@ internal sealed class AnodeDaemon : IDisposable
             }
             else
             {
-                SetState("detached", $"The viewer disconnected but the seat is still running. {why} Press Reconnect to watch it again.");
+                SetState("detached", $"The viewer disconnected but the seat is still running. {why} Press Reconnect in the viewer (open it with `anode show` or the tray icon) to watch it again.");
             }
         }
         _window?.SetSeatInfo(_sessionId, _hostReady);
@@ -283,12 +284,12 @@ internal sealed class AnodeDaemon : IDisposable
                 cancel.ThrowIfCancellationRequested();
                 if (id is null)
                 {
-                    SetState("error", "Windows connected the viewer but never reported a child session. Run `anode doctor`.");
+                    SetState("error", $"Windows connected the viewer but never reported a child session. Run `anode doctor`. See {Links.Troubleshooting}#the-seat-will-not-come-up");
                     return;
                 }
                 _sessionId = id;
                 _window?.SetSeatInfo(_sessionId, false);
-                SetState("starting-agent", $"Seat is session {id}. Starting the in-seat agent...");
+                SetState("starting-agent", $"Seat is session {id}. Starting the seat host...");
                 DisposeSeatClient();
             }
 
@@ -312,7 +313,7 @@ internal sealed class AnodeDaemon : IDisposable
                 cancel.ThrowIfCancellationRequested();
                 if (_seat is null)
                 {
-                    SetState("error", $"The seat came up but its agent never answered. Look in {Env.LogPath}.");
+                    SetState("error", $"The seat came up but its host never answered. Log: {Env.LogPath}. See {Links.Troubleshooting}#the-seat-came-up-but-its-host-never-answered");
                     return;
                 }
             }
@@ -324,13 +325,13 @@ internal sealed class AnodeDaemon : IDisposable
                 cancel.ThrowIfCancellationRequested();
                 if (pong.Bool("ok") != true)
                 {
-                    SetState("error", $"The in-seat agent replied with an error: {pong.Str("error")}");
+                    SetState("error", $"The seat host replied with an error: {pong.Str("error")}");
                     return;
                 }
                 if (pong.Obj("result")?.Int("session") != (int)id.Value)
                 {
                     DisposeSeatClient();
-                    SetState("error", "The in-seat agent answered from a different Windows session. Refusing to send input.");
+                    SetState("error", "The seat host answered from a different Windows session. Refusing to send input.");
                     return;
                 }
                 _hostReady = true;
@@ -669,7 +670,16 @@ internal sealed class AnodeDaemon : IDisposable
     {
         var seat = _seat;
         if (seat is null || !_hostReady || _stopRequested)
-            return JsonLine.Fail($"The seat is not ready ({_state}), so '{op}' has nowhere to go. Try `anode status`.");
+        {
+            // CLI and MCP clients share this answer; the code lets MCP report a stopped seat.
+            bool stopped = _state == "stopped";
+            var notReady = JsonLine.Fail(stopped
+                ? "The seat is stopped. Start it with `anode start` or `anode lease acquire` (agents: seat_lease action=acquire), then observe again."
+                : $"The seat is not ready ({_state}), so '{op}' has nowhere to go. Check `anode status` (agents: seat_status).");
+            notReady["errorCode"] = stopped ? "seat_stopped" : "seat_not_ready";
+            notReady["state"] = _state;
+            return notReady;
+        }
 
         var forwarded = (JsonObject)request.DeepClone();
         forwarded.Remove("id");
@@ -692,7 +702,7 @@ internal sealed class AnodeDaemon : IDisposable
         {
             _hostReady = false;
             _window?.SetSeatInfo(_sessionId, false);
-            SetState("detached", "Lost contact with the in-seat agent.");
+            SetState("detached", "Lost contact with the seat host.");
         }
         return response;
     }

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Drawing;
 using System.Windows.Forms;
 using Anode.Core.Native;
@@ -28,6 +29,9 @@ internal sealed class SeatWindow : Form
     private readonly ToolStripStatusLabel _statusLabel = new();
     private readonly ToolStripStatusLabel _seatLabel = new();
     private readonly NotifyIcon _tray = new();
+    private readonly ToolStripMenuItem _traySignIn = new("Sign in…");
+    private readonly Icon? _icon = LoadIcon();
+    private Icon? _trayIcon;
 
     private FormWindowState _restoreState = FormWindowState.Normal;
     private FormBorderStyle _restoreBorder = FormBorderStyle.Sizable;
@@ -53,7 +57,7 @@ internal sealed class SeatWindow : Form
         MinimumSize = new Size(560, 360);
         BackColor = Color.FromArgb(24, 24, 27);
         ForeColor = Color.FromArgb(228, 228, 231);
-        Icon = SystemIcons.Application;
+        Icon = _icon ?? SystemIcons.Application;
         KeyPreview = true;
         _noActivate = true;
 
@@ -165,17 +169,56 @@ internal sealed class SeatWindow : Form
 
     private void BuildTray()
     {
+        // The same request as the header's Sign in button. The credential dialog belongs
+        // to the viewer, so show the viewer first.
+        _traySignIn.Click += (_, _) =>
+        {
+            ShowViewer();
+            SignInRequested?.Invoke();
+        };
+
         var menu = new ContextMenuStrip();
         menu.Items.Add("Show the seat", null, (_, _) => ShowViewer());
+        menu.Items.Add(_traySignIn);
         menu.Items.Add("Stop the seat", null, (_, _) => StopSeatRequested?.Invoke());
         menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add("Help", null, (_, _) => OpenHelp());
         menu.Items.Add("Quit Anode", null, (_, _) => QuitRequested?.Invoke());
 
-        _tray.Icon = SystemIcons.Application;
-        _tray.Text = "Anode seat";
+        // Select the hand-drawn small frame; scaling the 32 px icon blurs it in the tray.
+        _trayIcon = _icon is null ? null : new Icon(_icon, SystemInformation.SmallIconSize);
+        _tray.Icon = _trayIcon ?? SystemIcons.Application;
+        _tray.Text = TrayText(null);
         _tray.Visible = true;
         _tray.ContextMenuStrip = menu;
         _tray.DoubleClick += (_, _) => ShowViewer();
+    }
+
+    private static string TrayText(uint? sessionId)
+    {
+        string text = sessionId is null ? "Anode: no seat" : $"Anode background desktop: session {sessionId}";
+        return text.Length > 63 ? text[..63] : text;
+    }
+
+    /// <summary>The Anode icon embedded from assets\anode.ico, with all of its sizes.</summary>
+    private static Icon? LoadIcon()
+    {
+        try
+        {
+            using var stream = typeof(SeatWindow).Assembly.GetManifestResourceStream("Anode.Icon");
+            return stream is null ? null : new Icon(stream);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"could not load the Anode icon: {ex.Message}");
+            return null;
+        }
+    }
+
+    private static void OpenHelp()
+    {
+        try { Process.Start(new ProcessStartInfo(Links.Troubleshooting) { UseShellExecute = true })?.Dispose(); }
+        catch (Exception ex) { Log.Warn($"could not open {Links.Troubleshooting}: {ex.Message}"); }
     }
 
     // ------------------------------------------------------------------ status
@@ -185,6 +228,7 @@ internal sealed class SeatWindow : Form
         if (InvokeRequired) { BeginInvoke(new Action(() => SetReconnectEnabled(enabled))); return; }
         _reconnectButton.Enabled = enabled;
         _signInButton.Enabled = enabled;
+        _traySignIn.Enabled = enabled;
     }
 
     public void SetStatus(string text)
@@ -204,9 +248,8 @@ internal sealed class SeatWindow : Form
         if (InvokeRequired) { BeginInvoke(new Action(() => SetSeatInfo(sessionId, hostReady))); return; }
         _seatLabel.Text = sessionId is null
             ? "no seat"
-            : $"session {sessionId}  |  agent {(hostReady ? "ready" : "starting")}";
-        string tip = sessionId is null ? "Anode: no seat" : $"Anode seat: session {sessionId}";
-        _tray.Text = tip.Length > 63 ? tip[..63] : tip;
+            : $"session {sessionId}  |  host {(hostReady ? "ready" : "starting")}";
+        _tray.Text = TrayText(sessionId);
     }
 
     // ------------------------------------------------------------- visibility
@@ -360,8 +403,12 @@ internal sealed class SeatWindow : Form
         if (disposing)
         {
             _tray.Visible = false;
+            var menu = _tray.ContextMenuStrip;
             _tray.Dispose();
+            menu?.Dispose();
+            _trayIcon?.Dispose();
         }
         base.Dispose(disposing);
+        if (disposing) _icon?.Dispose();
     }
 }

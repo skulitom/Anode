@@ -55,7 +55,13 @@ $codexBefore = "# Preserve comments and unrelated server`r`napproval_policy = 'o
 $claudeBefore = '{"theme":"dark","mcpServers":{"other":{"command":"other.exe"}}}'
 [IO.File]::WriteAllText($codexConfig, $codexBefore)
 [IO.File]::WriteAllText($claudeConfig, $claudeBefore)
-& $connector -Client Auto -Anode $Anode
+$connectorOutput = @(& $connector -Client Auto -Anode $Anode 6>&1 | ForEach-Object { "$_" }) -join "`n"
+Write-Host $connectorOutput
+Assert ($connectorOutput.Contains('Claude Code: Anode registered, tool timeout 420 seconds.') -and $connectorOutput.Contains('call anode_guide') -and
+    $connectorOutput.Contains('/mcp') -and $connectorOutput.Contains('codex mcp list')) 'Connector summary or verification steps missing.'
+# anode is not on PATH here, so the doctor hint must quote the registered executable.
+$quotedAnode = "& '" + (Resolve-Path -LiteralPath $Anode).Path.Replace("'", "''") + "' doctor | Out-Host"
+Assert ($connectorOutput.Contains($quotedAnode)) 'Connector doctor hint must quote the executable when anode is not on PATH.'
 $codexSkill = Join-Path $env:USERPROFILE '.agents\skills\anode-desktop\SKILL.md'
 $claudeSkill = Join-Path $env:CLAUDE_CONFIG_DIR 'skills\anode-desktop\SKILL.md'
 $packagedSkill = [IO.File]::ReadAllText((Join-Path (Split-Path -Parent $Anode) 'skills\anode-desktop\SKILL.md'))
@@ -106,3 +112,18 @@ $global:AnodeTestAvailable = @()
 & $connector -Client Auto -Anode $Anode
 Assert ($global:AnodeTestCalls.Count -eq 0) 'No-client auto configuration invoked a CLI.'
 Write-Host '[ok] single/no-client detection and explicit-client preflight'
+
+# An unreadable Claude config must stop before Codex, skill or backup changes.
+$global:AnodeTestAvailable = @('codex','claude')
+$global:AnodeTestCalls = @()
+$caseVariant = '{"projects":{"C:/Work/app":{},"c:/work/app":{}},"mcpServers":{}}'
+[IO.File]::WriteAllText($claudeConfig, $caseVariant)
+$codexUnchanged = [IO.File]::ReadAllText($codexConfig)
+$backups = @(Get-ChildItem -LiteralPath $env:CODEX_HOME, $env:CLAUDE_CONFIG_DIR -Filter '*.anode-backup-*').Count
+$failure = $null
+try { & $connector -Client Both -Anode $Anode } catch { $failure = $_.Exception.Message }
+Assert ($failure -match '^Cannot read .+\.claude\.json: .+\. No settings changed\. .+configure codex.+CONNECTING-AGENTS\.md#1-claude-code$') "Unreadable Claude config was not reported with a way forward: $failure"
+Assert ($global:AnodeTestCalls.Count -eq 0) 'Unreadable Claude config still invoked a client CLI.'
+Assert ([IO.File]::ReadAllText($codexConfig) -ceq $codexUnchanged -and [IO.File]::ReadAllText($claudeConfig) -ceq $caseVariant) 'Unreadable Claude config changed settings.'
+Assert (@(Get-ChildItem -LiteralPath $env:CODEX_HOME, $env:CLAUDE_CONFIG_DIR -Filter '*.anode-backup-*').Count -eq $backups) 'Unreadable Claude config created backups.'
+Write-Host '[ok] unreadable Claude config stops before any change'

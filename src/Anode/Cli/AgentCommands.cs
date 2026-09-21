@@ -10,8 +10,11 @@ internal static partial class Cli
 
     private static string[] AgentOptions(string[] args)
     {
-        _agentId = Environment.GetEnvironmentVariable("ANODE_AGENT_ID");
-        _leaseToken = Environment.GetEnvironmentVariable("ANODE_LEASE_TOKEN");
+        // A blank variable is unset, not an invalid identity.
+        static string? Variable(string name) => Environment.GetEnvironmentVariable(name) is { } value
+            && !string.IsNullOrWhiteSpace(value) ? value : null;
+        _agentId = Variable("ANODE_AGENT_ID");
+        _leaseToken = Variable("ANODE_LEASE_TOKEN");
         int index = 0;
         // Prefix options cannot consume literal text or arguments passed to a launched program.
         while (index < args.Length && args[index] is "--agent" or "--lease")
@@ -44,15 +47,21 @@ internal static partial class Cli
         for (int i = 1; i < args.Length; i++)
         {
             if (args[i] == "--cancel-jobs") payload["cancelJobs"] = true;
-            else if (args[i] == "--ttl" && ++i < args.Length && int.TryParse(args[i], out int ttl)) payload["ttlSeconds"] = ttl;
-            else throw new ArgumentException("usage: anode [--agent ID] [--lease TOKEN] lease <status|acquire|renew|release> [--ttl SECONDS] [--cancel-jobs]");
+            else if (args[i] == "--ttl")
+            {
+                if (++i >= args.Length || !int.TryParse(args[i], out int ttl)) throw new UsageException("--ttl requires a number of seconds.");
+                payload["ttlSeconds"] = ttl;
+            }
+            else throw new UsageException($"Unknown lease option '{args[i]}'. Run `anode help lease`.");
         }
-        if (Mcp.Tools.ValidateArguments("seat_lease", payload) is { } invalid) throw new ArgumentException(invalid);
+        if (Mcp.Tools.ValidateArguments("seat_lease", payload) is { } invalid) throw new UsageException(CliError(invalid));
         var envelope = AgentAccess.Attach(payload, _agentId, _leaseToken);
         envelope["op"] = "lease";
-        if (AgentAccess.Validate(envelope) is { } error) throw new ArgumentException(error);
-        using var client = await Connect(autoStart: payload.Str("action") == "acquire");
-        if (client is null) { Console.Error.WriteLine("Anode is not running."); return 1; }
-        return Report(await RequestAsync(client, "lease", payload, payload.Str("action") == "acquire" ? 180000 : 60000));
+        if (AgentAccess.Validate(envelope) is { } error) throw new UsageException(error);
+        bool acquire = payload.Str("action") == "acquire";
+        using var client = await Connect(autoStart: acquire);
+        // A failed acquisition has already said why the daemon could not start; 3 matches `start`.
+        if (client is null) return acquire ? (_startBlocked ? 3 : 1) : NotRunning();
+        return Report(await RequestAsync(client, "lease", payload, acquire ? 180000 : 60000));
     }
 }
