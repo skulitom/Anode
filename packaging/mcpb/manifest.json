@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "anode",
   "display_name": "Anode background Windows desktop",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Background Windows desktop for AI agents: native GUI automation, screenshots and app testing.",
   "long_description": "Runs apps in a Windows child session with its own screen, pointer and keyboard focus, so an agent can automate native UI, take screenshots and run headed app/browser tests while you keep working. Requires 64-bit Windows 10/11 Pro, Enterprise or Education (or Windows Server with an RDP host) and a one-time `anode setup` as administrator. Shares your files, account and network; it is not a security sandbox.",
   "author": {

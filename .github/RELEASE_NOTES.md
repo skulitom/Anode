@@ -24,41 +24,38 @@ anode capabilities | Out-Host
 the discoverable `anode-desktop` skill. Use `--no-skill` for MCP registration alone.
 Restart the agent afterward. Other MCP clients can launch `anode.exe` with the argument `mcp`.
 
-## What's new in 0.7.0
+## What's new in 0.8.0
 
-**A calmer, more modern viewer.** The title bar, header, details and footer form one dark surface:
-the title bar is dark and, on Windows 11, matches the header, with no divider lines, separators or
-sizing grip. Buttons carry icons and rounded hover, pressed and checked states, Stop seat is always
-a tinted button, and the seat state has a colored dot that stays visible at the minimum width.
-Until Remote Desktop connects, a dark screen shows the state, its message and progress instead of a
-blank window, and it steps aside the moment the connection is up. The tray menu matches Windows 11.
-Labels, control names, shortcuts and full-screen safety controls are unchanged.
+**Agents take turns without bookkeeping.** Several agents share one background desktop, one at a
+time. When another agent is using it, `seat_lease` acquire now waits in a first-come line, for up
+to 30 seconds by default (`waitSeconds`, up to 300; `anode lease acquire --wait` on the CLI),
+instead of failing at once. An agent keeps its place only while it keeps asking, so the desktop
+never goes to an agent that gave up or went away.
 
-**Find, open and remove Anode like other apps.** The installer adds Anode to the Start menu, so
-Windows Search finds it, and to Installed apps. Opening Anode, or double-clicking `anode.exe`, shows
-the viewer, starting Anode or a stopped seat first; when machine setup is missing, a dialog offers
-to run it with one administrator prompt. **Uninstall** in Installed apps removes the installed
-files, PATH entry, shortcut and entry, and the Codex and Claude Code registrations that run this
-installation. It asks before quitting a running Anode or undoing machine setup.
+**Leases that follow the work.** Each desktop action extends the lease, so an agent that keeps
+working no longer renews; `renew` covers long pauses. Desktop tools take the lease themselves when
+the desktop is free, and never start a seat to do it. Pointer, keyboard and gamepad input that
+arrives without a lease is refused once with a request to observe first, because it was aimed at a
+screen another agent may have changed. An MCP session whose identity Anode generated releases its
+lease when it ends; a stable `ANODE_AGENT_ID` still keeps it for recovery.
 
-**Installing from an agent's desktop app.** Windows can keep new files created by a packaged app,
-such as Claude or Codex for Windows, private to that app. The installer now reports when that
-happens to the shortcut or the installation instead of claiming success; run it from your own
-terminal to fix it.
+**See who has the desktop.** Lease status, `seat_status`, `anode status` and the viewer's footer
+name the owner (the MCP client's name, such as Claude Code or Codex, or `ANODE_AGENT_NAME`) and
+list who is waiting. While others wait, the owner's desktop results say so, so it can hand the
+desktop on.
 
-**Upgrading.** Before updating, save seat work, run `anode quit` (it closes every program in the
-seat) and close MCP clients using Anode; the installer refuses to replace a running executable.
-Run the new `install.ps1`: an existing installation gains its Start menu shortcut and Installed
-apps entry. Start Anode again so both the daemon and seat host use the new build. MCP tools, CLI
-commands and their arguments are unchanged.
+**Upgrading.** Save seat work, run `anode quit` (it closes every program in the seat) and close the
+agent sessions that use Anode, then install 0.8.0 and start Anode again. The lease protocol gained
+`waitSeconds`, `agentName` and `startSeat`, so a 0.8.0 MCP server cannot take leases from an older
+running daemon. Run `anode configure` to update the installed skill. Over MCP, acquire now waits up
+to 30 seconds while another agent works; pass `waitSeconds: 0` for the previous immediate answer.
 
-**Validation and limits.** The candidate passes all 51 local quick checks, including hidden viewer
-checks for the connecting screen and narrow layout, and package, installation, uninstallation and
-agent-unregistration checks in disposable folders without real client settings. The viewer was
-reviewed in offscreen renders of every state. Live checks of the new viewer and Start menu launch
-against a running seat are pending. Broader Windows, DPI, screen-reader and client compatibility
-checks remain outstanding. See the
-[validation record](https://github.com/skulitom/Anode/blob/v0.7.0/docs/RELEASE-READINESS.md).
+**Validation and limits.** The candidate passes all 53 local quick checks, including new checks of
+the line, lapsed places, owner names, activity-extended leases, and MCP lease taking, look-first
+input and hand-off with real MCP servers over private pipes, plus package, installation and
+distribution checks. Live checks with real agents on a running seat, and the 0.7.0 viewer checks,
+are pending. See the
+[validation record](https://github.com/skulitom/Anode/blob/v0.8.0/docs/RELEASE-READINESS.md).
 
 Requires 64-bit Windows 10/11 Pro, Enterprise or Education, or Windows Server with a Remote Desktop
 host. Windows Home is unsupported. ARM64 is not validated; this package targets x64.
