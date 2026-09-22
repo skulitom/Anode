@@ -3,7 +3,7 @@
   "name": "io.github.skulitom/anode",
   "title": "Anode background Windows desktop",
   "description": "Background Windows desktop for AI agents: native GUI automation, screenshots and app testing.",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "websiteUrl": "https://github.com/skulitom/Anode/blob/main/docs/INSTALL.md",
   "icons": [
     {

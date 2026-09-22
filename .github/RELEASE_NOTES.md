@@ -3,7 +3,8 @@
 Download **anode-windows-x64.zip** below for the portable executable, agent connector and docs.
 Release builds include .NET; no SDK or runtime installation is needed.
 
-For a per-user installation with PATH setup, download **install.ps1** and run it in PowerShell:
+For a per-user installation, download **install.ps1** and run it in PowerShell. It adds Anode to
+your PATH, the Start menu and **Settings → Apps → Installed apps**:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
@@ -23,46 +24,41 @@ anode capabilities | Out-Host
 the discoverable `anode-desktop` skill. Use `--no-skill` for MCP registration alone.
 Restart the agent afterward. Other MCP clients can launch `anode.exe` with the argument `mcp`.
 
-## What's new in 0.6.0
+## What's new in 0.7.0
 
-**A clearer viewer and a new icon.** The mark has a symmetric diagonal cursor. The viewer adds
-consistent dark and high-contrast colors, clearer input and connection labels, and copyable status
-details. Stop, Release control and Exit full screen remain visible in full screen. Connections
-refuse to proceed if the desktop pointer guard cannot be installed.
+**A calmer, more modern viewer.** The title bar, header, details and footer form one dark surface:
+the title bar is dark and, on Windows 11, matches the header, with no divider lines, separators or
+sizing grip. Buttons carry icons and rounded hover, pressed and checked states, Stop seat is always
+a tinted button, and the seat state has a colored dot that stays visible at the minimum width.
+Until Remote Desktop connects, a dark screen shows the state, its message and progress instead of a
+blank window, and it steps aside the moment the connection is up. The tray menu matches Windows 11.
+Labels, control names, shortcuts and full-screen safety controls are unchanged.
 
-**More reliable agent connections.** Duplicate JSON fields and malformed Unicode are rejected
-without ending the connection. Cancelled requests cannot start or cancel jobs, while commands
-already started remain recoverable. Command output uses UTF-8 and preserves Unicode characters
-across buffer, pagination and history boundaries.
+**Find, open and remove Anode like other apps.** The installer adds Anode to the Start menu, so
+Windows Search finds it, and to Installed apps. Opening Anode, or double-clicking `anode.exe`, shows
+the viewer, starting Anode or a stopped seat first; when machine setup is missing, a dialog offers
+to run it with one administrator prompt. **Uninstall** in Installed apps removes the installed
+files, PATH entry, shortcut and entry, and the Codex and Claude Code registrations that run this
+installation. It asks before quitting a running Anode or undoing machine setup.
 
-**Better agent discovery.** All 32 tools have titles, bounded argument schemas and explicit
-annotations. Server instructions and the installed skill lead with the desktop lease workflow.
-The `desktop_test` and `desktop_guide` prompts provide reusable workflows. Screenshot results no
-longer duplicate their control trees, which could cause clients to discard the image.
+**Installing from an agent's desktop app.** Windows can keep new files created by a packaged app,
+such as Claude or Codex for Windows, private to that app. The installer now reports when that
+happens to the shortcut or the installation instead of claiming success; run it from your own
+terminal to fix it.
 
-**Installation and packaging.** Installation works when an agent runner omits the `OS` environment
-variable. Packages include .NET 8.0.31, verified checksums and build-provenance attestations.
-The Claude Code plugin marketplace and Scoop bucket provide additional installation options.
+**Upgrading.** Before updating, save seat work, run `anode quit` (it closes every program in the
+seat) and close MCP clients using Anode; the installer refuses to replace a running executable.
+Run the new `install.ps1`: an existing installation gains its Start menu shortcut and Installed
+apps entry. Start Anode again so both the daemon and seat host use the new build. MCP tools, CLI
+commands and their arguments are unchanged.
 
-**Upgrading (breaking for scripts and agents):** Only `seat_start` and `seat_lease` acquisition
-start a desktop over MCP. Status and diagnostics never start one, and stale leases cannot restart
-Anode after the user quits. The CLI rejects unknown options and malformed arguments with exit code
-2 before acting. Job `maxChars` counts Unicode code points; reuse output cursors exactly as returned.
-Desktop work still requires a lease; see
-[multiple agents](https://github.com/skulitom/Anode/blob/main/docs/MULTI-AGENT.md).
-
-Before updating, save seat work, run `anode quit` (it closes every program in the seat) and close
-MCP clients using Anode; the installer refuses to replace a running executable. Install the new
-version, start Anode again so both the daemon and seat host use the new build, and run
-`anode configure` to update the installed skill.
-See [the agent guide](https://github.com/skulitom/Anode/blob/main/docs/FOR-AGENTS.md).
-
-**Validation and limits.** The candidate passed all 51 local quick checks, package/installation
-checks and live Windows Forms/WPF and Chrome tests on Windows 11 Pro 25H2, including delivered
-mouse/keyboard input. The dedicated live pointer-isolation test was deferred to keep the user's
-desktop/session available; its quick regression checks passed. Broader Windows, DPI, screen-reader
-and client compatibility checks remain outstanding. See the
-[validation record](https://github.com/skulitom/Anode/blob/v0.6.0/docs/RELEASE-READINESS.md).
+**Validation and limits.** The candidate passes all 51 local quick checks, including hidden viewer
+checks for the connecting screen and narrow layout, and package, installation, uninstallation and
+agent-unregistration checks in disposable folders without real client settings. The viewer was
+reviewed in offscreen renders of every state. Live checks of the new viewer and Start menu launch
+against a running seat are pending. Broader Windows, DPI, screen-reader and client compatibility
+checks remain outstanding. See the
+[validation record](https://github.com/skulitom/Anode/blob/v0.7.0/docs/RELEASE-READINESS.md).
 
 Requires 64-bit Windows 10/11 Pro, Enterprise or Education, or Windows Server with a Remote Desktop
 host. Windows Home is unsupported. ARM64 is not validated; this package targets x64.

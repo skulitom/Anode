@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.0 — 2026-09-22
 
 - The installer adds an **Anode** shortcut to the Start menu, so Windows Search finds Anode.
   `-NoShortcut` skips it; updates refresh it, and installer checks never touch the real Start menu.
