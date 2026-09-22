@@ -6,6 +6,11 @@
   `-NoShortcut` skips it; updates refresh it, and installer checks never touch the real Start menu.
   When the installer runs inside a packaged app, such as an agent's desktop app, and Windows keeps
   the shortcut or installation private to that app, it says so instead of reporting success.
+- Anode appears in **Settings → Apps → Installed apps**, and **Uninstall** there runs the new
+  `uninstall.ps1`: it offers to quit a running Anode, removes the installed files (keeping files you
+  added), the PATH entry, Start menu shortcut and Installed apps entry, and Codex and Claude Code
+  registrations that run this installation, with their unmodified skill. Undoing machine setup is
+  offered only while no Anode runs. `connect-agents.ps1 -Remove` performs the unregistration alone.
 - Opening Anode from the Start menu or double-clicking `anode.exe` now brings the viewer to the
   front, starting Anode or a stopped seat first, instead of explaining how to use a terminal. When
   machine setup is missing, a dialog offers to run it with one administrator prompt; problems setup

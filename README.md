@@ -64,8 +64,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 
 The installer verifies the release archive's SHA-256 checksum, installs to
 `%LOCALAPPDATA%\Programs\Anode`, adds that folder to your user PATH and adds **Anode** to the
-Start menu, where opening it shows the viewer. **Open a new terminal** afterward. Machine setup and
-agent registration are separate steps below.
+Start menu, where opening it shows the viewer, and to Installed apps, where you can uninstall it.
+**Open a new terminal** afterward. Machine setup and agent registration are separate steps below.
 
 Prefer portable? [Download the ZIP](https://github.com/skulitom/Anode/releases/latest/download/anode-windows-x64.zip),
 extract the entire folder, and use `.\anode.exe` in place of `anode`.

@@ -466,5 +466,6 @@ enabled, because other software may now depend on it. Turn it off in
 Anode leaves more than a log. Logs and the rendering backup stay in `%LOCALAPPDATA%\Anode`, and
 `setup --undo` does not remove the optional `--fps 60` and `--gpu` values
 ([how to remove them](SECURITY.md#what-anode-setup-changes)). The installer adds a user PATH entry,
-and `anode configure` adds agent registrations and the `anode-desktop` skill. Follow
-[Remove](INSTALL.md#remove) for the complete steps.
+a Start menu shortcut and an Installed apps entry, and `anode configure` adds agent registrations and
+the `anode-desktop` skill. Uninstalling from Installed apps removes those for an installer-made copy
+and offers the commands above; [Remove](INSTALL.md#remove) has the details and the manual steps.

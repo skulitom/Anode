@@ -29,6 +29,9 @@ function codex {
         $existing = [regex]::Replace($existing, '(?ms)^\[mcp_servers\.anode\]\r?\n.*?(?=^\[|\z)', '')
         $entry = "`r`n[mcp_servers.anode]`r`ncommand = '" + $args[-2] + "'`r`nargs = [""mcp""]`r`n"
         [IO.File]::WriteAllText($codexConfig, $existing + $entry)
+    } elseif ($args[1] -eq 'remove') {
+        $existing = [IO.File]::ReadAllText($codexConfig)
+        [IO.File]::WriteAllText($codexConfig, [regex]::Replace($existing, '(?ms)^\[mcp_servers\.anode\]\r?\n.*?(?=^\[|\z)', ''))
     } elseif ($args[1] -eq 'get') {
         $text = [IO.File]::ReadAllText($codexConfig)
         Assert ($text -match 'tool_timeout_sec = 420') 'Codex timeout was not set.'
@@ -112,6 +115,29 @@ $global:AnodeTestAvailable = @()
 & $connector -Client Auto -Anode $Anode
 Assert ($global:AnodeTestCalls.Count -eq 0) 'No-client auto configuration invoked a CLI.'
 Write-Host '[ok] single/no-client detection and explicit-client preflight'
+
+# -Remove unregisters only servers that run this executable, with the unmodified skill beside each.
+$global:AnodeTestAvailable = @('codex','claude')
+[IO.File]::WriteAllText($codexConfig, $codexBefore)
+[IO.File]::WriteAllText($claudeConfig, $claudeBefore)
+& $connector -Client Both -Anode $Anode
+# Codex writes TOML basic strings with escaped backslashes; accept both spellings.
+$registered = [IO.File]::ReadAllText($codexConfig)
+[IO.File]::WriteAllText($codexConfig, $registered.Replace("command = '$Anode'", 'command = "' + $Anode.Replace('\', '\\') + '"'))
+& $connector -Remove -Anode $Anode
+$codexAfter = [IO.File]::ReadAllText($codexConfig)
+Assert ($codexAfter -notmatch '\[mcp_servers\.anode\]' -and $codexAfter.StartsWith($codexBefore)) 'Codex registration was not removed cleanly.'
+$result = Get-Content -LiteralPath $claudeConfig -Raw | ConvertFrom-Json
+Assert (-not $result.mcpServers.anode -and $result.theme -eq 'dark' -and $result.mcpServers.other.command -eq 'other.exe') 'Claude registration was not removed cleanly.'
+Assert (-not (Test-Path -LiteralPath (Split-Path -Parent $claudeSkill))) 'The unmodified Claude skill was not removed.'
+Assert ([IO.File]::ReadAllText($codexSkill) -ceq 'my customized workflow') 'The customized Codex skill was removed.'
+& $connector -Client Claude -Anode $Anode
+$settings = Get-Content -LiteralPath $claudeConfig -Raw | ConvertFrom-Json
+$settings.mcpServers.anode.command = 'C:\Other\anode.exe'
+[IO.File]::WriteAllText($claudeConfig, ($settings | ConvertTo-Json -Depth 100))
+& $connector -Remove -Anode $Anode
+Assert ((Get-Content -LiteralPath $claudeConfig -Raw | ConvertFrom-Json).mcpServers.anode.command -eq 'C:\Other\anode.exe') 'Removal touched a registration of another executable.'
+Write-Host '[ok] removal of matching registrations and unmodified skills only'
 
 # An unreadable Claude config must stop before Codex, skill or backup changes.
 $global:AnodeTestAvailable = @('codex','claude')

@@ -2,7 +2,7 @@
 <#
 .SYNOPSIS
     Installs or updates Anode for the current Windows user, without elevation, and adds it to
-    the Start menu so Windows Search finds it.
+    the Start menu so Windows Search finds it and to Installed apps so Windows can uninstall it.
 .EXAMPLE
     powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 .EXAMPLE
@@ -20,7 +20,9 @@ param(
     [switch]$NoPath,
     [switch]$NoShortcut,
     # Where the Anode shortcut goes; tests point this at a scratch folder.
-    [string]$StartMenuDirectory = [Environment]::GetFolderPath('Programs')
+    [string]$StartMenuDirectory = [Environment]::GetFolderPath('Programs'),
+    # The per-user Installed apps entry; tests point this at a scratch key, and '' skips it.
+    [string]$RegistrationKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Anode'
 )
 $ErrorActionPreference = 'Stop'
 # Agent runners can omit OS from their environment. Ask the runtime about the host instead.
@@ -125,7 +127,11 @@ try {
     if ($release -and $release.tag_name -ne ('v' + $versionOutput.Substring(6))) { throw 'Executable version does not match the release tag.' }
 
     $files = @(Get-ChildItem -LiteralPath $payload -Recurse -File | ForEach-Object { $_.FullName.Substring($payload.Length + 1) })
-    $installMarker = @{ product = 'Anode'; version = $versionOutput.Substring(6); files = $files }
+    # uninstall.ps1 reads the marker to remove exactly what this installer added.
+    $shortcutPath = if ($NoShortcut -or -not $StartMenuDirectory) { $null } else { Join-Path $StartMenuDirectory 'Anode.lnk' }
+    # Older releases have no uninstaller for Installed apps to run.
+    $registration = if ($RegistrationKey -and (Test-Path -LiteralPath (Join-Path $payload 'uninstall.ps1') -PathType Leaf)) { $RegistrationKey } else { $null }
+    $installMarker = @{ product = 'Anode'; version = $versionOutput.Substring(6); files = $files; shortcut = $shortcutPath; registration = $registration }
     $installMarker | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $payload '.anode-install.json') -Encoding UTF8
     $files += '.anode-install.json'
     # Check destinations before writing, including locked running executables and junctions.
@@ -226,6 +232,30 @@ try {
     }
     $newVersion = $versionOutput.Substring(6)
     $previous = if ($marker) { [string]$marker.version } else { $null }
+    if ($registration) {
+        # Settings > Apps > Installed apps lists per-user entries without administrator rights;
+        # its Uninstall button runs uninstall.ps1 from this folder.
+        try {
+            $registered = Test-Path -LiteralPath $registration
+            if (-not $registered) { $null = New-Item -Path $registration -Force }
+            $uninstall = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $InstallDirectory 'uninstall.ps1') + '"'
+            $strings = [ordered]@{
+                DisplayName = 'Anode'; DisplayVersion = $newVersion; Publisher = 'skulitom'
+                DisplayIcon = (Join-Path $InstallDirectory 'anode.exe') + ',0'; InstallLocation = $InstallDirectory
+                InstallDate = (Get-Date -Format 'yyyyMMdd'); UninstallString = $uninstall; QuietUninstallString = "$uninstall -Quiet"
+                URLInfoAbout = 'https://github.com/skulitom/Anode'; HelpLink = 'https://github.com/skulitom/Anode/blob/main/docs/INSTALL.md#remove'
+                Comments = 'Background Windows desktop for AI agents'
+            }
+            foreach ($name in $strings.Keys) { $null = New-ItemProperty -LiteralPath $registration -Name $name -Value $strings[$name] -PropertyType String -Force }
+            $kilobytes = [int][Math]::Ceiling((Get-ChildItem -LiteralPath $InstallDirectory -Recurse -File | Measure-Object Length -Sum).Sum / 1KB)
+            foreach ($number in @(@('EstimatedSize', $kilobytes), @('NoModify', 1), @('NoRepair', 1))) {
+                $null = New-ItemProperty -LiteralPath $registration -Name $number[0] -Value $number[1] -PropertyType DWord -Force
+            }
+            if (-not $registered) { Write-Host 'Added Anode to Installed apps in Windows Settings, where you can uninstall it.' }
+        } catch {
+            Write-Warning "Anode is installed, but it could not be added to Installed apps: $($_.Exception.Message)"
+        }
+    }
     if ($previous -and $previous -ne $newVersion) { Write-Host "Updated Anode $previous -> $newVersion in $InstallDirectory" -ForegroundColor Green }
     else { Write-Host "Installed $versionOutput in $InstallDirectory" -ForegroundColor Green }
     if ($Client -ne 'None') {

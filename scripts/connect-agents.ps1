@@ -2,10 +2,13 @@
 <# Register Anode for Codex and/or Claude Code using their installed CLIs.
    Backs up existing config files beside the originals. Registers Anode and its discoverable skill.
    Does not start a seat, change approvals, or open a sign-in dialog.
+   -Remove instead unregisters servers that run this Anode executable, with the unmodified skill
+   beside each; uninstall.ps1 uses it. Registrations of other executables stay.
 #>
 param([ValidateSet('Auto','Both','Codex','Claude')][string]$Client = 'Auto',
     [string]$Anode,
-    [switch]$NoSkill)
+    [switch]$NoSkill,
+    [switch]$Remove)
 $ErrorActionPreference = 'Stop'
 if (-not $Anode) {
     $Anode = Join-Path $PSScriptRoot 'anode.exe'
@@ -24,21 +27,24 @@ foreach ($candidate in @('Codex','Claude')) {
     }
 }
 if ($clients.Count -eq 0) {
+    if ($Remove) { return }
     Write-Host 'No Codex or Claude Code CLI found on PATH. Install a client, then rerun anode configure.'
     Write-Host 'Other MCP clients: https://github.com/skulitom/Anode/blob/main/docs/CONNECTING-AGENTS.md'
     return
 }
 $skillSource = Join-Path (Split-Path -Parent $Anode) 'skills\anode-desktop'
 $skillFiles = @('SKILL.md', 'agents\openai.yaml')
-if (-not $NoSkill) {
+if (-not $NoSkill -and -not $Remove) {
     foreach ($relative in $skillFiles) {
         if (-not (Test-Path -LiteralPath (Join-Path $skillSource $relative) -PathType Leaf)) {
             throw 'The Anode skill is missing. Extract the full release, or use -NoSkill to register MCP only. No settings changed.'
         }
     }
 }
-& $Anode version | Out-Host
-if ($LASTEXITCODE -ne 0) { throw 'Anode executable check failed.' }
+if (-not $Remove) {
+    & $Anode version | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw 'Anode executable check failed.' }
+}
 # Read the Claude config before any client changes; PowerShell rejects JSON keys that differ only in case.
 $claudeConfigPath = Join-Path $(if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { $env:USERPROFILE }) '.claude.json'
 $claudeExisting = $null
@@ -46,9 +52,13 @@ if ('Claude' -in $clients -and (Test-Path -LiteralPath $claudeConfigPath)) {
     try { $claudeExisting = [IO.File]::ReadAllText($claudeConfigPath) | ConvertFrom-Json }
     catch {
         # Claude Code can record one project under two drive-letter spellings, which PowerShell cannot parse.
-        throw ("Cannot read ${claudeConfigPath}: $($_.Exception.Message.TrimEnd('.', ' ')). No settings changed. " +
-            "Run 'anode configure codex' to register Codex alone; for Claude Code, register Anode by hand or use its plugin: " +
-            'https://github.com/skulitom/Anode/blob/main/docs/CONNECTING-AGENTS.md#1-claude-code')
+        if (-not $Remove) {
+            throw ("Cannot read ${claudeConfigPath}: $($_.Exception.Message.TrimEnd('.', ' ')). No settings changed. " +
+                "Run 'anode configure codex' to register Codex alone; for Claude Code, register Anode by hand or use its plugin: " +
+                'https://github.com/skulitom/Anode/blob/main/docs/CONNECTING-AGENTS.md#1-claude-code')
+        }
+        Write-Warning "Cannot read ${claudeConfigPath}, so Claude Code was left unchanged. If its anode server runs $Anode, remove it with 'claude mcp remove --scope user anode'."
+        $clients = @($clients | Where-Object { $_ -ne 'Claude' })
     }
 }
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
@@ -104,6 +114,68 @@ function Install-AgentSkill([string]$Directory) {
     }
     [IO.File]::WriteAllText($markerPath, (@{ product = 'anode-desktop'; files = $hashes } | ConvertTo-Json -Depth 5), [Text.UTF8Encoding]::new($false))
     Write-Host "Agent skill installed: $Directory (automatic selection enabled; existing client approval settings still apply)."
+}
+function Remove-AgentSkill([string]$Directory) {
+    # Only an unmodified copy this connector installed; edited or hand-written skills stay.
+    $markerPath = Join-Path $Directory '.anode-skill.json'
+    if (-not (Test-Path -LiteralPath $markerPath -PathType Leaf)) { return }
+    try {
+        $marker = Get-Content -LiteralPath $markerPath -Raw | ConvertFrom-Json
+        $unmodified = $marker.product -eq 'anode-desktop'
+        foreach ($relative in $skillFiles) {
+            $path = Join-Path $Directory $relative
+            if ((Test-Path -LiteralPath $path -PathType Leaf) -and
+                (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ne $marker.files.$relative) { $unmodified = $false }
+        }
+    } catch { $unmodified = $false }
+    if (-not $unmodified) {
+        Write-Warning "Customized skill left in place: $Directory"
+        return
+    }
+    foreach ($relative in $skillFiles + '.anode-skill.json') {
+        $path = Join-Path $Directory $relative
+        if (Test-Path -LiteralPath $path -PathType Leaf) { Remove-Item -LiteralPath $path -Force }
+    }
+    # The folders the connector created, once nothing else is in them.
+    foreach ($folder in @((Join-Path $Directory 'agents'), $Directory)) {
+        if ((Test-Path -LiteralPath $folder -PathType Container) -and -not @(Get-ChildItem -LiteralPath $folder -Force).Count) { Remove-Item -LiteralPath $folder }
+    }
+    Write-Host "Agent skill removed: $Directory"
+}
+function Test-ThisAnode([string]$Command) {
+    if (-not $Command) { return $false }
+    try { return [IO.Path]::GetFullPath($Command) -ieq $Anode } catch { return $false }
+}
+if ($Remove) {
+    if ('Codex' -in $clients) {
+        $configPath = Join-Path $(if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USERPROFILE '.codex' }) 'config.toml'
+        $text = if (Test-Path -LiteralPath $configPath -PathType Leaf) { [IO.File]::ReadAllText($configPath) } else { '' }
+        $section = [regex]::Match($text, '(?ms)^\[mcp_servers\.anode\]\r?\n(?<body>.*?)(?=^\[|\z)')
+        # A TOML literal ('...') or basic ("...", backslashes escaped) string.
+        $line = [regex]::Match($section.Groups['body'].Value, "(?m)^command\s*=\s*(?:'(?<literal>[^']*)'|""(?<basic>(?:[^""\\]|\\.)*)"")")
+        $command = if (-not $line.Success) { $null }
+            elseif ($line.Groups['literal'].Success) { $line.Groups['literal'].Value }
+            else { $line.Groups['basic'].Value.Replace('\\', '\') }
+        if (Test-ThisAnode $command) {
+            Backup-Config $configPath
+            & codex mcp remove anode | Out-Host
+            if ($LASTEXITCODE -ne 0) { throw 'Codex unregistration failed.' }
+            Write-Host 'Codex: Anode unregistered.'
+            Remove-AgentSkill (Join-Path $env:USERPROFILE '.agents\skills\anode-desktop')
+        } elseif ($command) { Write-Host "Codex: its anode server runs $command, so it was left unchanged." }
+    }
+    if ('Claude' -in $clients) {
+        $command = [string]$claudeExisting.mcpServers.anode.command
+        if (Test-ThisAnode $command) {
+            Backup-Config $claudeConfigPath
+            & claude mcp remove --scope user anode | Out-Host
+            if ($LASTEXITCODE -ne 0) { throw 'Claude Code unregistration failed.' }
+            Write-Host 'Claude Code: Anode unregistered.'
+            $skillRoot = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $env:USERPROFILE '.claude' }
+            Remove-AgentSkill (Join-Path $skillRoot 'skills\anode-desktop')
+        } elseif ($command) { Write-Host "Claude Code: its anode server runs $command, so it was left unchanged." }
+    }
+    return
 }
 if ('Codex' -in $clients) {
     $null = Get-Command codex -ErrorAction Stop

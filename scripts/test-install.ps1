@@ -1,5 +1,5 @@
 #requires -Version 5.1
-<# Disposable package/install checks. Never changes user PATH, the Start menu or real client configuration. #>
+<# Disposable package/install checks. Never changes user PATH, the Start menu, Installed apps or real client configuration. #>
 param([string]$ArchiveDirectory = (Join-Path $PSScriptRoot '..\artifacts\release'))
 $ErrorActionPreference = 'Stop'
 $ArchiveDirectory = (Resolve-Path -LiteralPath $ArchiveDirectory).Path
@@ -14,6 +14,10 @@ $originalPath = [Environment]::GetEnvironmentVariable('Path', 'User')
 $realShortcut = Join-Path ([Environment]::GetFolderPath('Programs')) 'Anode.lnk'
 function Get-ShortcutStamp { if (Test-Path -LiteralPath $realShortcut) { (Get-Item -LiteralPath $realShortcut).LastWriteTimeUtc.Ticks } else { 0 } }
 $originalShortcut = Get-ShortcutStamp
+$registration = 'HKCU:\Software\Anode-install-check-' + [Guid]::NewGuid().ToString('N')
+$realRegistration = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Anode'
+function Get-RegistrationStamp { if (Test-Path -LiteralPath $realRegistration) { Get-ItemProperty -LiteralPath $realRegistration | ConvertTo-Json -Compress } else { '' } }
+$originalRegistration = Get-RegistrationStamp
 function Assert([bool]$Condition, [string]$Message) { if (-not $Condition) { throw $Message } }
 function Assert-Shortcut([string]$Message) {
     $shell = New-Object -ComObject WScript.Shell
@@ -33,7 +37,7 @@ try {
     $originalOs = [Environment]::GetEnvironmentVariable('OS', 'Process')
     try {
         $env:OS = $null
-        $installOutput = @(& $installer -PackagePath $package -ChecksumPath $checksums -InstallDirectory $installation -NoPath -StartMenuDirectory $startMenu 6>&1 | ForEach-Object { "$_" }) -join "`n"
+        $installOutput = @(& $installer -PackagePath $package -ChecksumPath $checksums -InstallDirectory $installation -NoPath -StartMenuDirectory $startMenu -RegistrationKey $registration 6>&1 | ForEach-Object { "$_" }) -join "`n"
     } finally { $env:OS = $originalOs }
     Write-Host $installOutput
     $exe = Join-Path $installation 'anode.exe'
@@ -45,6 +49,12 @@ try {
     Write-Host '[ok] Start menu shortcut opens the installed executable'
     $version = (& $exe version | Out-String).Trim()
     Assert ($LASTEXITCODE -eq 0 -and $version -match '^anode \d+\.\d+\.\d+$') 'Installed executable failed.'
+    $entry = Get-ItemProperty -LiteralPath $registration
+    $uninstallCommand = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $installation 'uninstall.ps1') + '"'
+    Assert ($installOutput.Contains('Added Anode to Installed apps') -and $entry.DisplayName -eq 'Anode' -and $entry.DisplayVersion -eq $version.Substring(6) -and
+        $entry.InstallLocation -eq $installation -and $entry.UninstallString -eq $uninstallCommand -and $entry.QuietUninstallString -eq "$uninstallCommand -Quiet" -and
+        $entry.NoModify -eq 1 -and $entry.EstimatedSize -gt 0 -and (Test-Path -LiteralPath (Join-Path $installation 'uninstall.ps1'))) 'The Installed apps entry does not uninstall this installation.'
+    Write-Host '[ok] Installed apps entry runs the installed uninstaller'
     $guide = (& $exe guide --json | Out-String) | ConvertFrom-Json
     Assert ($LASTEXITCODE -eq 0 -and $guide.name -eq 'anode' -and $guide.guide.Length -gt 100) 'Standalone guide unavailable.'
     Assert (Test-Path -LiteralPath (Join-Path $installation 'skills\anode-desktop\SKILL.md')) 'Packaged skill is missing.'
@@ -81,7 +91,7 @@ Write-Output 'connector-output-ok'
 
     $sentinel = Join-Path $installation 'user-note.txt'
     Set-Content -LiteralPath $sentinel -Value 'keep this'
-    $updateOutput = @(& $installer -PackagePath $package -ChecksumPath $checksums -InstallDirectory $installation -NoPath -StartMenuDirectory $startMenu 6>&1 | ForEach-Object { "$_" }) -join "`n"
+    $updateOutput = @(& $installer -PackagePath $package -ChecksumPath $checksums -InstallDirectory $installation -NoPath -StartMenuDirectory $startMenu -RegistrationKey $registration 6>&1 | ForEach-Object { "$_" }) -join "`n"
     Write-Host $updateOutput
     Assert ($updateOutput.Contains('Reopen agent sessions') -and -not $updateOutput.Contains('Next:')) 'Repeat installation must not repeat first-run steps.'
     Assert (-not $updateOutput.Contains('Added Anode to the Start menu')) 'Repeat installation announced an existing shortcut again.'
@@ -92,13 +102,13 @@ Write-Output 'connector-output-ok'
     $badHash = Join-Path $workspace 'bad-checksums'
     Set-Content -LiteralPath $badHash -Value (('0' * 64) + '  anode-windows-x64.zip')
     $originalHash = (Get-FileHash -LiteralPath $exe).Hash
-    Expect-Failure { & $installer -PackagePath $package -ChecksumPath $badHash -InstallDirectory $installation -NoPath -NoShortcut } 'SHA-256 mismatch'
+    Expect-Failure { & $installer -PackagePath $package -ChecksumPath $badHash -InstallDirectory $installation -NoPath -NoShortcut -RegistrationKey $registration } 'SHA-256 mismatch'
     Assert ((Get-FileHash -LiteralPath $exe).Hash -eq $originalHash) 'Hash failure changed installed files.'
     Write-Host '[ok] corrupt download rejected before replacing files'
 
     $lock = [IO.File]::Open($exe, 'Open', 'Read', 'Read')
     try {
-        Expect-Failure { & $installer -PackagePath $package -ChecksumPath $checksums -InstallDirectory $installation -NoPath -NoShortcut } 'Cannot replace'
+        Expect-Failure { & $installer -PackagePath $package -ChecksumPath $checksums -InstallDirectory $installation -NoPath -NoShortcut -RegistrationKey $registration } 'Cannot replace'
     } finally { $lock.Dispose() }
     Assert ((Get-FileHash -LiteralPath $exe).Hash -eq $originalHash) 'Locked-file failure changed installation.'
     Write-Host '[ok] locked executable refused without changes'
@@ -116,7 +126,7 @@ Write-Output 'connector-output-ok'
         Microsoft.PowerShell.Management\Copy-Item @PSBoundParameters
     }
     try {
-        Expect-Failure { & $installer -PackagePath $package -ChecksumPath $checksums -InstallDirectory $installation -NoPath -NoShortcut } 'Injected file replacement failure'
+        Expect-Failure { & $installer -PackagePath $package -ChecksumPath $checksums -InstallDirectory $installation -NoPath -NoShortcut -RegistrationKey $registration } 'Injected file replacement failure'
         Assert ([IO.File]::ReadAllText($readme) -eq 'previous installed documentation') 'Rollback did not restore documentation.'
         Assert ((Get-FileHash -LiteralPath $exe).Hash -eq $originalHash) 'Rollback did not restore executable.'
     } finally { Remove-Item -LiteralPath Function:\Copy-Item }
@@ -125,8 +135,8 @@ Write-Output 'connector-output-ok'
     $unmanaged = Join-Path $workspace 'unmanaged'
     $null = New-Item -ItemType Directory -Path $unmanaged
     Set-Content -LiteralPath (Join-Path $unmanaged 'keep.txt') -Value 'keep'
-    Expect-Failure { & $installer -PackagePath $package -ChecksumPath $checksums -InstallDirectory $unmanaged -NoPath -NoShortcut } 'not an installer-managed'
-    Expect-Failure { & $installer -PackagePath $package -InstallDirectory $installation -NoPath -NoShortcut } 'both -PackagePath'
+    Expect-Failure { & $installer -PackagePath $package -ChecksumPath $checksums -InstallDirectory $unmanaged -NoPath -NoShortcut -RegistrationKey $registration } 'not an installer-managed'
+    Expect-Failure { & $installer -PackagePath $package -InstallDirectory $installation -NoPath -NoShortcut -RegistrationKey $registration } 'both -PackagePath'
     Write-Host '[ok] existing folders and offline parameters protected'
 
     # A valid checksum must not permit a path-traversal archive to escape extraction.
@@ -136,7 +146,7 @@ Write-Output 'connector-output-ok'
     try { $null = $zip.CreateEntry('../escaped.txt') } finally { $zip.Dispose() }
     $unsafeHash = Join-Path $workspace 'unsafe-checksums'
     Set-Content -LiteralPath $unsafeHash -Value ((Get-FileHash -LiteralPath $unsafeZip).Hash + '  unsafe.zip')
-    Expect-Failure { & $installer -PackagePath $unsafeZip -ChecksumPath $unsafeHash -InstallDirectory $installation -NoPath -NoShortcut } 'Unsafe archive path'
+    Expect-Failure { & $installer -PackagePath $unsafeZip -ChecksumPath $unsafeHash -InstallDirectory $installation -NoPath -NoShortcut -RegistrationKey $registration } 'Unsafe archive path'
     Write-Host '[ok] archive traversal rejected'
 
     # Exercise the download path with local assets; no network access.
@@ -157,11 +167,12 @@ Write-Output 'connector-output-ok'
     try {
         $downloaded = Join-Path $workspace 'downloaded'
         $skippedMenu = Join-Path $workspace 'Skipped Start Menu'
-        $downloadOutput = @(& $installer -InstallDirectory $downloaded -NoPath -NoShortcut -StartMenuDirectory $skippedMenu 6>&1 | ForEach-Object { "$_" }) -join "`n"
+        $downloadOutput = @(& $installer -InstallDirectory $downloaded -NoPath -NoShortcut -StartMenuDirectory $skippedMenu -RegistrationKey '' 6>&1 | ForEach-Object { "$_" }) -join "`n"
     } finally { Remove-Item -LiteralPath Function:\Invoke-RestMethod, Function:\Invoke-WebRequest }
     Assert ($downloadOutput -match 'Downloading v\d+\.\d+\.\d+/anode-windows-x64\.zip \(\d+ MB\)' -and
         (Test-Path -LiteralPath (Join-Path $downloaded 'anode.exe'))) "Release download path failed: $downloadOutput"
     Assert (-not (Test-Path -LiteralPath $skippedMenu) -and -not $downloadOutput.Contains('Start menu')) '-NoShortcut still touched the Start menu.'
+    Assert (-not $downloadOutput.Contains('Installed apps')) "-RegistrationKey '' still registered the installation."
     Write-Host '[ok] release download path without progress redraws; -NoShortcut adds no shortcut'
 
     # A separate process owns fake client homes and fake CLIs. No real client is invoked.
@@ -188,10 +199,35 @@ Write-Output 'connector-output-ok'
     Write-Host $stderr.GetAwaiter().GetResult()
     Assert ($process.ExitCode -eq 0) 'Isolated connector checks failed.'
     $process.Dispose()
+
+    # Uninstall with no agent CLI visible, so no real client configuration is read or changed, and
+    # -Quiet, so nothing asks, quits Anode or undoes machine setup.
+    function Get-Command { param([string]$Name, [string]$ErrorAction) if ($Name -notin @('codex', 'claude')) { Microsoft.PowerShell.Core\Get-Command @PSBoundParameters } }
+    try {
+        $uninstallOutput = @(& (Join-Path $installation 'uninstall.ps1') -Quiet 6>&1 | ForEach-Object { "$_" }) -join "`n"
+        $uninstallCode = $LASTEXITCODE
+    } finally { Remove-Item -LiteralPath Function:\Get-Command }
+    Write-Host $uninstallOutput
+    Assert ($uninstallCode -eq 0 -and $uninstallOutput.Contains('Anode is uninstalled.')) "Uninstall failed: $uninstallOutput"
+    Assert (-not (Test-Path -LiteralPath $exe) -and -not (Test-Path -LiteralPath (Join-Path $installation 'docs')) -and
+        -not (Test-Path -LiteralPath (Join-Path $installation 'uninstall.ps1')) -and
+        -not (Test-Path -LiteralPath (Join-Path $installation '.anode-install.json'))) 'Uninstall left installed files.'
+    Assert ((Get-Content -LiteralPath $sentinel -Raw).Trim() -eq 'keep this' -and $uninstallOutput.Contains('you added')) 'Uninstall removed a file the user added.'
+    Assert (-not (Test-Path -LiteralPath (Join-Path $startMenu 'Anode.lnk')) -and -not (Test-Path -LiteralPath $registration)) 'Uninstall left its shortcut or Installed apps entry.'
+    $stray = Join-Path $workspace 'not installed'
+    $null = New-Item -ItemType Directory -Path $stray
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'uninstall.ps1') -Destination $stray
+    Set-Content -LiteralPath (Join-Path $stray 'keep.txt') -Value 'keep'
+    $strayOutput = @(& (Join-Path $stray 'uninstall.ps1') -Quiet 6>&1 | ForEach-Object { "$_" }) -join "`n"
+    Assert ($LASTEXITCODE -eq 1 -and $strayOutput.Contains('Nothing was removed') -and
+        (Test-Path -LiteralPath (Join-Path $stray 'keep.txt'))) 'Uninstall acted on a folder install.ps1 did not create.'
+    Write-Host '[ok] uninstall removes its files, shortcut and entry, keeps user files and refuses other folders'
     Assert ([Environment]::GetEnvironmentVariable('Path', 'User') -ceq $originalPath) 'Tests changed user PATH.'
     Assert ((Get-ShortcutStamp) -eq $originalShortcut) 'Tests changed the real Start menu shortcut.'
+    Assert ((Get-RegistrationStamp) -ceq $originalRegistration) 'Tests changed the real Installed apps entry.'
     Write-Host 'All installation and configuration checks passed.' -ForegroundColor Green
 } finally {
+    if (Test-Path -LiteralPath $registration) { Remove-Item -LiteralPath $registration -Recurse -Force }
     $resolved = [IO.Path]::GetFullPath($workspace)
     $tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'
     if ($resolved.StartsWith($tempRoot, [StringComparison]::OrdinalIgnoreCase) -and

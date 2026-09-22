@@ -189,7 +189,7 @@ try {
     if (-not $assignment) { throw 'Cannot find $packageItems in build.ps1.' }
     $expected = [ordered]@{}
     foreach ($item in @($assignment.Right.FindAll({ param($node) $node -is [Management.Automation.Language.StringConstantExpressionAst] }, $true) | ForEach-Object { $_.Value })) {
-        $source = if ($item -in @('install.ps1', 'connect-agents.ps1')) { Join-Path $root "scripts\$item" } else { Join-Path $root $item }
+        $source = if ($item -in @('install.ps1', 'uninstall.ps1', 'connect-agents.ps1')) { Join-Path $root "scripts\$item" } else { Join-Path $root $item }
         if ($item -eq 'anode.exe') { $expected[$item] = $null }
         elseif (Test-Path -LiteralPath $source -PathType Container) {
             Get-ChildItem -LiteralPath $source -Recurse -File | ForEach-Object { $expected[$_.FullName.Substring($root.Length + 1).Replace('\', '/')] = $_.FullName }

@@ -22,7 +22,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 It downloads the latest release and its `SHA256SUMS` from GitHub, verifies the archive, runs
 `anode version` to check the executable, installs in `%LOCALAPPDATA%\Programs\Anode`, appends
 that folder to your **user** PATH and adds an **Anode** shortcut to your Start menu, so searching
-for Anode from the taskbar finds it. It uses no administrator prompt. Open a new terminal afterward;
+for Anode from the taskbar finds it. It also lists Anode in **Settings → Apps → Installed apps**,
+where you can [uninstall](#remove) it. It uses no administrator prompt. Open a new terminal afterward;
 restart your terminal application or sign out and in if it retains an old PATH.
 You can always use the full path immediately:
 
@@ -158,6 +159,25 @@ Scoop users run `anode quit | Out-Host`, close MCP clients using Anode, then `sc
 
 ## Remove
 
+For an installation made by `install.ps1`, open **Settings → Apps → Installed apps**, find **Anode**
+and choose **Uninstall**. Or run the uninstaller from the installation folder:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\Anode\uninstall.ps1"
+```
+
+It offers to quit a running Anode, which closes every program in its seat, and stops if agent
+sessions still use the installation. It removes the files the installer copied (files you added to
+the folder stay), the PATH entry, Start menu shortcut and Installed apps entry, and Codex and Claude
+Code registrations that run this installation's `anode.exe`, with their unmodified `anode-desktop`
+skill. It asks before undoing machine setup: turning child sessions off and restoring the RDP
+rendering value, with one administrator prompt, and only while no Anode runs, because turning child
+sessions off signs out any seat. `-UndoSetup` does that without asking; `-Quiet` asks nothing and
+leaves a running Anode and machine setup alone. Remote Desktop stays enabled, and logs remain in
+`%LOCALAPPDATA%\Anode`.
+
+For portable, Scoop and plugin installs, or to remove Anode by hand:
+
 1. Save work, run `anode quit`, and close MCP clients using Anode.
 2. Remove registrations with `codex mcp remove anode` and/or
    `claude mcp remove --scope user anode`, or `/plugin uninstall anode@anode` in Claude Code if
@@ -169,9 +189,9 @@ Scoop users run `anode quit | Out-Host`, close MCP clients using Anode, then `sc
    [security documentation](SECURITY.md) explains why and how to disable it separately.
    If you ran `setup` with `--fps 60` or `--gpu`, also remove the values they set
    ([how](SECURITY.md#what-anode-setup-changes)).
-4. Delete the installation folder you chose (default `%LOCALAPPDATA%\Programs\Anode`), remove
-   that exact entry from your user PATH in **Edit environment variables for your account**, and
-   delete `Anode.lnk` from `%APPDATA%\Microsoft\Windows\Start Menu\Programs`.
+4. Delete the installation folder you chose, remove that exact entry from your user PATH in **Edit
+   environment variables for your account**, and delete `Anode.lnk` from
+   `%APPDATA%\Microsoft\Windows\Start Menu\Programs` if present.
    Scoop users run `scoop uninstall anode` instead.
 5. Logs and saved rendering state remain in `%LOCALAPPDATA%\Anode`. Keep them for troubleshooting
    or delete them after restoring settings. Client config backups remain beside the originals.
