@@ -23,6 +23,7 @@ internal static class ViewerPreview
         new("hover", "ready", Hover: "ControlSeat"),
         new("control", "ready", Control: true),
         new("connecting", "connecting", Seat: false),
+        new("disconnected", "detached", Seat: false),
         new("sign-in-failed", "logon-error", Details: true, Seat: false),
         new("narrow", "ready", Narrow: true)
     };
@@ -31,6 +32,7 @@ internal static class ViewerPreview
     {
         ["connecting"] = "Creating the seat...",
         ["ready"] = "Seat ready in session 2 at 1280x720. Programs you start here stay out of your way.",
+        ["detached"] = "The viewer disconnected but the seat is still running. Press Reconnect in the viewer to watch it again.",
         ["logon-error"] = "Windows could not sign in the seat. Press Sign in… to use the Windows credential dialog."
     };
 
@@ -64,7 +66,11 @@ internal static class ViewerPreview
         // connection this preview never makes. It never gets a window here; a picture stands
         // in for the seat.
         window.Viewer.Visible = false;
-        if (scene.Seat && backdrop is not null) ShowBackdrop(window, backdrop);
+        if (scene.Seat && backdrop is not null)
+        {
+            ShowBackdrop(window, backdrop);
+            window.SetSeatPictureLive(true);
+        }
         window.CreateControl();
         window.Size = scene.Narrow
             ? new Size(window.MinimumSize.Width, window.LogicalToDeviceUnits(420))

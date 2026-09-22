@@ -35,7 +35,9 @@ internal sealed class SeatWindow : Form
     private readonly NotifyIcon _tray = new();
     private readonly ToolStripMenuItem _traySignIn = new("Sign in…");
     private readonly Icon? _icon = LoadIcon();
+    private readonly SeatPlaceholder _placeholder;
     private Icon? _trayIcon;
+    private bool _seatPictureLive;
 
     private FormWindowState _restoreState = FormWindowState.Normal;
     private FormBorderStyle _restoreBorder = FormBorderStyle.Sizable;
@@ -60,6 +62,9 @@ internal sealed class SeatWindow : Form
     {
         Viewer = new RdpViewer();
         Viewer.TabIndex = 1;
+        _placeholder = new SeatPlaceholder(_icon) { Dock = DockStyle.Fill };
+        Viewer.Connected += () => SetSeatPictureLive(true);
+        Viewer.Disconnected += _ => SetSeatPictureLive(false);
 
         Text = "Anode seat";
         AccessibleName = "Anode seat viewer";
@@ -95,6 +100,8 @@ internal sealed class SeatWindow : Form
         _detailsPanel.Controls.Add(_details);
         ApplyTheme();
 
+        // In front of the viewer and filling the same space until the seat picture is live.
+        Controls.Add(_placeholder);
         Controls.Add(Viewer);
         Controls.Add(_detailsPanel);
         Controls.Add(_toolbar);
@@ -352,6 +359,9 @@ internal sealed class SeatWindow : Form
                 : "Emergency shortcut unavailable. Use Stop seat, the tray menu or anode kill.")
             + "\r\nStop closes all seat programs, including unsaved work. Closing the viewer keeps the seat running.";
         FitDetailsScrollBar();
+        _placeholder.Describe(_headline.Text ?? string.Empty, _statusLabel.Text ?? string.Empty,
+            busy: _state is "starting" or "connecting" or "signing-in" or "starting-agent" or "stopping",
+            problem: _state is "error" or "logon-error");
         string seat = _sessionId is { } id ? $" · session {id}" : "";
         string tooltip = $"Anode: {_headline.Text}{seat}";
         _tray.Text = tooltip.Length > 63 ? tooltip[..63] : tooltip;
@@ -408,6 +418,20 @@ internal sealed class SeatWindow : Form
     }
 
     // ------------------------------------------------------------- visibility
+
+    /// <summary>True once the Remote Desktop control has connected and shows the seat itself.</summary>
+    internal bool SeatPictureLive => _seatPictureLive;
+
+    /// <summary>
+    /// Reveals the Remote Desktop control as soon as it connects, whatever the seat then shows,
+    /// and covers it with the placeholder again when it disconnects.
+    /// </summary>
+    internal void SetSeatPictureLive(bool live)
+    {
+        if (InvokeRequired) { BeginInvoke(new Action(() => SetSeatPictureLive(live))); return; }
+        _seatPictureLive = live;
+        _placeholder.Visible = !live;
+    }
 
     internal void CreateHiddenViewer()
     {

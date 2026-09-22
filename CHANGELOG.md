@@ -19,6 +19,9 @@
   controls are unchanged, and high-contrast mode keeps the system look.
 - Header buttons carry icons (Segoe Fluent Icons on Windows 11, Segoe MDL2 Assets on Windows 10)
   that follow each button's state, and the overflow menu opens from a "more" icon.
+- While Remote Desktop is not connected, the viewer shows a dark screen with the seat's state, its
+  message and a progress indicator instead of the control's blank window. It gives way the moment
+  the control connects, so a live seat, including a Windows sign-in screen, is never covered.
 - Contributors can render the viewer and tray menu to PNGs with `anode __viewer-preview`, without
   a seat or a visible window.
 

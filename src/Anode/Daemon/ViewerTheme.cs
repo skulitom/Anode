@@ -60,12 +60,12 @@ internal static class ViewerTheme
     });
 
     /// <summary>Windows 11's interface font where it exists, otherwise Segoe UI.</summary>
-    public static Font UiFont() => new(Pick("Segoe UI Variable Text", "Segoe UI"), 9f);
+    public static Font UiFont(float points = 9f) => new(Pick("Segoe UI Variable Text", "Segoe UI"), points);
 
-    /// <summary>A semibold weight for the one action that must stand out.</summary>
-    public static Font StrongFont() => Pick("Segoe UI Variable Text Semibold", "Segoe UI Semibold") is { } semibold && Families.Value.Contains(semibold)
-        ? new Font(semibold, 9f)
-        : new Font(Pick("Segoe UI Variable Text", "Segoe UI"), 9f, FontStyle.Bold);
+    /// <summary>A semibold weight, for the one action that must stand out and for headings.</summary>
+    public static Font StrongFont(float points = 9f) => Pick("Segoe UI Variable Text Semibold", "Segoe UI Semibold") is { } semibold && Families.Value.Contains(semibold)
+        ? new Font(semibold, points)
+        : new Font(Pick("Segoe UI Variable Text", "Segoe UI"), points, FontStyle.Bold);
 
     private static string Pick(string preferred, string fallback) => Families.Value.Contains(preferred) ? preferred : fallback;
 

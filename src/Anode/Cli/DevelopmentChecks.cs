@@ -40,6 +40,12 @@ internal static class DevelopmentChecks
                     Require(details.ReadOnly && details.Text.Contains(failure) && details.Text.Contains("Session 42")
                         && details.Text.Contains("View only") && details.Text.Contains("Emergency"), "full status or recovery information was lost");
                     Require(toolbar.Items["SeatState"]?.Text == "Sign-in failed", "viewer exposed a protocol state instead of a readable label");
+                    var placeholder = (Daemon.SeatPlaceholder)window.Controls.Find("SeatPlaceholder", false).Single();
+                    Require(!window.SeatPictureLive && placeholder.Heading == "Sign-in failed" && placeholder.AccessibleDescription == failure,
+                        "the connecting screen did not describe the seat's state");
+                    window.SetSeatPictureLive(true);
+                    Require(window.SeatPictureLive, "a connected seat stayed behind the connecting screen");
+                    window.SetSeatPictureLive(false);
                     var originalBounds = window.Bounds;
                     window.ToggleFullScreen();
                     toolbar.PerformLayout();
@@ -71,7 +77,7 @@ internal static class DevelopmentChecks
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         finished.Task.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
-        return "hidden RDP initialization, input labels, full diagnostics, full-screen Stop/exit and narrow layout; no connection or shown form";
+        return "hidden RDP initialization, input labels, connecting screen, full diagnostics, full-screen Stop/exit and narrow layout; no connection or shown form";
     }
     public static string Output()
     {

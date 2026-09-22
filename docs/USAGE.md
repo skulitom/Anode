@@ -82,6 +82,10 @@ keystrokes. It starts in **view only**: your stray clicks do not reach the seat.
 Opening **Anode** from the Start menu (the installer adds it) or double-clicking `anode.exe` brings
 the viewer to the front, starting Anode or a stopped seat first.
 
+Until Remote Desktop connects, and whenever it disconnects, the viewer shows the seat's state and
+message in place of the picture, with a progress indicator while something is under way. The seat
+itself, including any Windows sign-in screen, appears as soon as the connection is up.
+
 The status bar says **View only** or **You have control**. **Full screen** (F11) keeps the
 **Stop seat**, **Release control** and **Exit full screen** buttons visible. **Details** expands
 the complete status message, including troubleshooting steps and emergency-shortcut availability;
