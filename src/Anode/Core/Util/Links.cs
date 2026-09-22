@@ -10,4 +10,5 @@ internal static class Links
     public const string ForAgents = Repository + "/blob/main/docs/FOR-AGENTS.md";
     public const string Usage = Repository + "/blob/main/docs/USAGE.md";
     public const string Troubleshooting = Repository + "/blob/main/docs/TROUBLESHOOTING.md";
+    public const string Security = Repository + "/blob/main/docs/SECURITY.md";
 }

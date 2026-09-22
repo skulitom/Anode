@@ -34,13 +34,27 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\test-install.ps1 -Ar
 ```
 
 `test-install.ps1` installs into a temporary folder, exercises the installer's update, rollback and
-refusal paths, and runs the connector against fake client homes. It never touches your PATH, real
-client settings or the running daemon. Add `-QuickTest` to the build for the private-pipe quick
+refusal paths, and runs the connector against fake client homes. It never touches your PATH, Start
+menu, real client settings or the running daemon. Add `-QuickTest` to the build for the private-pipe quick
 self-test; `-Test` runs the full self-test. Use a separate `git worktree` for parallel work so
 builds do not share `src\Anode\obj` and `bin`.
 
 Every build talks to the same control pipe. While a daemon is running, do not run `start`, `up`,
 `lease` or any other seat command from the new build: it would act on the running seat.
+
+## Viewer and tray design
+
+`Daemon/ViewerTheme.cs` holds the viewer's colors, fonts, renderer and title-bar colors; high-contrast
+mode keeps the system look. To review a change without a seat or a visible window:
+
+```powershell
+& .\src\Anode\bin\Debug\net8.0-windows\win-x64\anode.exe __viewer-preview --out artifacts\ui-preview | Out-Host
+```
+
+It writes PNGs of the viewer, title bar included, in sample states (ready, hover, control,
+connecting, failed sign-in with details, minimum width) and of the tray menu. It never connects.
+Each view comes from a cloaked window far off-screen that has no taskbar button and cannot take
+focus, and a view is skipped unless Windows confirms the cloak.
 
 ## Icon and social preview
 

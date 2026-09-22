@@ -55,7 +55,8 @@ internal sealed class SeatWindow : Form
     public event Action? ReconnectRequested;
     public event Action? SignInRequested;
 
-    public SeatWindow(SeatOptions options)
+    /// <param name="trayIcon">False only for design previews, which must not add a tray icon.</param>
+    public SeatWindow(SeatOptions options, bool trayIcon = true)
     {
         Viewer = new RdpViewer();
         Viewer.TabIndex = 1;
@@ -74,15 +75,17 @@ internal sealed class SeatWindow : Form
 
         BuildToolbar();
         BuildStatusBar();
-        BuildTray();
+        BuildTray(trayIcon);
         _details.Name = "SeatDetails";
         _details.AccessibleName = "Seat status details";
         _details.AccessibleDescription = "Full seat status. Select text and press Ctrl+C to copy.";
         _details.Multiline = true;
         _details.ReadOnly = true;
-        _details.ScrollBars = ScrollBars.Vertical;
+        _details.ScrollBars = ScrollBars.None;
         _details.BorderStyle = BorderStyle.None;
         _details.Dock = DockStyle.Fill;
+        _details.Font = ViewerTheme.UiFont();
+        _details.Resize += (_, _) => FitDetailsScrollBar();
         _detailsPanel.Name = "SeatDetailsPanel";
         _detailsPanel.TabIndex = 2;
         _detailsPanel.Dock = DockStyle.Bottom;
@@ -139,8 +142,10 @@ internal sealed class SeatWindow : Form
         _toolbar.TabStop = true;
         _toolbar.TabIndex = 0;
         _toolbar.GripStyle = ToolStripGripStyle.Hidden;
-        _toolbar.Padding = new Padding(8, 6, 8, 6);
+        _toolbar.Padding = new Padding(10, 6, 10, 6);
         _toolbar.ImageScalingSize = new Size(16, 16);
+        _toolbar.Font = ViewerTheme.UiFont();
+        _toolbar.OverflowButton.DropDown.HandleCreated += (_, _) => ViewerTheme.ApplyMenuFrame(_toolbar.OverflowButton.DropDown.Handle);
 
         _stopButton.Text = "Stop seat";
         _stopButton.Name = "StopSeat";
@@ -148,7 +153,9 @@ internal sealed class SeatWindow : Form
         _stopButton.AccessibleDescription = _stopButton.ToolTipText;
         _stopButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
         _stopButton.ForeColor = ViewerTheme.Danger;
-        _stopButton.Font = new Font(_toolbar.Font, FontStyle.Bold);
+        _stopButton.Font = ViewerTheme.StrongFont();
+        // Always tinted: the emergency action reads as a button before anyone hovers over it.
+        _stopButton.Tag = ViewerTheme.Tone.Danger;
         _stopButton.Click += (_, _) => StopSeatRequested?.Invoke();
 
         _controlButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
@@ -180,6 +187,7 @@ internal sealed class SeatWindow : Form
         _detailsButton.CheckedChanged += (_, _) =>
         {
             _detailsPanel.Visible = _detailsButton.Checked;
+            FitDetailsScrollBar();
             if (_detailsPanel.Visible) _details.Focus();
         };
 
@@ -187,11 +195,19 @@ internal sealed class SeatWindow : Form
         _headline.ForeColor = ViewerTheme.Muted;
         _headline.Text = "Starting";
         _headline.Name = "SeatState";
+        // A blank image reserves a DPI-scaled slot before the text; the renderer draws the state dot there.
+        _headline.Image = new Bitmap(1, 1);
+        _headline.ImageScaling = ToolStripItemImageScaling.SizeToFit;
+        _headline.DisplayStyle = ToolStripItemDisplayStyle.ImageAndText;
+        _headline.TextImageRelation = TextImageRelation.ImageBeforeText;
+        _headline.Margin = new Padding(8, 1, 6, 2);
+        _headline.Tag = ViewerTheme.Tone.Busy;
 
         _toolbar.Items.AddRange(new ToolStripItem[]
         {
             _stopButton,
-            new ToolStripSeparator(),
+            // Spacing, not a line: the renderer draws no separators in the header.
+            new ToolStripSeparator { Margin = new Padding(4, 0, 4, 0) },
             _controlButton,
             _fullScreenButton,
             _reconnectButton,
@@ -201,11 +217,14 @@ internal sealed class SeatWindow : Form
         });
         foreach (var button in _toolbar.Items.OfType<ToolStripButton>())
         {
-            button.Padding = new Padding(6, 4, 6, 4);
+            button.Padding = new Padding(10, 5, 10, 5);
+            button.Margin = new Padding(2, 0, 2, 0);
             button.AccessibleName = button.Text;
         }
-        // The emergency action and the way out of full screen must never disappear into overflow.
+        // The emergency action and the way out of full screen must never disappear into overflow,
+        // and neither should the seat's state; secondary actions overflow first.
         _stopButton.Overflow = _controlButton.Overflow = _fullScreenButton.Overflow = ToolStripItemOverflow.Never;
+        _headline.Overflow = ToolStripItemOverflow.Never;
     }
 
     private void BuildStatusBar()
@@ -214,7 +233,10 @@ internal sealed class SeatWindow : Form
         _statusBar.Name = "SeatStatus";
         _statusBar.AccessibleName = "Seat status";
         _statusBar.ShowItemToolTips = true;
-        _statusBar.SizingGrip = true;
+        // Windows resizes from any edge; the grip was only texture.
+        _statusBar.SizingGrip = false;
+        _statusBar.Padding = new Padding(6, 2, 6, 4);
+        _statusBar.Font = ViewerTheme.UiFont();
 
         _statusLabel.Spring = true;
         _statusLabel.TextAlign = ContentAlignment.MiddleLeft;
@@ -230,7 +252,10 @@ internal sealed class SeatWindow : Form
         _statusBar.Items.AddRange(new ToolStripItem[] { _modeLabel, _statusLabel, _seatLabel });
     }
 
-    private void BuildTray()
+    /// <summary>The tray icon's menu, for design previews.</summary>
+    internal ContextMenuStrip TrayMenu => _tray.ContextMenuStrip!;
+
+    private void BuildTray(bool visible)
     {
         // The same request as the header's Sign in button. The credential dialog belongs
         // to the viewer, so show the viewer first.
@@ -247,12 +272,14 @@ internal sealed class SeatWindow : Form
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Help", null, (_, _) => OpenHelp());
         menu.Items.Add("Quit Anode", null, (_, _) => QuitRequested?.Invoke());
+        menu.Font = ViewerTheme.UiFont();
+        ViewerTheme.ApplyMenu(menu);
 
         // Select the matching small frame; scaling the 32 px icon blurs it in the tray.
         _trayIcon = _icon is null ? null : new Icon(_icon, SystemInformation.SmallIconSize);
         _tray.Icon = _trayIcon ?? SystemIcons.Application;
         _tray.Text = TrayText(null);
-        _tray.Visible = true;
+        _tray.Visible = visible;
         _tray.ContextMenuStrip = menu;
         _tray.DoubleClick += (_, _) => ShowViewer();
     }
@@ -290,12 +317,19 @@ internal sealed class SeatWindow : Form
         ForeColor = ViewerTheme.Text;
         ViewerTheme.Apply(_toolbar);
         ViewerTheme.Apply(_statusBar);
+        if (_tray.ContextMenuStrip is { } menu)
+        {
+            ViewerTheme.Apply(menu);
+            foreach (ToolStripItem item in menu.Items) item.ForeColor = ViewerTheme.Text;
+        }
         _stopButton.ForeColor = ViewerTheme.Danger;
         _headline.ForeColor = _state is "error" or "logon-error" ? ViewerTheme.Danger : ViewerTheme.Muted;
         _statusLabel.ForeColor = _seatLabel.ForeColor = ViewerTheme.Muted;
         _modeLabel.ForeColor = ViewOnly ? ViewerTheme.Muted : ViewerTheme.Accent;
-        _detailsPanel.BackColor = _details.BackColor = SystemInformation.HighContrast ? SystemColors.Window : ViewerTheme.Surface;
+        // Details continue the header's surface instead of opening a differently colored box.
+        _detailsPanel.BackColor = _details.BackColor = SystemInformation.HighContrast ? SystemColors.Window : ViewerTheme.Chrome;
         _details.ForeColor = SystemInformation.HighContrast ? SystemColors.WindowText : ViewerTheme.Text;
+        if (IsHandleCreated) ViewerTheme.ApplyFrame(Handle);
     }
 
     protected override void OnSystemColorsChanged(EventArgs e)
@@ -304,12 +338,25 @@ internal sealed class SeatWindow : Form
         ApplyTheme();
     }
 
+    /// <summary>A scroll bar only when the details overflow, instead of an always-visible light one.</summary>
+    private void FitDetailsScrollBar()
+    {
+        // Measure narrower than the box: its internal margins wrap text slightly earlier.
+        int width = _details.Width - LogicalToDeviceUnits(8);
+        if (!_detailsPanel.Visible || width <= 0) return;
+        int height = TextRenderer.MeasureText(_details.Text, _details.Font, new Size(width, int.MaxValue),
+            TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl).Height;
+        var wanted = height > _details.ClientSize.Height ? ScrollBars.Vertical : ScrollBars.None;
+        if (_details.ScrollBars != wanted) _details.ScrollBars = wanted;
+    }
+
     private void RefreshDetails()
     {
         _details.Text = $"{_headline.Text}\r\n{_statusLabel.Text}\r\n\r\n{_seatLabel.Text} · {_modeLabel.Text}\r\n"
             + (_hotkeyAvailable ? "Emergency stop: Ctrl+Alt+Shift+K."
                 : "Emergency shortcut unavailable. Use Stop seat, the tray menu or anode kill.")
             + "\r\nStop closes all seat programs, including unsaved work. Closing the viewer keeps the seat running.";
+        FitDetailsScrollBar();
         string seat = _sessionId is { } id ? $" · session {id}" : "";
         string tooltip = $"Anode: {_headline.Text}{seat}";
         _tray.Text = tooltip.Length > 63 ? tooltip[..63] : tooltip;
@@ -345,6 +392,14 @@ internal sealed class SeatWindow : Form
             "error" => "Needs attention", _ => text
         };
         _headline.ForeColor = text is "error" or "logon-error" ? ViewerTheme.Danger : ViewerTheme.Muted;
+        _headline.Tag = text switch
+        {
+            "ready" => ViewerTheme.Tone.Good,
+            "error" or "logon-error" => ViewerTheme.Tone.Problem,
+            "stopped" or "detached" => ViewerTheme.Tone.Neutral,
+            _ => ViewerTheme.Tone.Busy
+        };
+        _toolbar.Invalidate();
         RefreshDetails();
     }
 
@@ -458,6 +513,7 @@ internal sealed class SeatWindow : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
+        ViewerTheme.ApplyFrame(Handle);
         // Ctrl+Alt+Shift+K works from anywhere on the user's desktop. If something
         // else already owns it, the toolbar and tray buttons still do the job.
         _hotkeyAvailable = Native.RegisterHotKey(Handle, HotkeyId,

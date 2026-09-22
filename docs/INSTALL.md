@@ -20,8 +20,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
 It downloads the latest release and its `SHA256SUMS` from GitHub, verifies the archive, runs
-`anode version` to check the executable, installs in `%LOCALAPPDATA%\Programs\Anode` and appends
-that folder to your **user** PATH. It uses no administrator prompt. Open a new terminal afterward;
+`anode version` to check the executable, installs in `%LOCALAPPDATA%\Programs\Anode`, appends
+that folder to your **user** PATH and adds an **Anode** shortcut to your Start menu, so searching
+for Anode from the taskbar finds it. It uses no administrator prompt. Open a new terminal afterward;
 restart your terminal application or sign out and in if it retains an old PATH.
 You can always use the full path immediately:
 
@@ -34,9 +35,18 @@ Useful options:
 ```powershell
 # Choose a version and register installed Codex/Claude Code CLIs as well.
 powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Version 0.6.0 -Client Auto
-# A dedicated custom folder; leave PATH alone.
-powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -InstallDirectory C:\Tools\Anode -NoPath
+# A dedicated custom folder; leave PATH and the Start menu alone.
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -InstallDirectory C:\Tools\Anode -NoPath -NoShortcut
 ```
+
+Opening **Anode** from the Start menu, or double-clicking `anode.exe`, shows the viewer. When Anode
+is not running, it starts Anode first. When the one-time [machine setup](#one-time-machine-setup)
+is missing, it offers to run it, with the usual administrator prompt.
+
+An agent inside a packaged desktop app, such as Claude or Codex for Windows, can see a private copy
+of AppData: Windows keeps files it creates there private to that app, out of the Start menu and
+your own terminals. The installer warns when that happens to the shortcut or the installation.
+Run it once from your own terminal to fix it.
 
 `-Client` accepts `None` (default), `Auto`, `Codex`, `Claude` or `Both`. Client registration failures
 leave the installation in place; fix the reported client problem and rerun `anode configure`.
@@ -159,8 +169,9 @@ Scoop users run `anode quit | Out-Host`, close MCP clients using Anode, then `sc
    [security documentation](SECURITY.md) explains why and how to disable it separately.
    If you ran `setup` with `--fps 60` or `--gpu`, also remove the values they set
    ([how](SECURITY.md#what-anode-setup-changes)).
-4. Delete the installation folder you chose (default `%LOCALAPPDATA%\Programs\Anode`) and remove
-   that exact entry from your user PATH in **Edit environment variables for your account**.
+4. Delete the installation folder you chose (default `%LOCALAPPDATA%\Programs\Anode`), remove
+   that exact entry from your user PATH in **Edit environment variables for your account**, and
+   delete `Anode.lnk` from `%APPDATA%\Microsoft\Windows\Start Menu\Programs`.
    Scoop users run `scoop uninstall anode` instead.
 5. Logs and saved rendering state remain in `%LOCALAPPDATA%\Anode`. Keep them for troubleshooting
    or delete them after restoring settings. Client config backups remain beside the originals.

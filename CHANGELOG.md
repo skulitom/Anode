@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+- The installer adds an **Anode** shortcut to the Start menu, so Windows Search finds Anode.
+  `-NoShortcut` skips it; updates refresh it, and installer checks never touch the real Start menu.
+  When the installer runs inside a packaged app, such as an agent's desktop app, and Windows keeps
+  the shortcut or installation private to that app, it says so instead of reporting success.
+- Opening Anode from the Start menu or double-clicking `anode.exe` now brings the viewer to the
+  front, starting Anode or a stopped seat first, instead of explaining how to use a terminal. When
+  machine setup is missing, a dialog offers to run it with one administrator prompt; problems setup
+  cannot fix, such as Windows Home, link to the requirements.
+- A calmer, more modern viewer. The title bar, header, details and footer are one dark surface:
+  the title bar is dark and, on Windows 11, matches the header, with no divider lines, separators or
+  sizing grip. Hover, pressed and checked states are rounded fills instead of orange outlines,
+  **Stop seat** is always a tinted button, the seat state carries a colored dot that stays visible
+  at the minimum width, and details show a scroll bar only when they overflow. The tray menu is dark
+  with rounded rows and no icon margin. Labels, control names, shortcuts and full-screen safety
+  controls are unchanged, and high-contrast mode keeps the system look.
+- Contributors can render the viewer and tray menu to PNGs with `anode __viewer-preview`, without
+  a seat or a visible window.
+
 ## 0.6.0 — 2026-09-22
 
 - Reject duplicate JSON fields and invalid Unicode escapes before any action, including nested

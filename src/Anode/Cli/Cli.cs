@@ -71,6 +71,8 @@ internal static partial class Cli
                 return Core.Processes.ExecutionWorker.Run();
             case "__desktop-fixture":
                 return DesktopFixture.Run();
+            case "__viewer-preview":
+                return ViewerPreview.Run(rest);
             case "__log-probe":
                 return DiagnosticsChecks.LogProbe(rest);
             case "__cursor-probe":
@@ -85,8 +87,8 @@ internal static partial class Cli
 
         ConsoleBridge.Attach();
         Log.SetRole("cli");
-        // Explorer starts a double-clicked anode.exe without a console to print help into.
-        if (bare && !ConsoleBridge.HasConsole && !ConsoleBridge.TryAttachParent()) return Welcome();
+        // The Start menu shortcut and Explorer start anode.exe without a console to print help into.
+        if (bare && !ConsoleBridge.HasConsole && !ConsoleBridge.TryAttachParent()) return Open();
 
         try
         {
@@ -657,20 +659,6 @@ internal static partial class Cli
     {
         Console.Error.WriteLine($"anode: unknown command '{command}'. {Hint(command, forHelp: false)}");
         return 2;
-    }
-
-    /// <summary>What a double-click from Explorer shows, since there is no console for help.</summary>
-    private static int Welcome()
-    {
-        var answer = System.Windows.Forms.MessageBox.Show(
-            "Anode gives AI agents a background Windows desktop. It runs from a terminal or an agent's MCP "
-            + "settings, not from a double-click.\n\nOpen PowerShell in this folder and run:\n\n    .\\anode.exe doctor | Out-Host\n\n"
-            + "Open the setup guide?",
-            "Anode", System.Windows.Forms.MessageBoxButtons.YesNo, System.Windows.Forms.MessageBoxIcon.Information);
-        if (answer != System.Windows.Forms.DialogResult.Yes) return 0;
-        try { Process.Start(new ProcessStartInfo(Links.Repository + "#set-up-and-connect") { UseShellExecute = true })?.Dispose(); }
-        catch (System.ComponentModel.Win32Exception) { }
-        return 0;
     }
 
     // ------------------------------------------------------------------- plumbing

@@ -1,5 +1,5 @@
 #requires -Version 5.1
-<# Disposable package/install checks. Never changes user PATH or real client configuration. #>
+<# Disposable package/install checks. Never changes user PATH, the Start menu or real client configuration. #>
 param([string]$ArchiveDirectory = (Join-Path $PSScriptRoot '..\artifacts\release'))
 $ErrorActionPreference = 'Stop'
 $ArchiveDirectory = (Resolve-Path -LiteralPath $ArchiveDirectory).Path
@@ -9,8 +9,19 @@ $installer = Join-Path $PSScriptRoot 'install.ps1'
 $package = Join-Path $ArchiveDirectory 'anode-windows-x64.zip'
 $checksums = Join-Path $ArchiveDirectory 'SHA256SUMS'
 $installation = Join-Path $workspace 'Anode with spaces'
+$startMenu = Join-Path $workspace 'Start Menu'
 $originalPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+$realShortcut = Join-Path ([Environment]::GetFolderPath('Programs')) 'Anode.lnk'
+function Get-ShortcutStamp { if (Test-Path -LiteralPath $realShortcut) { (Get-Item -LiteralPath $realShortcut).LastWriteTimeUtc.Ticks } else { 0 } }
+$originalShortcut = Get-ShortcutStamp
 function Assert([bool]$Condition, [string]$Message) { if (-not $Condition) { throw $Message } }
+function Assert-Shortcut([string]$Message) {
+    $shell = New-Object -ComObject WScript.Shell
+    try {
+        $link = $shell.CreateShortcut((Join-Path $startMenu 'Anode.lnk'))
+        Assert ($link.TargetPath -eq (Join-Path $installation 'anode.exe') -and $link.WorkingDirectory -eq $installation -and $link.Arguments -eq '') $Message
+    } finally { $null = [Runtime.InteropServices.Marshal]::ReleaseComObject($shell) }
+}
 function Expect-Failure([scriptblock]$Action, [string]$Pattern) {
     $failure = $null
     try { & $Action } catch { $failure = $_.Exception.Message }
@@ -22,13 +33,16 @@ try {
     $originalOs = [Environment]::GetEnvironmentVariable('OS', 'Process')
     try {
         $env:OS = $null
-        $installOutput = @(& $installer -PackagePath $package -ChecksumPath $checksums -InstallDirectory $installation -NoPath 6>&1 | ForEach-Object { "$_" }) -join "`n"
+        $installOutput = @(& $installer -PackagePath $package -ChecksumPath $checksums -InstallDirectory $installation -NoPath -StartMenuDirectory $startMenu 6>&1 | ForEach-Object { "$_" }) -join "`n"
     } finally { $env:OS = $originalOs }
     Write-Host $installOutput
     $exe = Join-Path $installation 'anode.exe'
     $quotedExe = "& '" + $exe.Replace("'", "''") + "'"
     Assert ($installOutput.Contains("$quotedExe doctor | Out-Host") -and $installOutput.Contains("$quotedExe configure | Out-Host")) 'Next steps must use the installed path without PATH.'
     Assert (-not $installOutput.Contains('Added to your user PATH') -and $installOutput.Contains('#set-up-and-connect')) 'Installer closing text is wrong for -NoPath.'
+    Assert ($installOutput.Contains('Added Anode to the Start menu')) 'First installation did not announce its Start menu shortcut.'
+    Assert-Shortcut 'The Start menu shortcut does not open the installed executable from its folder.'
+    Write-Host '[ok] Start menu shortcut opens the installed executable'
     $version = (& $exe version | Out-String).Trim()
     Assert ($LASTEXITCODE -eq 0 -and $version -match '^anode \d+\.\d+\.\d+$') 'Installed executable failed.'
     $guide = (& $exe guide --json | Out-String) | ConvertFrom-Json
@@ -67,22 +81,24 @@ Write-Output 'connector-output-ok'
 
     $sentinel = Join-Path $installation 'user-note.txt'
     Set-Content -LiteralPath $sentinel -Value 'keep this'
-    $updateOutput = @(& $installer -PackagePath $package -ChecksumPath $checksums -InstallDirectory $installation -NoPath 6>&1 | ForEach-Object { "$_" }) -join "`n"
+    $updateOutput = @(& $installer -PackagePath $package -ChecksumPath $checksums -InstallDirectory $installation -NoPath -StartMenuDirectory $startMenu 6>&1 | ForEach-Object { "$_" }) -join "`n"
     Write-Host $updateOutput
     Assert ($updateOutput.Contains('Reopen agent sessions') -and -not $updateOutput.Contains('Next:')) 'Repeat installation must not repeat first-run steps.'
+    Assert (-not $updateOutput.Contains('Added Anode to the Start menu')) 'Repeat installation announced an existing shortcut again.'
+    Assert-Shortcut 'Repeat installation broke the Start menu shortcut.'
     Assert ((Get-Content -LiteralPath $sentinel -Raw).Trim() -eq 'keep this') 'Update removed unrelated data.'
-    Write-Host '[ok] repeat installation preserves unrelated files'
+    Write-Host '[ok] repeat installation preserves unrelated files and the shortcut'
 
     $badHash = Join-Path $workspace 'bad-checksums'
     Set-Content -LiteralPath $badHash -Value (('0' * 64) + '  anode-windows-x64.zip')
     $originalHash = (Get-FileHash -LiteralPath $exe).Hash
-    Expect-Failure { & $installer -PackagePath $package -ChecksumPath $badHash -InstallDirectory $installation -NoPath } 'SHA-256 mismatch'
+    Expect-Failure { & $installer -PackagePath $package -ChecksumPath $badHash -InstallDirectory $installation -NoPath -NoShortcut } 'SHA-256 mismatch'
     Assert ((Get-FileHash -LiteralPath $exe).Hash -eq $originalHash) 'Hash failure changed installed files.'
     Write-Host '[ok] corrupt download rejected before replacing files'
 
     $lock = [IO.File]::Open($exe, 'Open', 'Read', 'Read')
     try {
-        Expect-Failure { & $installer -PackagePath $package -ChecksumPath $checksums -InstallDirectory $installation -NoPath } 'Cannot replace'
+        Expect-Failure { & $installer -PackagePath $package -ChecksumPath $checksums -InstallDirectory $installation -NoPath -NoShortcut } 'Cannot replace'
     } finally { $lock.Dispose() }
     Assert ((Get-FileHash -LiteralPath $exe).Hash -eq $originalHash) 'Locked-file failure changed installation.'
     Write-Host '[ok] locked executable refused without changes'
@@ -100,7 +116,7 @@ Write-Output 'connector-output-ok'
         Microsoft.PowerShell.Management\Copy-Item @PSBoundParameters
     }
     try {
-        Expect-Failure { & $installer -PackagePath $package -ChecksumPath $checksums -InstallDirectory $installation -NoPath } 'Injected file replacement failure'
+        Expect-Failure { & $installer -PackagePath $package -ChecksumPath $checksums -InstallDirectory $installation -NoPath -NoShortcut } 'Injected file replacement failure'
         Assert ([IO.File]::ReadAllText($readme) -eq 'previous installed documentation') 'Rollback did not restore documentation.'
         Assert ((Get-FileHash -LiteralPath $exe).Hash -eq $originalHash) 'Rollback did not restore executable.'
     } finally { Remove-Item -LiteralPath Function:\Copy-Item }
@@ -109,8 +125,8 @@ Write-Output 'connector-output-ok'
     $unmanaged = Join-Path $workspace 'unmanaged'
     $null = New-Item -ItemType Directory -Path $unmanaged
     Set-Content -LiteralPath (Join-Path $unmanaged 'keep.txt') -Value 'keep'
-    Expect-Failure { & $installer -PackagePath $package -ChecksumPath $checksums -InstallDirectory $unmanaged -NoPath } 'not an installer-managed'
-    Expect-Failure { & $installer -PackagePath $package -InstallDirectory $installation -NoPath } 'both -PackagePath'
+    Expect-Failure { & $installer -PackagePath $package -ChecksumPath $checksums -InstallDirectory $unmanaged -NoPath -NoShortcut } 'not an installer-managed'
+    Expect-Failure { & $installer -PackagePath $package -InstallDirectory $installation -NoPath -NoShortcut } 'both -PackagePath'
     Write-Host '[ok] existing folders and offline parameters protected'
 
     # A valid checksum must not permit a path-traversal archive to escape extraction.
@@ -120,7 +136,7 @@ Write-Output 'connector-output-ok'
     try { $null = $zip.CreateEntry('../escaped.txt') } finally { $zip.Dispose() }
     $unsafeHash = Join-Path $workspace 'unsafe-checksums'
     Set-Content -LiteralPath $unsafeHash -Value ((Get-FileHash -LiteralPath $unsafeZip).Hash + '  unsafe.zip')
-    Expect-Failure { & $installer -PackagePath $unsafeZip -ChecksumPath $unsafeHash -InstallDirectory $installation -NoPath } 'Unsafe archive path'
+    Expect-Failure { & $installer -PackagePath $unsafeZip -ChecksumPath $unsafeHash -InstallDirectory $installation -NoPath -NoShortcut } 'Unsafe archive path'
     Write-Host '[ok] archive traversal rejected'
 
     # Exercise the download path with local assets; no network access.
@@ -140,11 +156,13 @@ Write-Output 'connector-output-ok'
     }
     try {
         $downloaded = Join-Path $workspace 'downloaded'
-        $downloadOutput = @(& $installer -InstallDirectory $downloaded -NoPath 6>&1 | ForEach-Object { "$_" }) -join "`n"
+        $skippedMenu = Join-Path $workspace 'Skipped Start Menu'
+        $downloadOutput = @(& $installer -InstallDirectory $downloaded -NoPath -NoShortcut -StartMenuDirectory $skippedMenu 6>&1 | ForEach-Object { "$_" }) -join "`n"
     } finally { Remove-Item -LiteralPath Function:\Invoke-RestMethod, Function:\Invoke-WebRequest }
     Assert ($downloadOutput -match 'Downloading v\d+\.\d+\.\d+/anode-windows-x64\.zip \(\d+ MB\)' -and
         (Test-Path -LiteralPath (Join-Path $downloaded 'anode.exe'))) "Release download path failed: $downloadOutput"
-    Write-Host '[ok] release download path without progress redraws'
+    Assert (-not (Test-Path -LiteralPath $skippedMenu) -and -not $downloadOutput.Contains('Start menu')) '-NoShortcut still touched the Start menu.'
+    Write-Host '[ok] release download path without progress redraws; -NoShortcut adds no shortcut'
 
     # A separate process owns fake client homes and fake CLIs. No real client is invoked.
     $clientRoot = Join-Path $workspace 'clients'
@@ -171,6 +189,7 @@ Write-Output 'connector-output-ok'
     Assert ($process.ExitCode -eq 0) 'Isolated connector checks failed.'
     $process.Dispose()
     Assert ([Environment]::GetEnvironmentVariable('Path', 'User') -ceq $originalPath) 'Tests changed user PATH.'
+    Assert ((Get-ShortcutStamp) -eq $originalShortcut) 'Tests changed the real Start menu shortcut.'
     Write-Host 'All installation and configuration checks passed.' -ForegroundColor Green
 } finally {
     $resolved = [IO.Path]::GetFullPath($workspace)

@@ -5,9 +5,10 @@
 Requires 64-bit Windows 10/11 Pro, Enterprise or Education, or Windows Server with a Remote
 Desktop host; Windows Home is unsupported. Install only with the user's authorization: download
 https://github.com/skulitom/Anode/releases/latest/download/install.ps1 and run
-`powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1`. The PATH change reaches only
-new processes, so in the same shell use `& "$env:LOCALAPPDATA\Programs\Anode\anode.exe"` (for
-example with `doctor | Out-Host`). The user runs `anode setup` once and approves its administrator
+`powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1`. If it warns that Windows kept
+files private to the app you run inside, ask the user to run it from their own terminal. The PATH
+change reaches only new processes, so in the same shell use
+`& "$env:LOCALAPPDATA\Programs\Anode\anode.exe"` (for example with `doctor | Out-Host`). The user runs `anode setup` once and approves its administrator
 prompt; it can restart Remote Desktop Services. Then `anode configure` registers Codex and Claude
 Code; restart the agent session to load the tools. Other MCP clients:
 `{"command":"<path>\\anode.exe","args":["mcp"]}`; set a 420-second tool timeout (anode configure

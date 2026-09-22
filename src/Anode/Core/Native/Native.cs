@@ -110,6 +110,13 @@ internal static class Native
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
 
+    /// <summary>Lets any process take the foreground once; <see cref="AllowSetForegroundWindow"/> argument.</summary>
+    public const int ASFW_ANY = -1;
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool AllowSetForegroundWindow(int processId);
+
     [DllImport("user32.dll")]
     public static extern IntPtr GetAncestor(IntPtr hWnd, uint flags);
 
@@ -121,6 +128,42 @@ internal static class Native
     public static extern bool EnumChildWindows(IntPtr parent, EnumWindowsProc callback, IntPtr param);
 
     public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr param);
+
+    public const uint PW_RENDERFULLCONTENT = 0x2;
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool PrintWindow(IntPtr hWnd, IntPtr hdc, uint flags);
+
+    // ------------------------------------------------------------------ dwmapi
+
+    public const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+    public const int DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1 = 19;
+    public const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
+    public const int DWMWA_CLOAK = 13;
+    public const int DWMWA_CLOAKED = 14;
+    public const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+    public const int DWMWA_BORDER_COLOR = 34;
+    public const int DWMWA_CAPTION_COLOR = 35;
+    public const int DWMWA_TEXT_COLOR = 36;
+    public const int DWMWCP_ROUND = 2;
+    public const int DWMWCP_ROUNDSMALL = 3;
+
+    /// <summary>Returns an HRESULT; attributes newer than the running Windows fail harmlessly.</summary>
+    [DllImport("dwmapi.dll")]
+    public static extern int DwmSetWindowAttribute(IntPtr hWnd, int attribute, ref int value, int size);
+
+    [DllImport("dwmapi.dll")]
+    public static extern int DwmGetWindowAttribute(IntPtr hWnd, int attribute, out int value, int size);
+
+    [DllImport("dwmapi.dll")]
+    public static extern int DwmGetWindowAttribute(IntPtr hWnd, int attribute, out Rect value, int size);
+
+    [DllImport("dwmapi.dll")]
+    public static extern int DwmFlush();
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct Rect { public int Left, Top, Right, Bottom; }
 
     /// <summary>Builds a <see cref="Win32Exception"/> carrying the last error and a readable prefix.</summary>
     public static Win32Exception LastError(string what)

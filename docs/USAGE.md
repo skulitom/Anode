@@ -79,6 +79,9 @@ The viewer appears **without taking focus**, so a seat can come up mid-sentence 
 keystrokes. It starts in **view only**: your stray clicks do not reach the seat. Press
 **Take control** when you want to drive it yourself.
 
+Opening **Anode** from the Start menu (the installer adds it) or double-clicking `anode.exe` brings
+the viewer to the front, starting Anode or a stopped seat first.
+
 The status bar says **View only** or **You have control**. **Full screen** (F11) keeps the
 **Stop seat**, **Release control** and **Exit full screen** buttons visible. **Details** expands
 the complete status message, including troubleshooting steps and emergency-shortcut availability;
