@@ -1,5 +1,5 @@
 {
-    "version": "0.7.0",
+    "version": "0.8.0",
     "description": "Background Windows desktop for AI agents: native GUI automation, screenshots and app testing.",
     "homepage": "https://github.com/skulitom/Anode",
     "license": "MIT",
@@ -15,8 +15,8 @@
     ],
     "architecture": {
         "64bit": {
-            "url": "https://github.com/skulitom/Anode/releases/download/v0.7.0/anode-windows-x64.zip",
-            "hash": "25e46abf455b67d61d91f96a02b720829c5368356cc1f5d4bfcc31064fb23d25"
+            "url": "https://github.com/skulitom/Anode/releases/download/v0.8.0/anode-windows-x64.zip",
+            "hash": "037dbde021a165d3011c16d3dc32b9c9f5c5d266154c8a56604b1216206e9020"
         }
     },
     "##": "PATH entry instead of bin: Scoop's shim frees its console before starting a GUI-subsystem exe, which leaves anode.exe no console to attach for CLI output.",
