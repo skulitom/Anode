@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
 
 PackageIdentifier: skulitom.Anode
-PackageVersion: 0.5.0
+PackageVersion: 0.6.0
 Platform:
 - Windows.Desktop
 InstallerType: zip
@@ -11,10 +11,10 @@ NestedInstallerFiles:
 ArchiveBinariesDependOnPath: true
 Commands:
 - anode
-ReleaseDate: 2026-09-20
+ReleaseDate: 2026-09-22
 Installers:
 - Architecture: x64
-  InstallerUrl: https://github.com/skulitom/Anode/releases/download/v0.5.0/anode-windows-x64.zip
-  InstallerSha256: 8C27806D50C165B6CE5DCB6484169680B6F8DE184DE1C715520DD440DC0C13B8
+  InstallerUrl: https://github.com/skulitom/Anode/releases/download/v0.6.0/anode-windows-x64.zip
+  InstallerSha256: 0AFE4D337EB416F84E9513F542B48B8F8052DFD1A08F632826BBC052604A3383
 ManifestType: installer
 ManifestVersion: 1.12.0
