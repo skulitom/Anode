@@ -74,7 +74,7 @@ release, update to the current supported patch, and rebuild and test the package
    app testing."
 5. Run the checks above plus `scripts\test-distribution.ps1` and `scripts\check-docs.ps1`, push the
    changes and confirm Windows CI passes.
-6. Tag the tested commit with the matching version, such as `v0.5.0`, and push the tag.
+6. Tag the tested commit with the matching version, such as `v0.6.0`, and push the tag.
 7. After the release is published, set the version, the archive URL and its SHA-256 from the
    release's `SHA256SUMS` in `bucket/anode.json` and `packaging/winget/*` (winget expects the hash
    in upper case), then push. Scoop users get the update from that commit.

@@ -12,7 +12,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>anode</AssemblyName>
     <RootNamespace>Anode</RootNamespace>
-    <Version>0.5.0</Version>
+    <Version>0.6.0</Version>
     <Company>Anode</Company>
     <Product>Anode</Product>
     <AssemblyTitle>Anode background Windows desktop</AssemblyTitle>

@@ -23,32 +23,46 @@ anode capabilities | Out-Host
 the discoverable `anode-desktop` skill. Use `--no-skill` for MCP registration alone.
 Restart the agent afterward. Other MCP clients can launch `anode.exe` with the argument `mcp`.
 
-## What's new in 0.5.0
+## What's new in 0.6.0
 
-**Desktop leases.** `seat_lease` and `anode lease` give one agent exclusive use of the seat, with
-renewal, idle expiry and scoped release. Desktop tools now require a lease. MCP agents call
-`seat_lease` with `{"action":"acquire"}` before desktop work and `{"action":"renew"}` before it
-expires (default 120 s, configurable from 10 to 600 s); the server remembers the returned token and
-attaches it to later desktop calls. CLI workflows pass an agent ID and token (`ANODE_AGENT_ID`,
-`ANODE_LEASE_TOKEN`). Stale queued actions are rejected while in-flight operations finish, and Stop
-stays immediate and global.
+**A clearer viewer and a new icon.** The mark has a symmetric diagonal cursor. The viewer adds
+consistent dark and high-contrast colors, clearer input and connection labels, and copyable status
+details. Stop, Release control and Exit full screen remain visible in full screen. Connections
+refuse to proceed if the desktop pointer guard cannot be installed.
 
-**The viewer no longer moves the real mouse pointer.** A program in the seat calling `SetCursorPos`
-(SDL games do it on every switch between relative and absolute mouse mode) teleported the pointer on
-your own desktop, even with the viewer hidden or view-only. Anode now gates that call inside its own
-process, and `anode status` reports `pointerGuard`.
+**More reliable agent connections.** Duplicate JSON fields and malformed Unicode are rejected
+without ending the connection. Cancelled requests cannot start or cancel jobs, while commands
+already started remain recoverable. Command output uses UTF-8 and preserves Unicode characters
+across buffer, pagination and history boundaries.
 
-**Sign in…** beside **Reconnect** in the viewer header retries a failed automatic sign-in, or
-requests the Windows credential dialog, without restarting Anode or closing the seat's programs.
+**Better agent discovery.** All 32 tools have titles, bounded argument schemas and explicit
+annotations. Server instructions and the installed skill lead with the desktop lease workflow.
+The `desktop_test` and `desktop_guide` prompts provide reusable workflows. Screenshot results no
+longer duplicate their control trees, which could cause clients to discard the image.
 
-**Upgrading (breaking for scripts):** CLI scripts that send input, take screenshots, inspect
-windows or start programs must now acquire a lease first; see
-[multiple agents](https://github.com/skulitom/Anode/blob/main/docs/MULTI-AGENT.md). Before
-updating, save seat work, run `anode quit` (it closes every program in the seat) and close MCP
-clients using Anode; the installer refuses to replace a running executable. Then install, start
-Anode again so the daemon and seat host load the new protocol and the pointer guard, and run
+**Installation and packaging.** Installation works when an agent runner omits the `OS` environment
+variable. Packages include .NET 8.0.31, verified checksums and build-provenance attestations.
+The Claude Code plugin marketplace and Scoop bucket provide additional installation options.
+
+**Upgrading (breaking for scripts and agents):** Only `seat_start` and `seat_lease` acquisition
+start a desktop over MCP. Status and diagnostics never start one, and stale leases cannot restart
+Anode after the user quits. The CLI rejects unknown options and malformed arguments with exit code
+2 before acting. Job `maxChars` counts Unicode code points; reuse output cursors exactly as returned.
+Desktop work still requires a lease; see
+[multiple agents](https://github.com/skulitom/Anode/blob/main/docs/MULTI-AGENT.md).
+
+Before updating, save seat work, run `anode quit` (it closes every program in the seat) and close
+MCP clients using Anode; the installer refuses to replace a running executable. Install the new
+version, start Anode again so both the daemon and seat host use the new build, and run
 `anode configure` to update the installed skill.
 See [the agent guide](https://github.com/skulitom/Anode/blob/main/docs/FOR-AGENTS.md).
+
+**Validation and limits.** The candidate passed all 51 local quick checks, package/installation
+checks and live Windows Forms/WPF and Chrome tests on Windows 11 Pro 25H2, including delivered
+mouse/keyboard input. The dedicated live pointer-isolation test was deferred to keep the user's
+desktop/session available; its quick regression checks passed. Broader Windows, DPI, screen-reader
+and client compatibility checks remain outstanding. See the
+[validation record](https://github.com/skulitom/Anode/blob/v0.6.0/docs/RELEASE-READINESS.md).
 
 Requires 64-bit Windows 10/11 Pro, Enterprise or Education, or Windows Server with a Remote Desktop
 host. Windows Home is unsupported. ARM64 is not validated; this package targets x64.

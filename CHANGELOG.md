@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 — 2026-09-22
 
 - Reject duplicate JSON fields and invalid Unicode escapes before any action, including nested
   tool arguments, and keep MCP and named-pipe connections usable after malformed requests.
