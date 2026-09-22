@@ -384,6 +384,15 @@ internal static class McpChecks
             Request(11, "tools/call", Tool("seat_click", new JsonObject { ["X"] = 10, ["Y"] = 10 })),
             "{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"seat_stop\",\"arguments\":{}}}",
             "{\"jsonrpc\":\"2.0\",\"method\":\"ping\"}",
+            """{"jsonrpc":"2.0","id":20,"method":"ping","method":"tools/call"}""",
+            """{"jsonrpc":"2.0","id":21,"method":"tools/call","params":{"name":"seat_stop","arguments":{},"arguments":{}}}""",
+            """{"jsonrpc":"2.0","id":22,"method":"tools/call","params":{"name":"seat_type","arguments":{"text":"first","text":"second"}}}""",
+            """{"jsonrpc":"2.0","id":23,"method":"tools/call","params":{"name":"seat_exec","arguments":{"path":"unused-test-command","env":{"A":"1","\u0041":"2"}}}}""",
+            """{"jsonrpc":"2.0","id":24,"method":"ping","unused":[{"x":1,"x":2}]}""",
+            """{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":1,"requestId":2}}""",
+            """{"jsonrpc":"2.0","id":25,"method":"\uD800"}""",
+            """{"jsonrpc":"2.0","id":26,"method":"tools/call","params":{"name":"seat_type","arguments":{"text":"\uDC00"}}}""",
+            """{"jsonrpc":"2.0","id":27,"method":"ping","params":{"\uD800":0}}""",
             Request(12, "ping")
         };
         using var output = new StringWriter();
@@ -391,7 +400,7 @@ internal static class McpChecks
         var replies = output.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries)
             .Select(line => JsonLine.Parse(line)!).ToArray();
         Require(calls == 0, "invalid request or notification dispatched an action");
-        Require(replies.Length == 14, "invalid requests or notifications produced the wrong number of replies");
+        Require(replies.Length == 23, "invalid requests or notifications produced the wrong number of replies");
         Require(replies[0].Obj("result")?.Str("protocolVersion") == "2025-11-25", "unsupported protocol was echoed back");
         Require(replies[1].Obj("error")?.Int("code") == -32700, "malformed JSON was not a parse error");
         Require(replies[2].Obj("error")?.Int("code") == -32600 && replies[3].Obj("error")?.Int("code") == -32600,
@@ -401,7 +410,8 @@ internal static class McpChecks
         for (int id = 5; id <= 11; id++)
             Require(replies.Single(r => r.Int("id") == id).Obj("result")?.Bool("isError") == true, $"invalid arguments for request {id} were accepted");
         Require(replies[^1].Obj("result") is { Count: 0 }, "server did not recover after invalid requests");
-        return "protocol negotiation, envelopes, notifications and tool arguments validated before actions";
+        Require(replies.Count(r => r.Obj("error")?.Int("code") == -32700) == 10, "ambiguous or invalid Unicode JSON was not rejected before dispatch");
+        return "protocol negotiation, duplicate fields, invalid Unicode, envelopes, notifications and arguments validated before actions";
     }
 
     public static async Task<string> StopAndCancellation()

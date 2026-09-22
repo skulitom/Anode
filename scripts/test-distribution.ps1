@@ -285,6 +285,10 @@ try {
     } else { Write-Host '[skip] packaging/winget is absent' }
 
     if ($Release) {
+        $changelog = Read-Text (Join-Path $root 'CHANGELOG.md')
+        $unreleased = [regex]::Match($changelog, '(?ms)^## Unreleased\s*\r?\n(?<body>.*?)(?=^## |\z)')
+        Check (-not $unreleased.Success -or [string]::IsNullOrWhiteSpace($unreleased.Groups['body'].Value)) `
+            'CHANGELOG.md has no unassigned Unreleased changes' 'Assign changes to a new version before publishing.'
         Check ((Read-Text (Join-Path $root '.github\RELEASE_NOTES.md')).Contains("What's new in $version")) "RELEASE_NOTES.md has What's new in $version"
         Check ((Read-Text (Join-Path $root 'CHANGELOG.md')) -match "(?m)^## $([regex]::Escape($version)) ") "CHANGELOG.md has a $version section"
     }

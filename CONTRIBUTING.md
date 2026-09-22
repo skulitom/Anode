@@ -45,10 +45,20 @@ Every build talks to the same control pipe. While a daemon is running, do not ru
 ## Icon and social preview
 
 `assets/anode.svg` is the master mark. `python assets/make-assets.py` regenerates
-`anode-512.png`, `anode.ico` and `social-preview.png` from the same geometry (Python 3, Pillow and
-Segoe UI); change the SVG and the script together. The executable, viewer and tray use `anode.ico`.
+`anode-512.png`, `anode.ico` and `social-preview.png` directly from its geometry and colors (Python
+3, Pillow and Segoe UI). Edit the SVG's named rectangles and pointer polygon; there is no second
+copy of the mark to update in the script. The executable, viewer and tray use `anode.ico`.
+The diagonal cursor is mirrored about `x = y`; its stem has parallel edges and a perpendicular tail.
+Use `python assets/make-assets.py artifacts/icon-review --proof` to review the icons at actual
+sizes on light and dark backgrounds before regenerating the checked-in assets.
 
 ## Release process
+
+See [the release-readiness review](docs/RELEASE-READINESS.md) for the current evidence and outstanding
+live checks. Passing the package checks alone does not establish desktop/input compatibility.
+`RuntimeFrameworkVersion` in the project pins the self-contained runtime. Review it against
+[Microsoft's support policy](https://dotnet.microsoft.com/en-us/platform/support/policy) before each
+release, update to the current supported patch, and rebuild and test the package.
 
 1. Update the version in `src/Anode/Anode.csproj`, rename `## Unreleased` in `CHANGELOG.md` to the
    version and date, and update pinned install examples such as `docs/INSTALL.md`.

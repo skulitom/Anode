@@ -41,7 +41,8 @@ internal static class ExecutionWorker
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine("Anode execution: " + ex.Message);
+            using var error = new StreamWriter(Console.OpenStandardError(), JsonLine.Utf8);
+            error.WriteLine("Anode execution: " + ex.Message);
             return 1;
         }
     }

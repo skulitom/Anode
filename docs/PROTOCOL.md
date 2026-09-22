@@ -7,6 +7,9 @@ an MCP client, this is the whole interface.
 
 Newline-delimited JSON over a named pipe, UTF-8 without a BOM. One request object per line, one
 response object per line, in order, on a single connection. No framing headers, no batching.
+Property names must be unique within each object, including nested arguments, and strings must
+contain well-formed Unicode. Malformed or ambiguous JSON is rejected before dispatch; the connection
+remains usable for the next request.
 
 **Request**
 
@@ -95,8 +98,9 @@ log-write failure and clears after a successful write; `logPath` is the actual r
 `pointerGuard` describes the gate on the Remote Desktop control's `SetCursorPos` import. `suppressed`
 counts seat pointer moves kept off the user's desktop, `forwarded` those applied because the user had
 taken control in a visible, focused viewer, and `viewer` is the control's rectangle on the user's
-desktop, which exists even while the viewer is hidden. `installed: false` means the real pointer is
-not protected; see [Troubleshooting](TROUBLESHOOTING.md#my-real-pointer-jumps-while-something-runs-in-the-seat).
+desktop, which exists even while the viewer is hidden. `installed: false` means the guard could not
+be verified; new connections and reconnects are refused. See
+[Troubleshooting](TROUBLESHOOTING.md#my-real-pointer-jumps-while-something-runs-in-the-seat).
 
 ## Operations the seat host owns
 
@@ -146,7 +150,9 @@ blocker; synthetic input fails explicitly instead of claiming it reached an appl
 | `exec.read` | `action: "list"` only | `{jobs: [{jobId, state, finished, exitCode, startedUtc}], summary}` |
 
 Commands use a verified child-session worker assigned to a Windows job before receiving its request.
-Client cancellation does not replay or cancel an already launched job. Jobs end on their own deadline,
+Already cancelled requests do not start or cancel jobs. Client cancellation does not replay or cancel
+an already launched job. Output is UTF-8; `maxChars` counts Unicode code points, preserving complete
+characters at page boundaries. Reuse returned cursors exactly. Jobs end on their own deadline,
 explicit cancellation, completion or host exit; existing applications remain outside their process tree.
 See [DEVELOPMENT-TESTING.md](DEVELOPMENT-TESTING.md) for bounds, exit semantics and cleanup.
 

@@ -13,9 +13,14 @@ internal sealed class ExecutionOutput
     private readonly int _capacity;
     private long _end;
     private int _size;
-    public ExecutionOutput(int capacity = 131072) => _capacity = capacity;
+    public ExecutionOutput(int capacity = 131072)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(capacity, 1);
+        _capacity = capacity;
+    }
     public void Append(string stream, string text)
     {
+        if (text.Length == 0) return;
         lock (_gate)
         {
             _chunks.Enqueue(new Chunk(_end, stream, text));
@@ -26,8 +31,9 @@ internal sealed class ExecutionOutput
             {
                 var last = _chunks.Dequeue();
                 int removed = last.Text.Length - _capacity;
+                if (char.IsSurrogatePair(last.Text, removed - 1)) removed++;
                 _chunks.Enqueue(last with { Start = last.Start + removed, Text = last.Text[removed..] });
-                _size = _capacity;
+                _size = last.Text.Length - removed;
             }
         }
     }
@@ -46,13 +52,23 @@ internal sealed class ExecutionOutput
             int remaining = maximum;
             foreach (var chunk in _chunks)
             {
-                if (remaining <= 0) break;
                 int skip = (int)Math.Clamp(cursor - chunk.Start, 0, chunk.Text.Length);
-                int length = Math.Min(remaining, chunk.Text.Length - skip);
+                if (skip == chunk.Text.Length) continue;
+                if (skip > 0 && char.IsSurrogatePair(chunk.Text, skip - 1))
+                    throw new ArgumentException("after splits a Unicode character; use a cursor returned by this job.");
+                if (remaining <= 0) break;
+                // maxChars counts Unicode scalar values. Cursors remain opaque UTF-16
+                // offsets, so even a one-character page can carry a complete emoji.
+                int length = 0, characters = 0;
+                while (skip + length < chunk.Text.Length && characters < remaining)
+                {
+                    length += char.IsSurrogatePair(chunk.Text, skip + length) ? 2 : 1;
+                    characters++;
+                }
                 if (length <= 0) continue;
                 (chunk.Stream == "stdout" ? stdout : stderr).Append(chunk.Text, skip, length);
                 cursor = chunk.Start + skip + length;
-                remaining -= length;
+                remaining -= characters;
             }
             return new JsonObject
             {

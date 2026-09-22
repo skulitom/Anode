@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- Reject duplicate JSON fields and invalid Unicode escapes before any action, including nested
+  tool arguments, and keep MCP and named-pipe connections usable after malformed requests.
+- Execution requests cancelled before dispatch no longer start or cancel jobs. Already started
+  jobs remain recoverable after a client cancellation or disconnect.
+- Command output always decodes as UTF-8 and preserves whole Unicode characters through stream
+  buffering, pagination and history truncation. `maxChars` counts Unicode code points.
+- Rebuilt the mark as an amber app tile with a symmetric diagonal cursor and generate all icon sizes from the source SVG, with a
+  light/dark size proof for asset review. Small icons preserve a complete frame at tray sizes,
+  and the release package includes the SVG referenced by its README.
+- Viewer polish: consistent dark hover/checked states, Windows high-contrast colors, an explicit
+  input-mode label, readable connection states and expandable, copyable status details. Emergency
+  Stop, control release and Exit full screen remain visible in full screen and outside overflow.
+  Details report when another application owns the emergency shortcut.
+- The installer detects Windows through the runtime, so installation works from agent runners
+  that omit the optional `OS` environment variable.
+- Viewer connections and reconnects now refuse to proceed if pointer isolation cannot be installed.
+  A partially written guard no longer reports itself as installed.
+- Self-contained builds explicitly use .NET 8.0.31 instead of inheriting an older runtime from
+  the developer's installed SDK. Release checks reject a nonempty Unreleased changelog section.
 - MCP server instructions and the `anode-desktop` skill now lead with the lease workflow:
   `seat_status`, `seat_lease` acquisition, `seat_capabilities`, the work, cleanup, release.
 - **Breaking:** only `seat_start` and `seat_lease` acquisition start a seat over MCP.

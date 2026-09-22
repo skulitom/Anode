@@ -67,7 +67,7 @@ internal static class Tools
                 ("action", "string", "read (default), cancel, or list to recover job IDs after an interrupted start.", false),
                 ("after", "string", "Output cursor from the preceding read of this job. Default 0.", false),
                 ("waitMs", "integer", "Wait for completion for up to 10000 ms. Default 0.", false),
-                ("maxChars", "integer", "Maximum output characters returned, 1-20000. Default 12000.", false))
+                ("maxChars", "integer", "Maximum Unicode characters (code points) returned, 1-20000. Default 12000.", false))
                 .OneOf("action", "read", "cancel", "list")),
 
         new("seat_wait", "Anode: wait for a UI control or text", "desktop.wait", false, Effect.ReadOnly,

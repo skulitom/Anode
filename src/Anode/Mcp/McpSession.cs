@@ -34,7 +34,7 @@ internal sealed class McpSession
                 if (string.IsNullOrWhiteSpace(line)) continue;
                 work.RemoveAll(task => task.IsCompleted);
                 JsonNode? node;
-                try { node = JsonNode.Parse(line); }
+                try { node = JsonLine.ParseNode(line); }
                 catch (JsonException)
                 {
                     await WriteAsync(output, Error(null, -32700, "Parse error")).ConfigureAwait(false);

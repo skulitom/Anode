@@ -127,6 +127,10 @@ try {
     Copy-Item -LiteralPath llms.txt -Destination $OutputDirectory -Force
     Copy-Item -LiteralPath scripts\install.ps1 -Destination $OutputDirectory -Force
     Copy-Item -LiteralPath (Join-Path $projectRoot 'docs') -Destination $OutputDirectory -Recurse -Force
+    # The installed README references this SVG; ship it with portable and installed builds.
+    $assetDirectory = Join-Path $OutputDirectory 'assets'
+    $null = New-Item -ItemType Directory -Path $assetDirectory -Force
+    Copy-Item -LiteralPath assets\anode.svg -Destination $assetDirectory -Force
 
     if (-not (Test-Path $exe)) { throw "Expected $exe to exist." }
 
@@ -148,7 +152,7 @@ try {
         $archive = Join-Path $ArchiveDirectory 'anode-windows-x64.zip'
         # Explicit payload prevents stale binaries, logs and local files entering a release.
         # scripts\test-distribution.ps1 reads this list.
-        $packageItems = @('anode.exe','connect-agents.ps1','install.ps1','README.md','LICENSE','CHANGELOG.md','CONTRIBUTING.md','AGENTS.md','llms.txt','docs','skills')
+        $packageItems = @('anode.exe','connect-agents.ps1','install.ps1','README.md','LICENSE','CHANGELOG.md','CONTRIBUTING.md','AGENTS.md','llms.txt','docs','skills','assets/anode.svg')
         $entries = @{}
         Add-ArchiveItems $entries $OutputDirectory $packageItems
         New-AnodeArchive $archive $entries $timestamp

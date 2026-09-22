@@ -3,6 +3,8 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
+    <!-- Self-contained releases must not inherit an old runtime from a developer's SDK. -->
+    <RuntimeFrameworkVersion>8.0.31</RuntimeFrameworkVersion>
     <UseWindowsForms>true</UseWindowsForms>
     <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable>

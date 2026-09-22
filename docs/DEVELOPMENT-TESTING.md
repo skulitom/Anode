@@ -47,15 +47,18 @@ are distinct states. Wait for `finished: true` to confirm cleanup has ended.
 {"action":"list"}
 ```
 
-Jobs survive a client disconnect. Recover IDs with `list` instead of replaying an uncertain start.
+Requests cancelled before execution do not create or cancel jobs. Once a job has started, it
+survives a client cancellation or disconnect. Recover IDs with `list` instead of replaying an uncertain start.
 They belong to the current seat host: restarting it ends running jobs and loses retained history.
 A Windows job object owns the worker before it receives its command, and ends its descendants
 on completion, cancellation, timeout or host exit. Existing apps and processes launched indirectly
 through unrelated services are outside that ownership boundary.
 
-Limits: eight unfinished jobs, 32 retained jobs, 131072 output characters per job, 20000 characters
-per read, ten seconds per completion wait, and a hard lifetime of 100 ms to 30 minutes (default two
-minutes). Output is decoded as UTF-8; configure older console tools accordingly. Redirect full logs
+Limits: eight unfinished jobs, 32 retained jobs, 131072 UTF-16 code units of retained output per job,
+20000 Unicode code points per read, ten seconds per completion wait, and a hard lifetime of 100 ms
+to 30 minutes (default two minutes). Pages and retention boundaries keep complete Unicode characters;
+cursors are opaque values and must be reused exactly as returned. Output is decoded as UTF-8
+regardless of the Windows console code page; configure older console tools accordingly. Redirect full logs
 to a file if needed. Commands can read the shared user environment, so avoid printing credentials.
 
 CLI `exec` requires `--` before the executable. `job` and `exec` return the exit code when complete;

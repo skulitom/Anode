@@ -159,8 +159,9 @@ how any Remote Desktop client behaves; otherwise it returns success without movi
 call sites in the module go through that single import slot. Delay-load tables are walked as well and
 slots are matched by name and by resolved address, so API-set redirection cannot hide the import.
 `status.pointerGuard` reports whether the patch is installed and how many moves it suppressed or
-forwarded. If a future `mstscax.dll` stops importing `SetCursorPos`, the quick self-test and status
-say so instead of failing silently.
+forwarded. Every connection and reconnection requires a successfully installed guard. If a future
+`mstscax.dll` stops importing `SetCursorPos` or a patch write fails, startup reports an error before
+calling Connect. Partial installation never reports `installed: true`.
 
 **No-activate on first show.** A seat coming up must not steal the keystroke you are in the middle of
 typing. The window is created with `WS_EX_NOACTIVATE`, which is cleared once connected so that later

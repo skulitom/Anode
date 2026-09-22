@@ -156,12 +156,21 @@ internal sealed class RdpViewer : AxHost
             TryExtended(extended, "DeviceScaleFactor", 100u);
         }
 
-        // Disabling the window stops input going to the seat, not pointer moves coming
-        // back from it. A failed patch is logged and reported by `anode status`.
-        PointerGuard.Install();
+        // A hidden/disabled RDP control can still move the real pointer. Never connect
+        // (including reconnects) unless the isolation gate has been installed successfully.
+        ConnectGuarded(PointerGuard.Install, () =>
+        {
+            Log.Info($"connecting the viewer to a child session at {options.Width}x{options.Height}");
+            Dispatch.Call(control, "Connect");
+        });
+    }
 
-        Log.Info($"connecting the viewer to a child session at {options.Width}x{options.Height}");
-        Dispatch.Call(control, "Connect");
+    internal static void ConnectGuarded(Func<bool> installGuard, Action connect)
+    {
+        if (!installGuard())
+            throw new InvalidOperationException("Anode could not protect your desktop pointer. The viewer was not connected. "
+                + "Update Anode and retry; if this continues, see " + Links.Troubleshooting + "#my-real-pointer-jumps-while-something-runs-in-the-seat");
+        connect();
     }
 
     internal string? DescribeDisconnect(int reason)

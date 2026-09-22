@@ -120,6 +120,8 @@ internal static class SelfTest
         Check(results, "desktop report escaping", DesktopChecks.Presentation);
         Check(results, "execution output", DevelopmentChecks.Output);
         Check(results, "execution jobs", () => DevelopmentChecks.Jobs().GetAwaiter().GetResult());
+        Check(results, "cancelled execution", () => DevelopmentChecks.CancelledStart().GetAwaiter().GetResult());
+        Check(results, "malformed pipe messages", () => TransportChecks.MalformedMessages().GetAwaiter().GetResult());
         Check(results, "agent ownership", () => AgentChecks.Ownership().GetAwaiter().GetResult());
         Check(results, "agent queue and disconnect", () => AgentChecks.QueueAndDisconnect().GetAwaiter().GetResult());
         Check(results, "MCP ownership", () => AgentChecks.McpOwnership().GetAwaiter().GetResult());

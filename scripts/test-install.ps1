@@ -18,7 +18,12 @@ function Expect-Failure([scriptblock]$Action, [string]$Pattern) {
 }
 try {
     # The archive must install into an arbitrary path without setup or an installed runtime.
-    $installOutput = @(& $installer -PackagePath $package -ChecksumPath $checksums -InstallDirectory $installation -NoPath 6>&1 | ForEach-Object { "$_" }) -join "`n"
+    # A filtered agent environment may omit OS even on Windows. Change only this test process.
+    $originalOs = [Environment]::GetEnvironmentVariable('OS', 'Process')
+    try {
+        $env:OS = $null
+        $installOutput = @(& $installer -PackagePath $package -ChecksumPath $checksums -InstallDirectory $installation -NoPath 6>&1 | ForEach-Object { "$_" }) -join "`n"
+    } finally { $env:OS = $originalOs }
     Write-Host $installOutput
     $exe = Join-Path $installation 'anode.exe'
     $quotedExe = "& '" + $exe.Replace("'", "''") + "'"
@@ -29,6 +34,8 @@ try {
     $guide = (& $exe guide --json | Out-String) | ConvertFrom-Json
     Assert ($LASTEXITCODE -eq 0 -and $guide.name -eq 'anode' -and $guide.guide.Length -gt 100) 'Standalone guide unavailable.'
     Assert (Test-Path -LiteralPath (Join-Path $installation 'skills\anode-desktop\SKILL.md')) 'Packaged skill is missing.'
+    Assert (Test-Path -LiteralPath (Join-Path $installation 'assets\anode.svg')) 'Installed README icon is missing.'
+    Write-Host '[ok] installation without OS environment variable, including the README icon'
     & $exe configure --help | Out-Host
     Assert ($LASTEXITCODE -eq 0) 'Configure help failed.'
     $ErrorActionPreference = 'Continue'

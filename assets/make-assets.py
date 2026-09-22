@@ -1,86 +1,53 @@
 """Regenerate Anode's raster brand assets.
 
-Usage: python assets/make-assets.py [output-directory]
+Usage: python assets/make-assets.py [output-directory] [--proof]
 
-Needs Python 3 and Pillow. Reads only the geometry below and Segoe UI from %WINDIR%\\Fonts;
-no network. Writes anode-512.png, anode.ico and social-preview.png next to this script unless
-an output directory is given. anode.svg is the master geometry written by hand; change both
-together.
+Needs Python 3 and Pillow. Reads anode.svg and Segoe UI from the Windows Fonts folder;
+no network. Writes anode-512.png, anode.ico and social-preview.png next to this script
+unless an output directory is given. --proof adds a light/dark icon-size proof sheet.
 
-The mark is the agent's seat: an amber screen with its own pointer. The near-black outline keeps
-it visible on light taskbars and the amber fill on dark ones. Every size is drawn at 8x and
-box-filtered, which leaves no ringing halo around the outline. Frames up to 48 px snap to the
-pixel grid first so the outline stays solid, and the 16, 20 and 24 px tray frames use hand-drawn
-pixel pointers.
+The SVG is the single source for the frame, screen, pointer and brand colors. It uses
+only rounded rectangles and a polygon so exports do not need a browser or SVG library.
+Every size is drawn at 8x and box-filtered without ringing. Small frames snap to whole
+pixels; the pointer retains the same proportions at every size.
 """
 
+import argparse
 import io
 import os
 import struct
-import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageColor, ImageDraw, ImageFont
 
-ACCENT = (255, 163, 26, 255)   # #ffa31a
-INK = (24, 24, 27, 255)        # #18181b, the viewer background
-HALF = (140, 94, 27, 255)      # ink over accent at 50%, for pixel-art edges
-MUTED = (161, 161, 170, 255)   # #a1a1aa, the viewer status text
-PAPER = (250, 250, 250, 255)   # #fafafa
+MASTER = ET.parse(Path(__file__).with_name("anode.svg")).getroot()
+if MASTER.get("viewBox") != "0 0 256 256":
+    raise ValueError("The master mark must use a 256 x 256 viewBox.")
 
-# Master geometry in the 256 x 256 viewBox of anode.svg.
-SCREEN = (8, 24, 248, 232)     # outer box: x0, y0, x1, y1
-SCREEN_RADIUS = 36
-OUTLINE = 16
-POINTER = [(88, 64), (88, 179), (117, 150), (140, 202), (162, 192), (141, 145), (169, 145)]
-POINTER_HEIGHT = 138           # tip to tail end
 
-# Tray sizes redrawn on the pixel grid: screen box, outline and corner radius in pixels, then the
-# pointer's tip and its pixels ("#" ink, "+" half ink).
-HINTS = {
-    16: ((0, 1, 16, 15), 1, 2.5, (5, 3), [
-        "#",
-        "##",
-        "###",
-        "####",
-        "#####",
-        "######",
-        "##+##",
-        "#  ##",
-        "    ##",
-        "    ##",
-    ]),
-    20: ((1, 2, 19, 18), 1, 3, (7, 4), [
-        "#",
-        "##",
-        "###",
-        "####",
-        "#####",
-        "######",
-        "#######",
-        "###+##",
-        "##  ##",
-        "#    ##",
-        "     ##",
-        "      +",
-    ]),
-    24: ((1, 2, 23, 22), 2, 4.5, (8, 5), [
-        "#",
-        "##",
-        "###",
-        "####",
-        "#####",
-        "######",
-        "#######",
-        "########",
-        "#########",
-        "####+###",
-        "###  ##",
-        "##   ###",
-        "#     ##",
-        "      ##",
-    ]),
-}
+def shape(name, tag):
+    element = MASTER.find(f"{{http://www.w3.org/2000/svg}}{tag}[@id='{name}']")
+    if element is None:
+        raise ValueError(f"Missing {tag} #{name} in anode.svg")
+    return element
+
+
+def rectangle(element):
+    x, y, w, h, r = (float(element.attrib[key]) for key in ("x", "y", "width", "height", "rx"))
+    return (x, y, x + w, y + h), r
+
+
+FRAME = shape("frame", "rect")
+SCREEN = shape("screen", "rect")
+CURSOR = shape("pointer", "polygon")
+INK = ImageColor.getcolor(FRAME.attrib["fill"], "RGBA")
+ACCENT = ImageColor.getcolor(SCREEN.attrib["fill"], "RGBA")
+POINTER_INK = ImageColor.getcolor(CURSOR.attrib["fill"], "RGBA")
+POINTER = [tuple(map(float, point.split(","))) for point in CURSOR.attrib["points"].split()]
+POINTER_HEIGHT = max(y for _, y in POINTER) - POINTER[0][1]
+MUTED = (161, 161, 170, 255)
+PAPER = (250, 250, 250, 255)
 
 ICON_SIZES = [16, 20, 24, 32, 40, 48, 64, 256]
 SUPERSAMPLE = 8
@@ -94,17 +61,23 @@ def pointer_at(tip, height):
 
 
 def mark_geometry(size):
-    """Screen box, outline, corner radius and pointer polygon (None when hinted), in pixels."""
-    if size in HINTS:
-        screen, outline, radius, _, _ = HINTS[size]
-        return screen, outline, radius, None
+    """Fit the SVG to a square, with whole-pixel screen edges at tray sizes."""
     k = size / 256
-    snap = size <= 48
-    fit = (lambda v: round(v * k)) if snap else (lambda v: v * k)
-    screen = tuple(fit(v) for v in SCREEN)
-    outline = max(1, round(OUTLINE * k)) if snap else OUTLINE * k
+    fit = (lambda v: round(v * k)) if size <= 48 else (lambda v: v * k)
+    outer, radius = rectangle(FRAME)
+    inner, inner_radius = rectangle(SCREEN)
+    frame = tuple(fit(v) for v in outer)
+    if size <= 48:
+        # Rounding both rectangles independently can erase a border (e.g. at 16 px).
+        insets = [max(1, round(abs(a - b) * k)) for a, b in zip(outer, inner)]
+        screen = tuple(v + inset * sign for v, inset, sign in zip(frame, insets, (1, 1, -1, -1)))
+        inner_radius = max(0, radius * k - min(insets))
+    else:
+        screen = tuple(v * k for v in inner)
+        inner_radius *= k
+    boxes = [(frame, radius * k), (screen, inner_radius)]
     tip = tuple(fit(v) for v in POINTER[0])
-    return screen, outline, SCREEN_RADIUS * k, pointer_at(tip, POINTER_HEIGHT * k)
+    return boxes, pointer_at(tip, POINTER_HEIGHT * k)
 
 
 def fill_box(draw, box, radius, fill, s):
@@ -120,26 +93,18 @@ def fill_polygon(draw, points, fill, s):
 
 def draw_mark(draw, size, s, offset=(0, 0)):
     """Draw the mark for a `size` px icon onto `draw`, which is `s` times larger than the target."""
-    (x0, y0, x1, y1), w, r, pointer = mark_geometry(size)
+    boxes, pointer = mark_geometry(size)
     dx, dy = offset
-    fill_box(draw, (x0 + dx, y0 + dy, x1 + dx, y1 + dy), r, INK, s)
-    fill_box(draw, (x0 + w + dx, y0 + w + dy, x1 - w + dx, y1 - w + dy), max(0, r - w), ACCENT, s)
-    if pointer:
-        fill_polygon(draw, [(x + dx, y + dy) for x, y in pointer], INK, s)
+    for ((x0, y0, x1, y1), radius), color in zip(boxes, (INK, ACCENT)):
+        fill_box(draw, (x0 + dx, y0 + dy, x1 + dx, y1 + dy), radius, color, s)
+    fill_polygon(draw, [(x + dx, y + dy) for x, y in pointer], POINTER_INK, s)
 
 
 def render_mark(size):
     s = SUPERSAMPLE
     image = Image.new("RGBA", (size * s, size * s), (0, 0, 0, 0))
     draw_mark(ImageDraw.Draw(image), size, s)
-    image = image.reduce(s)
-    if size in HINTS:
-        _, _, _, (tx, ty), rows = HINTS[size]
-        for j, row in enumerate(rows):
-            for i, c in enumerate(row):
-                if c != " ":
-                    image.putpixel((tx + i, ty + j), INK if c == "#" else HALF)
-    return image
+    return image.reduce(s)
 
 
 def ico_bytes(frames):
@@ -229,13 +194,41 @@ def social_preview():
     return image.convert("RGB")
 
 
+def proof_sheet():
+    """Actual-size icons above enlarged pixels, on both taskbar backgrounds."""
+    proof = Image.new("RGB", (960, 520), PAPER)
+    d = ImageDraw.Draw(proof)
+    sizes = (16, 20, 24, 32, 40, 48, 64, 128)
+    for row, background in enumerate((PAPER, INK)):
+        y = row * 260
+        d.rectangle((0, y, 960, y + 259), fill=background)
+        foreground = INK if row == 0 else PAPER
+        for i, size in enumerate(sizes):
+            x = i * 120 + 60
+            mark = render_mark(size)
+            proof.paste(mark, (x - size // 2, y + 32), mark)
+            if size <= 32:
+                zoom = mark.resize((size * 3, size * 3), Image.Resampling.NEAREST)
+                proof.paste(zoom, (x - zoom.width // 2, y + 112), zoom)
+            d.text((x, y + 238), f"{size} px", font=font("segoeui.ttf", 14), fill=foreground, anchor="mm")
+    return proof
+
+
 def main():
-    out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("output_directory", nargs="?", type=Path, default=Path(__file__).resolve().parent)
+    parser.add_argument("--proof", action="store_true", help="also export a light/dark icon-size proof sheet")
+    args = parser.parse_args()
+    out = args.output_directory
     out.mkdir(parents=True, exist_ok=True)
     render_mark(512).save(out / "anode-512.png", optimize=True)
     (out / "anode.ico").write_bytes(ico_bytes([render_mark(n) for n in ICON_SIZES]))
     social_preview().save(out / "social-preview.png", optimize=True)
-    for name in ("anode-512.png", "anode.ico", "social-preview.png"):
+    names = ["anode-512.png", "anode.ico", "social-preview.png"]
+    if args.proof:
+        proof_sheet().save(out / "icon-proof.png")
+        names.append("icon-proof.png")
+    for name in names:
         print(f"{out / name}  {(out / name).stat().st_size:,} bytes")
 
 

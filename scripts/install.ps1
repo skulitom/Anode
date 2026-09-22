@@ -19,7 +19,8 @@ param(
     [switch]$NoPath
 )
 $ErrorActionPreference = 'Stop'
-if ($env:OS -ne 'Windows_NT') { throw 'Anode requires Windows.' }
+# Agent runners can omit OS from their environment. Ask the runtime about the host instead.
+if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) { throw 'Anode requires Windows.' }
 if (-not [Environment]::Is64BitOperatingSystem) { throw 'Anode requires 64-bit Windows.' }
 if ([bool]$PackagePath -ne [bool]$ChecksumPath) { throw 'Supply both -PackagePath and -ChecksumPath for an offline install.' }
 if ($InstallDirectory.Contains(';')) { throw 'The installation path must not contain a semicolon (PATH separator).' }

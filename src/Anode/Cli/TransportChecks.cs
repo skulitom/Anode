@@ -96,6 +96,34 @@ internal static class TransportChecks
         return "replies must match the request id";
     }
 
+    public static async Task<string> MalformedMessages()
+    {
+        string name = PipeName();
+        int calls = 0;
+        using var server = new JsonPipeServer(name, _ => { calls++; return Task.FromResult(JsonLine.Ok()); });
+        server.Start();
+        using var client = new NamedPipeClientStream(".", name, PipeDirection.InOut,
+            PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+        await client.ConnectAsync(4000);
+        using var reader = new StreamReader(client, JsonLine.Utf8, false, 1024, leaveOpen: true);
+        using var writer = new StreamWriter(client, JsonLine.Utf8, 1024, leaveOpen: true) { AutoFlush = true };
+        foreach (string request in new[] {
+            """{"op":"first","op":"second"}""",
+            """{"op":"test","args":[{"name":"first","name":"second"}]}""",
+            """{"op":"test","args":{"text":"\uD800"}}""" })
+        {
+            await writer.WriteLineAsync(request);
+            string? line = await reader.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(3));
+            Require(line is not null && JsonLine.Parse(line)?.Bool("ok") == false && calls == 0,
+                "ambiguous JSON dispatched a command or closed the pipe");
+        }
+        await writer.WriteLineAsync("""{"op":"valid","id":7,"args":{"Name":1,"name":2}}""");
+        var reply = JsonLine.Parse((await reader.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(3)))!);
+        Require(reply?.Bool("ok") == true && reply.Int("id") == 7 && calls == 1,
+            "pipe did not recover after malformed input or rejected distinct property names");
+        return "duplicate fields and invalid Unicode are refused without dispatch; the same pipe remains usable";
+    }
+
     public static async Task<string> CloseDuringRequest()
     {
         var entered = Signal();

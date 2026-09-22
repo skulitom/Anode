@@ -237,6 +237,19 @@ internal static class DiagnosticsChecks
     /// </summary>
     public static string ViewerPointerGuard()
     {
+        int connections = 0;
+        try
+        {
+            RdpViewer.ConnectGuarded(() => false, () => connections++);
+            throw new InvalidOperationException("the viewer accepted a missing pointer guard");
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("could not protect your desktop pointer")) { }
+        Require(connections == 0, "the viewer connected before rejecting the missing guard");
+        try { RdpViewer.ConnectGuarded(() => throw new IOException("guard failure"), () => connections++); }
+        catch (IOException) { }
+        Require(connections == 0, "an installation exception allowed a connection");
+        RdpViewer.ConnectGuarded(() => true, () => connections++);
+        Require(connections == 1, "a protected viewer could not connect");
         foreach (bool input in new[] { false, true })
             foreach (bool visible in new[] { false, true })
                 foreach (bool foreground in new[] { false, true })
@@ -301,7 +314,7 @@ internal static class DiagnosticsChecks
         finally { CloseHandle(thread); }
         Require(PointerGuard.Suppressed == suppressed + 1 && PointerGuard.Forwarded == forwarded,
             "a native-thread call was not suppressed");
-        return $"{targets.Length} mstscax.dll import(s) gated; a hidden viewer cannot move the real pointer, from managed or native threads";
+        return $"{targets.Length} mstscax.dll import(s) gated; failed guards prevent connection; hidden managed/native calls cannot move the real pointer";
     }
 
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]

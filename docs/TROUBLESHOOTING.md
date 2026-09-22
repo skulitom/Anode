@@ -303,10 +303,11 @@ anode status --json   # pointerGuard: { installed, patchedImports, suppressed, f
 
 - `pointerGuard` missing: the daemon predates the guard. Restart it from a current build. That
   interrupts the seat, so arrange it with whoever has programs open there.
-- `installed: false`: this Windows build's `mstscax.dll` no longer imports `SetCursorPos` by name or
-  address, so there was nothing to patch. The daemon log says so at startup. Report it with the
-  file version of `C:\Windows\System32\mstscax.dll`; until it is handled, keep your pointer away
-  from where the viewer sits, or move the viewer to a monitor you are not using.
+- `installed: false`: Anode could not install every required guard, or an import no longer points
+  to it. New connections and reconnects are refused to protect your pointer. Update Anode and retry;
+  if this continues, report the daemon log and the file version of
+  `C:\Windows\System32\mstscax.dll`. This can happen if a Windows update changes the RDP client
+  or Windows prevents the patch. Older Anode builds only logged the failure and could still connect.
 - `suppressed` growing is the guard working. `forwarded` only grows while you have pressed
   **Take control** and the viewer is the foreground window; pointer moves inside the viewer are
   expected then, as in any Remote Desktop client.

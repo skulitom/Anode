@@ -31,13 +31,15 @@ internal static unsafe class PointerGuard
     private static readonly object Sync = new();
     private static readonly List<IntPtr> Slots = new();
     private static IntPtr _module;
+    private static bool _installationComplete;
     private static delegate* unmanaged<int, int, int> _real;
     private static volatile Viewer[] _viewers = Array.Empty<Viewer>();
     private static long _suppressed, _forwarded;
 
     private sealed record Viewer(IntPtr Control, bool InputEnabled);
 
-    public static bool Installed { get { lock (Sync) return Slots.Count > 0; } }
+    public static bool Installed { get { lock (Sync) return IsInstalled(); } }
+    private static bool IsInstalled() => _installationComplete && Slots.Count > 0 && Slots.All(slot => IsGate(*(IntPtr*)slot));
     public static long Suppressed => Interlocked.Read(ref _suppressed);
     public static long Forwarded => Interlocked.Read(ref _forwarded);
 
@@ -49,6 +51,7 @@ internal static unsafe class PointerGuard
     {
         lock (Sync)
         {
+            _installationComplete = false;
             try
             {
                 // Pinned so the recorded import slots stay valid for the life of the process.
@@ -69,22 +72,28 @@ internal static unsafe class PointerGuard
                 _module = module;
                 _real = (delegate* unmanaged<int, int, int>)real;
 
+                var found = FindSlots((byte*)module, real, hook);
+                Slots.Clear();
                 int patched = 0;
-                foreach (IntPtr slot in FindSlots((byte*)module, real, hook))
+                foreach (IntPtr slot in found)
                 {
-                    if (!Slots.Contains(slot)) Slots.Add(slot);
-                    if (*(IntPtr*)slot == hook) continue;
-                    Write(slot, hook);
-                    patched++;
+                    if (*(IntPtr*)slot != hook)
+                    {
+                        Write(slot, hook);
+                        patched++;
+                    }
+                    // A failed write must never count as an installed guard.
+                    Slots.Add(slot);
                 }
 
                 if (Slots.Count == 0)
                     Log.Error($"pointer guard: {ClientModule} has no {GuardedImport} import to patch. " +
-                        "A program in the seat that moves its cursor may move the real pointer; see docs/TROUBLESHOOTING.md.");
+                        "The viewer cannot connect safely; see docs/TROUBLESHOOTING.md.");
                 else if (patched > 0)
                     Log.Info($"pointer guard: patched {patched} {GuardedImport} import(s) of {ClientModule}; " +
                         "the viewer moves the local pointer only while it is focused with control taken");
-                return Slots.Count > 0;
+                _installationComplete = true;
+                return IsInstalled();
             }
             catch (Exception ex)
             {
@@ -113,8 +122,8 @@ internal static unsafe class PointerGuard
         {
             var status = new JsonObject
             {
-                ["installed"] = Slots.Count > 0,
-                ["patchedImports"] = Slots.Count,
+                ["installed"] = IsInstalled(),
+                ["patchedImports"] = Slots.Count(slot => IsGate(*(IntPtr*)slot)),
                 ["suppressed"] = Suppressed,
                 ["forwarded"] = Forwarded
             };

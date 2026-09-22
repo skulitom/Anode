@@ -45,11 +45,13 @@ internal sealed class ExecutionJobs : IDisposable
     {
         if (!Agents.AgentAccess.ValidId(agentId)) throw new ArgumentException("A valid agentId is required for execution jobs.");
         if (Mcp.Tools.ValidateArguments("seat_exec", request) is { } error) throw new ArgumentException(error);
+        cancel.ThrowIfCancellationRequested();
         if (Core.Steam.Steam.DirectLaunchFailure(request.Str("path")!, Session.ChildSession.CurrentSessionId()) is { } blocked)
             throw new InvalidOperationException(blocked);
         var job = new Job { AgentId = agentId };
         lock (_gate)
         {
+            cancel.ThrowIfCancellationRequested();
             if (_disposed) throw new ObjectDisposedException(nameof(ExecutionJobs));
             if (_jobs.Values.Count(j => !j.Done.Task.IsCompleted) >= 8) throw new InvalidOperationException("Eight commands are already running in this shared seat. Wait, or finish/cancel one of your own jobs.");
             while (_jobs.Count >= 32)
@@ -77,6 +79,7 @@ internal sealed class ExecutionJobs : IDisposable
             info.CreateNoWindow = true;
             info.WindowStyle = ProcessWindowStyle.Hidden;
             info.RedirectStandardInput = info.RedirectStandardOutput = info.RedirectStandardError = true;
+            info.StandardOutputEncoding = info.StandardErrorEncoding = JsonLine.Utf8;
             info.Environment["ANODE_AGENT_ID"] = job.AgentId;
             info.Environment.Remove("ANODE_LEASE_TOKEN");
             if (request.Str("cwd") is { } cwd) info.WorkingDirectory = cwd;
@@ -117,17 +120,29 @@ internal sealed class ExecutionJobs : IDisposable
         }
     }
 
-    private static async Task DrainAsync(StreamReader reader, string channel, ExecutionOutput output)
+    internal static async Task DrainAsync(TextReader reader, string channel, ExecutionOutput output)
     {
-        var buffer = new char[4096];
+        var buffer = new char[4097];
         int count;
-        while ((count = await reader.ReadAsync(buffer).ConfigureAwait(false)) > 0) output.Append(channel, new string(buffer, 0, count));
+        while ((count = await reader.ReadAsync(buffer.AsMemory(0, 4096)).ConfigureAwait(false)) > 0)
+        {
+            // A decoded surrogate pair can straddle ReadAsync's character buffer.
+            // Keep it in one chunk before stderr interleaves or history is evicted.
+            if (char.IsHighSurrogate(buffer[count - 1]))
+            {
+                int extra = await reader.ReadAsync(buffer.AsMemory(count, 1)).ConfigureAwait(false);
+                if (extra == 0) buffer[count - 1] = '\uFFFD';
+                else count += extra;
+            }
+            output.Append(channel, new string(buffer, 0, count));
+        }
     }
 
     public async Task<JsonObject> ReadAsync(JsonObject request, string agentId, CancellationToken cancel = default)
     {
         if (!Agents.AgentAccess.ValidId(agentId)) throw new ArgumentException("A valid agentId is required for execution jobs.");
         if (Mcp.Tools.ValidateArguments("seat_job", request) is { } error) throw new ArgumentException(error);
+        cancel.ThrowIfCancellationRequested();
         if (request.Str("action") == "list")
         {
             var items = new JsonArray();
@@ -143,6 +158,7 @@ internal sealed class ExecutionJobs : IDisposable
             if (!_jobs.TryGetValue(request.Str("jobId")!, out job!) || job.AgentId != agentId)
                 throw new InvalidOperationException("Unknown jobId for this agent. Use the original agentId; only the latest 32 jobs in this seat host are retained.");
         job.Output.Read(request.Str("after"), 0); // Reject a future cursor before cancellation or waiting.
+        cancel.ThrowIfCancellationRequested();
         if (request.Str("action") == "cancel") job.Stop("cancelled");
         int wait = request.Int("waitMs") ?? 0;
         if (!job.Done.Task.IsCompleted && wait > 0)

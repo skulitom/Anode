@@ -79,6 +79,12 @@ The viewer appears **without taking focus**, so a seat can come up mid-sentence 
 keystrokes. It starts in **view only**: your stray clicks do not reach the seat. Press
 **Take control** when you want to drive it yourself.
 
+The status bar says **View only** or **You have control**. **Full screen** (F11) keeps the
+**Stop seat**, **Release control** and **Exit full screen** buttons visible. **Details** expands
+the complete status message, including troubleshooting steps and emergency-shortcut availability;
+select text and press Ctrl+C to copy it. At narrow window sizes, secondary actions appear in the
+toolbar's overflow menu. Closing or minimizing the viewer leaves the seat running.
+
 Press **Sign in…** in the header next to **Reconnect** to open Windows' credential dialog.
 This also retries a failed automatic sign-in without restarting Anode or signing out the seat.
 The tray icon's menu offers the same **Sign in…** while the viewer is hidden.

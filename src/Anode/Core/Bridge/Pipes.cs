@@ -19,10 +19,33 @@ internal static class JsonLine
 
     public static string Serialize(JsonObject value) => value.ToJsonString(Compact);
 
+    public static JsonNode? ParseNode(string line)
+    {
+        var node = JsonNode.Parse(line);
+        // JsonNode materializes objects and strings lazily. Duplicate names and invalid
+        // Unicode escapes otherwise throw only when a handler reads them, possibly after acting.
+        try { Materialize(node); }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        {
+            throw new JsonException("JSON must have unique property names and well-formed Unicode strings.", ex);
+        }
+        return node;
+
+        static void Materialize(JsonNode? value)
+        {
+            if (value is JsonObject obj)
+                foreach (var property in obj) Materialize(property.Value);
+            else if (value is JsonArray array)
+                foreach (var item in array) Materialize(item);
+            else if (value is JsonValue scalar && scalar.GetValueKind() == JsonValueKind.String)
+                _ = scalar.GetValue<string>();
+        }
+    }
+
     public static JsonObject? Parse(string line)
     {
         if (string.IsNullOrWhiteSpace(line)) return null;
-        try { return JsonNode.Parse(line) as JsonObject; }
+        try { return ParseNode(line) as JsonObject; }
         catch (JsonException) { return null; }
     }
 
@@ -154,7 +177,7 @@ internal sealed class JsonPipeServer : IDisposable
                 JsonObject response;
                 if (request is null)
                 {
-                    response = JsonLine.Fail("request was not a JSON object");
+                    response = JsonLine.Fail("request must be a JSON object with unique property names and well-formed Unicode strings");
                 }
                 else
                 {

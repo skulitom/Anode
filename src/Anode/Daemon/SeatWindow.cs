@@ -24,10 +24,14 @@ internal sealed class SeatWindow : Form
     private readonly ToolStripButton _fullScreenButton = new();
     private readonly ToolStripButton _reconnectButton = new();
     private readonly ToolStripButton _signInButton = new();
+    private readonly ToolStripButton _detailsButton = new();
     private readonly ToolStripLabel _headline = new();
     private readonly StatusStrip _statusBar = new();
     private readonly ToolStripStatusLabel _statusLabel = new();
     private readonly ToolStripStatusLabel _seatLabel = new();
+    private readonly ToolStripStatusLabel _modeLabel = new();
+    private readonly TextBox _details = new();
+    private readonly Panel _detailsPanel = new();
     private readonly NotifyIcon _tray = new();
     private readonly ToolStripMenuItem _traySignIn = new("Sign in…");
     private readonly Icon? _icon = LoadIcon();
@@ -40,6 +44,9 @@ internal sealed class SeatWindow : Form
     private bool _viewOnly = true;
     private bool _noActivate = true;
     private bool _reallyClosing;
+    private bool _hotkeyAvailable;
+    private string _state = "starting";
+    private uint? _sessionId;
 
     public RdpViewer Viewer { get; }
 
@@ -51,12 +58,16 @@ internal sealed class SeatWindow : Form
     public SeatWindow(SeatOptions options)
     {
         Viewer = new RdpViewer();
+        Viewer.TabIndex = 1;
 
         Text = "Anode seat";
+        AccessibleName = "Anode seat viewer";
+        AutoScaleDimensions = new SizeF(96, 96);
+        AutoScaleMode = AutoScaleMode.Dpi;
         StartPosition = FormStartPosition.Manual;
         MinimumSize = new Size(560, 360);
-        BackColor = Color.FromArgb(24, 24, 27);
-        ForeColor = Color.FromArgb(228, 228, 231);
+        BackColor = ViewerTheme.Background;
+        ForeColor = ViewerTheme.Text;
         Icon = _icon ?? SystemIcons.Application;
         KeyPreview = true;
         _noActivate = true;
@@ -64,8 +75,25 @@ internal sealed class SeatWindow : Form
         BuildToolbar();
         BuildStatusBar();
         BuildTray();
+        _details.Name = "SeatDetails";
+        _details.AccessibleName = "Seat status details";
+        _details.AccessibleDescription = "Full seat status. Select text and press Ctrl+C to copy.";
+        _details.Multiline = true;
+        _details.ReadOnly = true;
+        _details.ScrollBars = ScrollBars.Vertical;
+        _details.BorderStyle = BorderStyle.None;
+        _details.Dock = DockStyle.Fill;
+        _detailsPanel.Name = "SeatDetailsPanel";
+        _detailsPanel.TabIndex = 2;
+        _detailsPanel.Dock = DockStyle.Bottom;
+        _detailsPanel.Height = 156;
+        _detailsPanel.Padding = new Padding(12, 10, 12, 10);
+        _detailsPanel.Visible = false;
+        _detailsPanel.Controls.Add(_details);
+        ApplyTheme();
 
         Controls.Add(Viewer);
+        Controls.Add(_detailsPanel);
         Controls.Add(_toolbar);
         Controls.Add(_statusBar);
 
@@ -92,35 +120,45 @@ internal sealed class SeatWindow : Form
             Viewer.SetInputEnabled(!value);
             _controlButton.Text = value ? "Take control" : "Release control";
             _controlButton.Checked = !value;
+            _controlButton.AccessibleName = _controlButton.Text;
+            _modeLabel.Text = value ? "View only" : "You have control";
+            _modeLabel.ForeColor = value ? ViewerTheme.Muted : ViewerTheme.Accent;
             _controlButton.ToolTipText = value
                 ? "Let your mouse and keyboard reach the seat."
                 : "Stop your mouse and keyboard from reaching the seat.";
+            _modeLabel.ToolTipText = value ? "Your clicks and keystrokes do not reach the seat." : _controlButton.ToolTipText;
+            RefreshDetails();
         }
     }
 
     private void BuildToolbar()
     {
         _toolbar.Dock = DockStyle.Top;
+        _toolbar.Name = "SeatToolbar";
+        _toolbar.AccessibleName = "Seat controls";
+        _toolbar.TabStop = true;
+        _toolbar.TabIndex = 0;
         _toolbar.GripStyle = ToolStripGripStyle.Hidden;
-        _toolbar.RenderMode = ToolStripRenderMode.System;
-        _toolbar.BackColor = Color.FromArgb(32, 32, 36);
-        _toolbar.ForeColor = Color.FromArgb(228, 228, 231);
-        _toolbar.Padding = new Padding(6, 4, 6, 4);
+        _toolbar.Padding = new Padding(8, 6, 8, 6);
         _toolbar.ImageScalingSize = new Size(16, 16);
 
         _stopButton.Text = "Stop seat";
-        _stopButton.ToolTipText = "Sign the seat out. Every program running in it is closed immediately, wedged or not. (Ctrl+Alt+Shift+K)";
+        _stopButton.Name = "StopSeat";
+        _stopButton.ToolTipText = "Close every program in the seat immediately, including unsaved work. Ctrl+Alt+Shift+K also stops the seat when available.";
+        _stopButton.AccessibleDescription = _stopButton.ToolTipText;
         _stopButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
-        _stopButton.ForeColor = Color.FromArgb(248, 113, 113);
+        _stopButton.ForeColor = ViewerTheme.Danger;
         _stopButton.Font = new Font(_toolbar.Font, FontStyle.Bold);
         _stopButton.Click += (_, _) => StopSeatRequested?.Invoke();
 
         _controlButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+        _controlButton.Name = "ControlSeat";
         _controlButton.CheckOnClick = false;
         _controlButton.Click += (_, _) => ViewOnly = !ViewOnly;
 
         _fullScreenButton.Text = "Full screen";
-        _fullScreenButton.ToolTipText = "F11";
+        _fullScreenButton.Name = "FullScreen";
+        _fullScreenButton.ToolTipText = "Toggle full screen (F11). Seat controls stay available.";
         _fullScreenButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
         _fullScreenButton.Click += (_, _) => ToggleFullScreen();
 
@@ -134,9 +172,21 @@ internal sealed class SeatWindow : Form
         _signInButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
         _signInButton.Click += (_, _) => SignInRequested?.Invoke();
 
+        _detailsButton.Name = "ShowDetails";
+        _detailsButton.Text = "Details";
+        _detailsButton.ToolTipText = "Read and copy the full seat status and troubleshooting details.";
+        _detailsButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+        _detailsButton.CheckOnClick = true;
+        _detailsButton.CheckedChanged += (_, _) =>
+        {
+            _detailsPanel.Visible = _detailsButton.Checked;
+            if (_detailsPanel.Visible) _details.Focus();
+        };
+
         _headline.Alignment = ToolStripItemAlignment.Right;
-        _headline.ForeColor = Color.FromArgb(161, 161, 170);
-        _headline.Text = "starting";
+        _headline.ForeColor = ViewerTheme.Muted;
+        _headline.Text = "Starting";
+        _headline.Name = "SeatState";
 
         _toolbar.Items.AddRange(new ToolStripItem[]
         {
@@ -146,25 +196,38 @@ internal sealed class SeatWindow : Form
             _fullScreenButton,
             _reconnectButton,
             _signInButton,
+            _detailsButton,
             _headline
         });
+        foreach (var button in _toolbar.Items.OfType<ToolStripButton>())
+        {
+            button.Padding = new Padding(6, 4, 6, 4);
+            button.AccessibleName = button.Text;
+        }
+        // The emergency action and the way out of full screen must never disappear into overflow.
+        _stopButton.Overflow = _controlButton.Overflow = _fullScreenButton.Overflow = ToolStripItemOverflow.Never;
     }
 
     private void BuildStatusBar()
     {
         _statusBar.Dock = DockStyle.Bottom;
-        _statusBar.BackColor = Color.FromArgb(32, 32, 36);
-        _statusBar.ForeColor = Color.FromArgb(161, 161, 170);
+        _statusBar.Name = "SeatStatus";
+        _statusBar.AccessibleName = "Seat status";
+        _statusBar.ShowItemToolTips = true;
         _statusBar.SizingGrip = true;
 
         _statusLabel.Spring = true;
         _statusLabel.TextAlign = ContentAlignment.MiddleLeft;
         _statusLabel.Text = "Starting Anode...";
+        _statusLabel.ToolTipText = _statusLabel.Text;
 
         _seatLabel.TextAlign = ContentAlignment.MiddleRight;
-        _seatLabel.Text = "no seat";
+        _seatLabel.Text = "No seat";
+        _seatLabel.Margin = new Padding(10, 3, 0, 2);
+        _modeLabel.Name = "InputMode";
+        _modeLabel.Margin = new Padding(6, 3, 12, 2);
 
-        _statusBar.Items.AddRange(new ToolStripItem[] { _statusLabel, _seatLabel });
+        _statusBar.Items.AddRange(new ToolStripItem[] { _modeLabel, _statusLabel, _seatLabel });
     }
 
     private void BuildTray()
@@ -185,7 +248,7 @@ internal sealed class SeatWindow : Form
         menu.Items.Add("Help", null, (_, _) => OpenHelp());
         menu.Items.Add("Quit Anode", null, (_, _) => QuitRequested?.Invoke());
 
-        // Select the hand-drawn small frame; scaling the 32 px icon blurs it in the tray.
+        // Select the matching small frame; scaling the 32 px icon blurs it in the tray.
         _trayIcon = _icon is null ? null : new Icon(_icon, SystemInformation.SmallIconSize);
         _tray.Icon = _trayIcon ?? SystemIcons.Application;
         _tray.Text = TrayText(null);
@@ -221,6 +284,37 @@ internal sealed class SeatWindow : Form
         catch (Exception ex) { Log.Warn($"could not open {Links.Troubleshooting}: {ex.Message}"); }
     }
 
+    private void ApplyTheme()
+    {
+        BackColor = ViewerTheme.Background;
+        ForeColor = ViewerTheme.Text;
+        ViewerTheme.Apply(_toolbar);
+        ViewerTheme.Apply(_statusBar);
+        _stopButton.ForeColor = ViewerTheme.Danger;
+        _headline.ForeColor = _state is "error" or "logon-error" ? ViewerTheme.Danger : ViewerTheme.Muted;
+        _statusLabel.ForeColor = _seatLabel.ForeColor = ViewerTheme.Muted;
+        _modeLabel.ForeColor = ViewOnly ? ViewerTheme.Muted : ViewerTheme.Accent;
+        _detailsPanel.BackColor = _details.BackColor = SystemInformation.HighContrast ? SystemColors.Window : ViewerTheme.Surface;
+        _details.ForeColor = SystemInformation.HighContrast ? SystemColors.WindowText : ViewerTheme.Text;
+    }
+
+    protected override void OnSystemColorsChanged(EventArgs e)
+    {
+        base.OnSystemColorsChanged(e);
+        ApplyTheme();
+    }
+
+    private void RefreshDetails()
+    {
+        _details.Text = $"{_headline.Text}\r\n{_statusLabel.Text}\r\n\r\n{_seatLabel.Text} · {_modeLabel.Text}\r\n"
+            + (_hotkeyAvailable ? "Emergency stop: Ctrl+Alt+Shift+K."
+                : "Emergency shortcut unavailable. Use Stop seat, the tray menu or anode kill.")
+            + "\r\nStop closes all seat programs, including unsaved work. Closing the viewer keeps the seat running.";
+        string seat = _sessionId is { } id ? $" · session {id}" : "";
+        string tooltip = $"Anode: {_headline.Text}{seat}";
+        _tray.Text = tooltip.Length > 63 ? tooltip[..63] : tooltip;
+    }
+
     // ------------------------------------------------------------------ status
 
     public void SetReconnectEnabled(bool enabled)
@@ -235,21 +329,33 @@ internal sealed class SeatWindow : Form
     {
         if (InvokeRequired) { BeginInvoke(new Action(() => SetStatus(text))); return; }
         _statusLabel.Text = text;
+        _statusLabel.ToolTipText = text;
+        RefreshDetails();
     }
 
     public void SetHeadline(string text)
     {
         if (InvokeRequired) { BeginInvoke(new Action(() => SetHeadline(text))); return; }
-        _headline.Text = text;
+        _state = text;
+        _headline.Text = text switch
+        {
+            "starting" => "Starting", "connecting" => "Connecting", "signing-in" => "Signing in",
+            "starting-agent" => "Preparing desktop", "ready" => "Ready", "stopping" => "Stopping",
+            "stopped" => "Stopped", "detached" => "Disconnected", "logon-error" => "Sign-in failed",
+            "error" => "Needs attention", _ => text
+        };
+        _headline.ForeColor = text is "error" or "logon-error" ? ViewerTheme.Danger : ViewerTheme.Muted;
+        RefreshDetails();
     }
 
     public void SetSeatInfo(uint? sessionId, bool hostReady)
     {
         if (InvokeRequired) { BeginInvoke(new Action(() => SetSeatInfo(sessionId, hostReady))); return; }
+        _sessionId = sessionId;
         _seatLabel.Text = sessionId is null
-            ? "no seat"
-            : $"session {sessionId}  |  host {(hostReady ? "ready" : "starting")}";
-        _tray.Text = TrayText(sessionId);
+            ? "No seat"
+            : $"Session {sessionId} · {(hostReady ? "Host ready" : "Host starting")}";
+        RefreshDetails();
     }
 
     // ------------------------------------------------------------- visibility
@@ -305,9 +411,10 @@ internal sealed class SeatWindow : Form
     {
         if (_fullScreen)
         {
+            WindowState = FormWindowState.Normal;
             FormBorderStyle = _restoreBorder;
-            WindowState = _restoreState;
             Bounds = _restoreBounds;
+            WindowState = _restoreState;
             _toolbar.Visible = true;
             _statusBar.Visible = true;
             _fullScreen = false;
@@ -317,15 +424,18 @@ internal sealed class SeatWindow : Form
         {
             _restoreBorder = FormBorderStyle;
             _restoreState = WindowState;
-            _restoreBounds = Bounds;
+            _restoreBounds = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
             WindowState = FormWindowState.Normal;
             FormBorderStyle = FormBorderStyle.None;
             Bounds = (Screen.FromControl(this) ?? Screen.PrimaryScreen!).Bounds;
-            _toolbar.Visible = false;
-            _statusBar.Visible = false;
+            // Keep emergency stop, control release and the exit button visible even if
+            // the remote app captures F11/Escape or the global hotkey is unavailable.
+            _toolbar.Visible = true;
+            _statusBar.Visible = true;
             _fullScreen = true;
             _fullScreenButton.Text = "Exit full screen";
         }
+        _fullScreenButton.AccessibleName = _fullScreenButton.Text;
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
@@ -350,11 +460,13 @@ internal sealed class SeatWindow : Form
         base.OnHandleCreated(e);
         // Ctrl+Alt+Shift+K works from anywhere on the user's desktop. If something
         // else already owns it, the toolbar and tray buttons still do the job.
-        if (!Native.RegisterHotKey(Handle, HotkeyId,
-                Native.MOD_CONTROL | Native.MOD_ALT | Native.MOD_SHIFT | Native.MOD_NOREPEAT, 'K'))
+        _hotkeyAvailable = Native.RegisterHotKey(Handle, HotkeyId,
+                Native.MOD_CONTROL | Native.MOD_ALT | Native.MOD_SHIFT | Native.MOD_NOREPEAT, 'K');
+        if (!_hotkeyAvailable)
         {
             Log.Warn("Ctrl+Alt+Shift+K is already taken; use the Stop seat button or `anode kill`.");
         }
+        RefreshDetails();
     }
 
     protected override void OnHandleDestroyed(EventArgs e)
