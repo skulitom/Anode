@@ -143,7 +143,8 @@ internal sealed class SeatWindow : Form
         _toolbar.TabIndex = 0;
         _toolbar.GripStyle = ToolStripGripStyle.Hidden;
         _toolbar.Padding = new Padding(10, 6, 10, 6);
-        _toolbar.ImageScalingSize = new Size(16, 16);
+        // Icons are 16 px squares; the extra width is the gap before each label.
+        _toolbar.ImageScalingSize = new Size(21, 16);
         _toolbar.Font = ViewerTheme.UiFont();
         _toolbar.OverflowButton.DropDown.HandleCreated += (_, _) => ViewerTheme.ApplyMenuFrame(_toolbar.OverflowButton.DropDown.Handle);
 
@@ -151,38 +152,37 @@ internal sealed class SeatWindow : Form
         _stopButton.Name = "StopSeat";
         _stopButton.ToolTipText = "Close every program in the seat immediately, including unsaved work. Ctrl+Alt+Shift+K also stops the seat when available.";
         _stopButton.AccessibleDescription = _stopButton.ToolTipText;
-        _stopButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
         _stopButton.ForeColor = ViewerTheme.Danger;
         _stopButton.Font = ViewerTheme.StrongFont();
         // Always tinted: the emergency action reads as a button before anyone hovers over it.
-        _stopButton.Tag = ViewerTheme.Tone.Danger;
+        ViewerTheme.Decorate(_stopButton, new(ViewerTheme.Tone.Danger, ViewerTheme.Glyphs.Stop));
         _stopButton.Click += (_, _) => StopSeatRequested?.Invoke();
 
-        _controlButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
         _controlButton.Name = "ControlSeat";
         _controlButton.CheckOnClick = false;
+        ViewerTheme.Decorate(_controlButton, new(Glyph: ViewerTheme.Glyphs.Pointer));
         _controlButton.Click += (_, _) => ViewOnly = !ViewOnly;
 
         _fullScreenButton.Text = "Full screen";
         _fullScreenButton.Name = "FullScreen";
         _fullScreenButton.ToolTipText = "Toggle full screen (F11). Seat controls stay available.";
-        _fullScreenButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+        ViewerTheme.Decorate(_fullScreenButton, new(Glyph: ViewerTheme.Glyphs.FullScreen));
         _fullScreenButton.Click += (_, _) => ToggleFullScreen();
 
         _reconnectButton.Text = "Reconnect";
         _reconnectButton.ToolTipText = "Reconnect the viewer. The seat and its programs keep running.";
-        _reconnectButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+        ViewerTheme.Decorate(_reconnectButton, new(Glyph: ViewerTheme.Glyphs.Refresh));
         _reconnectButton.Click += (_, _) => ReconnectRequested?.Invoke();
 
         _signInButton.Text = "Sign in…";
         _signInButton.ToolTipText = "Reconnect with the Windows credential dialog. The seat and its programs keep running.";
-        _signInButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+        ViewerTheme.Decorate(_signInButton, new(Glyph: ViewerTheme.Glyphs.Person));
         _signInButton.Click += (_, _) => SignInRequested?.Invoke();
 
         _detailsButton.Name = "ShowDetails";
         _detailsButton.Text = "Details";
         _detailsButton.ToolTipText = "Read and copy the full seat status and troubleshooting details.";
-        _detailsButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+        ViewerTheme.Decorate(_detailsButton, new(Glyph: ViewerTheme.Glyphs.Info));
         _detailsButton.CheckOnClick = true;
         _detailsButton.CheckedChanged += (_, _) =>
         {
@@ -195,13 +195,8 @@ internal sealed class SeatWindow : Form
         _headline.ForeColor = ViewerTheme.Muted;
         _headline.Text = "Starting";
         _headline.Name = "SeatState";
-        // A blank image reserves a DPI-scaled slot before the text; the renderer draws the state dot there.
-        _headline.Image = new Bitmap(1, 1);
-        _headline.ImageScaling = ToolStripItemImageScaling.SizeToFit;
-        _headline.DisplayStyle = ToolStripItemDisplayStyle.ImageAndText;
-        _headline.TextImageRelation = TextImageRelation.ImageBeforeText;
         _headline.Margin = new Padding(8, 1, 6, 2);
-        _headline.Tag = ViewerTheme.Tone.Busy;
+        ViewerTheme.Decorate(_headline, new(ViewerTheme.Tone.Busy));
 
         _toolbar.Items.AddRange(new ToolStripItem[]
         {
@@ -217,7 +212,7 @@ internal sealed class SeatWindow : Form
         });
         foreach (var button in _toolbar.Items.OfType<ToolStripButton>())
         {
-            button.Padding = new Padding(10, 5, 10, 5);
+            button.Padding = new Padding(7, 5, 10, 5);
             button.Margin = new Padding(2, 0, 2, 0);
             button.AccessibleName = button.Text;
         }
@@ -392,14 +387,13 @@ internal sealed class SeatWindow : Form
             "error" => "Needs attention", _ => text
         };
         _headline.ForeColor = text is "error" or "logon-error" ? ViewerTheme.Danger : ViewerTheme.Muted;
-        _headline.Tag = text switch
+        ViewerTheme.Decorate(_headline, new(text switch
         {
             "ready" => ViewerTheme.Tone.Good,
             "error" or "logon-error" => ViewerTheme.Tone.Problem,
             "stopped" or "detached" => ViewerTheme.Tone.Neutral,
             _ => ViewerTheme.Tone.Busy
-        };
-        _toolbar.Invalidate();
+        }));
         RefreshDetails();
     }
 
@@ -474,6 +468,7 @@ internal sealed class SeatWindow : Form
             _statusBar.Visible = true;
             _fullScreen = false;
             _fullScreenButton.Text = "Full screen";
+            ViewerTheme.Decorate(_fullScreenButton, new(Glyph: ViewerTheme.Glyphs.FullScreen));
         }
         else
         {
@@ -489,6 +484,7 @@ internal sealed class SeatWindow : Form
             _statusBar.Visible = true;
             _fullScreen = true;
             _fullScreenButton.Text = "Exit full screen";
+            ViewerTheme.Decorate(_fullScreenButton, new(Glyph: ViewerTheme.Glyphs.ExitFullScreen));
         }
         _fullScreenButton.AccessibleName = _fullScreenButton.Text;
     }

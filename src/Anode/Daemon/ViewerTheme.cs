@@ -16,6 +16,16 @@ internal static class ViewerTheme
     /// <summary>How a toolbar item reads: a status dot's color, or the emergency button's fill.</summary>
     internal enum Tone { Neutral, Good, Busy, Problem, Danger }
 
+    /// <summary>A toolbar item's tone and, for buttons, its icon glyph.</summary>
+    internal sealed record Look(Tone Tone = Tone.Neutral, char Glyph = '\0');
+
+    /// <summary>Codepoints shared by Segoe Fluent Icons (Windows 11) and Segoe MDL2 Assets (Windows 10).</summary>
+    internal static class Glyphs
+    {
+        public const char Stop = '', Pointer = '', FullScreen = '', ExitFullScreen = '',
+            Refresh = '', Person = '', Info = '', More = '';
+    }
+
     private static bool HighContrast => SystemInformation.HighContrast;
 
     /// <summary>Title bar, header, details and footer: one continuous surface.</summary>
@@ -58,6 +68,38 @@ internal static class ViewerTheme
         : new Font(Pick("Segoe UI Variable Text", "Segoe UI"), 9f, FontStyle.Bold);
 
     private static string Pick(string preferred, string fallback) => Families.Value.Contains(preferred) ? preferred : fallback;
+
+    private static readonly Lazy<string?> IconFamily = new(() =>
+        new[] { "Segoe Fluent Icons", "Segoe MDL2 Assets" }.FirstOrDefault(Families.Value.Contains));
+    private static readonly Dictionary<int, Font> IconFonts = new();
+
+    /// <summary>
+    /// Gives an item its tone and icon. A blank image reserves a DPI-scaled slot before the text,
+    /// where the renderer draws the glyph, or a label's state dot.
+    /// </summary>
+    public static void Decorate(ToolStripItem item, Look look)
+    {
+        item.Tag = look;
+        bool slot = look.Glyph != '\0' ? IconFamily.Value is not null : item is ToolStripLabel;
+        if (slot && item.Image is null)
+        {
+            item.Image = new Bitmap(1, 1);
+            item.ImageScaling = ToolStripItemImageScaling.SizeToFit;
+            item.DisplayStyle = ToolStripItemDisplayStyle.ImageAndText;
+            item.TextImageRelation = TextImageRelation.ImageBeforeText;
+        }
+        item.Invalidate();
+    }
+
+    private static void DrawGlyph(Graphics graphics, char glyph, Rectangle bounds, Color color, ToolStrip? strip)
+    {
+        if (IconFamily.Value is not { } family) return;
+        int pixels = Scale(strip, 14);
+        if (!IconFonts.TryGetValue(pixels, out var font))
+            IconFonts[pixels] = font = new Font(family, pixels, FontStyle.Regular, GraphicsUnit.Pixel);
+        TextRenderer.DrawText(graphics, glyph.ToString(), font, bounds, color, TextFormatFlags.HorizontalCenter
+            | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
+    }
 
     public static Color Dot(Tone tone) => tone switch
     {
@@ -166,10 +208,19 @@ internal static class ViewerTheme
             e.Graphics.DrawRectangle(pen, 0, 0, e.ToolStrip.Width - 1, e.ToolStrip.Height - 1);
         }
 
+        private static readonly Look Plain = new();
+
+        private static Look LookOf(ToolStripItem item) => item.Tag as Look ?? Plain;
+
+        /// <summary>Text and icon share one color, so an icon follows its button's state.</summary>
+        private static Color InkOf(ToolStripItem item) => !item.Enabled ? Disabled
+            : item is ToolStripButton { Checked: true } && LookOf(item).Tone != Tone.Danger ? Accent
+            : item.ForeColor;
+
         protected override void OnRenderButtonBackground(ToolStripItemRenderEventArgs e)
         {
             var item = e.Item;
-            bool danger = item.Tag is Tone.Danger;
+            bool danger = LookOf(item).Tone == Tone.Danger;
             bool isChecked = item is ToolStripButton { Checked: true };
             Color? fill = item.Enabled && (item.Pressed || item.Selected)
                 ? danger ? DangerHover : isChecked ? CheckedHover : item.Pressed ? Pressed : Hover
@@ -181,7 +232,12 @@ internal static class ViewerTheme
         {
             if (e.Item.Pressed || e.Item.Selected)
                 FillRounded(e.Graphics, Pill(e), e.Item.Pressed ? Pressed : Hover, Scale(e.ToolStrip, 5));
-            // Three dots instead of the classic chevron.
+            // "More" instead of the classic chevron; drawn dots where no icon font exists.
+            if (IconFamily.Value is not null)
+            {
+                DrawGlyph(e.Graphics, Glyphs.More, new Rectangle(Point.Empty, e.Item.Size), Text, e.ToolStrip);
+                return;
+            }
             int size = Math.Max(2, Scale(e.ToolStrip, 3)), gap = Scale(e.ToolStrip, 3);
             int x = (e.Item.Width - (size * 3 + gap * 2)) / 2, y = (e.Item.Height - size) / 2;
             for (int i = 0; i < 3; i++) FillCircle(e.Graphics, new Rectangle(x + i * (size + gap), y, size, size), Text);
@@ -206,25 +262,28 @@ internal static class ViewerTheme
 
         protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
         {
-            var item = e.Item;
-            e.TextColor = !item.Enabled ? Disabled
-                : item is ToolStripButton { Checked: true } && item.Tag is not Tone.Danger ? Accent
-                : item.ForeColor;
-            if (item is ToolStripStatusLabel { Spring: true }) e.TextFormat |= TextFormatFlags.EndEllipsis;
+            e.TextColor = InkOf(e.Item);
+            if (e.Item is ToolStripStatusLabel { Spring: true }) e.TextFormat |= TextFormatFlags.EndEllipsis;
             base.OnRenderItemText(e);
         }
 
         protected override void OnRenderItemImage(ToolStripItemImageRenderEventArgs e)
         {
-            // A toned label's image slot holds its state dot.
-            if (e.Item is ToolStripLabel && e.Item.Tag is Tone tone and not Tone.Danger)
+            // A decorated item's image slot holds its glyph, or a label's state dot.
+            if (e.Item.Tag is not Look look)
             {
-                int size = Scale(e.ToolStrip, 8);
-                var slot = e.ImageRectangle;
-                FillCircle(e.Graphics, new Rectangle(slot.X + (slot.Width - size) / 2, slot.Y + (slot.Height - size) / 2, size, size), Dot(tone));
+                base.OnRenderItemImage(e);
                 return;
             }
-            base.OnRenderItemImage(e);
+            // The slot is wider than tall; drawing in its left square leaves a gap before the text.
+            var slot = e.ImageRectangle;
+            var square = new Rectangle(slot.X, slot.Y, Math.Min(slot.Width, slot.Height), slot.Height);
+            if (look.Glyph != '\0') DrawGlyph(e.Graphics, look.Glyph, square, InkOf(e.Item), e.ToolStrip);
+            else if (e.Item is ToolStripLabel)
+            {
+                int size = Scale(e.ToolStrip, 8);
+                FillCircle(e.Graphics, new Rectangle(square.X + (square.Width - size) / 2, square.Y + (square.Height - size) / 2, size, size), Dot(look.Tone));
+            }
         }
 
         protected override void OnRenderArrow(ToolStripArrowRenderEventArgs e)

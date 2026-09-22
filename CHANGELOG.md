@@ -17,6 +17,8 @@
   at the minimum width, and details show a scroll bar only when they overflow. The tray menu is dark
   with rounded rows and no icon margin. Labels, control names, shortcuts and full-screen safety
   controls are unchanged, and high-contrast mode keeps the system look.
+- Header buttons carry icons (Segoe Fluent Icons on Windows 11, Segoe MDL2 Assets on Windows 10)
+  that follow each button's state, and the overflow menu opens from a "more" icon.
 - Contributors can render the viewer and tray menu to PNGs with `anode __viewer-preview`, without
   a seat or a visible window.
 
