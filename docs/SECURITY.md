@@ -97,6 +97,9 @@ Read this list before you point an agent at it.
   `%USERPROFILE%`, your `HKCU`, your saved credentials, your browser profile directories, your SSH
   keys, your cloud-drive folders. **A seat is not a sandbox.** An agent in the seat can read and
   delete anything you can.
+- **Apps that restore your session.** Windows 11 Notepad, browsers on your usual profile and many
+  editors reopen what you last had open when they start, unsaved documents included. Started in the
+  seat, they reopen yours, where an agent can read them.
 - **The file system and the network.** Full access to both, as you.
 - **Other sessions' data at rest.** Separate sessions, one disk.
 - **The virtual gamepad.** A ViGEm pad is a HID device on the **machine**, not in a session. Every

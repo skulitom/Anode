@@ -95,6 +95,8 @@ Anode does not redirect an unrelated browser/computer-use service into its sessi
 ## Finish and handle blockers
 
 Close owned test windows and cancel owned jobs. Leave other apps and agents' work intact.
+Apps that restore a session, such as Windows 11 Notepad or a browser on the user's profile, reopen
+the user's own documents in the seat; never edit or discard what they restore.
 Then call `seat_lease` with `action: "release"` so the next agent in line gets the desktop; use
 `cancelJobs: true` to request cancellation of your command jobs. Ending the MCP session also
 releases the lease, unless a stable `ANODE_AGENT_ID` keeps it until expiry for recovery; jobs run

@@ -291,6 +291,15 @@ own:
 anode run "C:\Program Files\Google\Chrome\Application\chrome.exe" --user-data-dir=C:\Users\you\AppData\Local\AnodeChrome
 ```
 
+### My own documents opened in the seat
+
+Windows 11 Notepad, browsers on your usual profile and many editors restore your last session when
+they start. In the seat they restore yours: open files, unsaved tabs and whatever those contain. The
+seat is your account, so this is expected, not a leak between sessions. Agents should test with a
+disposable app or a [separate profile](#a-browser-will-not-start-in-the-seat) instead. To close such
+an app without touching your documents, close its window normally or end its process; Notepad keeps
+unsaved tabs through both. Never answer its "Don't save" prompt for documents you did not create.
+
 ### Two copies of my tray apps appear
 
 Everything in your `Run` key and Startup folder launches when the seat signs in, because the seat is

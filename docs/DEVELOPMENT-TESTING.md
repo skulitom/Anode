@@ -3,6 +3,8 @@
 Anode supplies a Windows desktop that an agent can inspect and control while the main desktop
 remains available. Use the same source files and installed tools, with separate scratch directories
 and unused localhost ports for each test. It does not isolate filesystem changes or app accounts.
+Apps that restore a session, such as Windows 11 Notepad or a browser on the user's profile, reopen
+the user's own documents in the seat, so test with the disposable fixtures below or a separate profile.
 
 > **Before you start:** hold a [desktop lease](MULTI-AGENT.md); each desktop command extends it.
 > CLI examples need `ANODE_AGENT_ID` and `ANODE_LEASE_TOKEN`; MCP supplies both after `seat_lease`

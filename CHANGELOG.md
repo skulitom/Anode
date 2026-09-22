@@ -15,6 +15,8 @@
   replace the clients' `anode` entry.
 - Quick checks cover channel names and the seat hand-off with a private mutex and made-up pipe
   lists, never the real seat.
+- The security and troubleshooting guides and the `anode-desktop` skill warn that apps which restore
+  a session, such as Windows 11 Notepad, reopen your own documents in the seat, unsaved ones included.
 
 ## 0.8.0 — 2026-09-22
 

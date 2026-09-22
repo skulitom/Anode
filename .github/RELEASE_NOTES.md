@@ -53,9 +53,11 @@ to 30 seconds while another agent works; pass `waitSeconds: 0` for the previous 
 **Validation and limits.** The candidate passes all 53 local quick checks, including new checks of
 the line, lapsed places, owner names, activity-extended leases, and MCP lease taking, look-first
 input and hand-off with real MCP servers over private pipes, plus package, installation and
-distribution checks. Live checks with real agents on a running seat, and the 0.7.0 viewer checks,
-are pending. See the
-[validation record](https://github.com/skulitom/Anode/blob/v0.8.0/docs/RELEASE-READINESS.md).
+distribution checks. After release, the same code passed live checks on a real seat: two agents
+waiting in line, handing over and observing after a take; the native and browser suites with real
+input; and the 0.7.0 viewer. Start menu launch from a new installation and the pointer-isolation
+script remain. See the
+[validation record](https://github.com/skulitom/Anode/blob/main/docs/RELEASE-READINESS.md#live-validation--23-september-2026).
 
 Requires 64-bit Windows 10/11 Pro, Enterprise or Education, or Windows Server with a Remote Desktop
 host. Windows Home is unsupported. ARM64 is not validated; this package targets x64.
