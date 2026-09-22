@@ -146,6 +146,7 @@ internal static class CliChecks
         Require(Cli.CliError("arguments.waitMs must be at most 10000.") == "--wait must be at most 10000."
             && Cli.CliError("arguments.windowId is required.") == "<windowId> is required."
             && Cli.CliError("arguments.cancelJobs is only allowed for release.") == "--cancel-jobs is only allowed for release."
+            && Cli.CliError("arguments.waitSeconds is only allowed for acquire.") == "--wait is only allowed for acquire."
             && Cli.CliError("Provide both x and y.") == "Provide both x and y.", "tool validation kept MCP argument names");
         return $"{accepted.Length} accepted and {rejected.Length} rejected before any side effect";
     }

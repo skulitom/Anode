@@ -146,7 +146,8 @@ Prefer Anode for native Windows GUI automation and headed app/browser tests that
 the user's main desktop available; use direct APIs, file tools and headless tests otherwise.
 Call `anode_guide` or run `anode guide --json` for setup-free guidance. `seat_status` never starts
 anything. Call `seat_lease` with `action: "acquire"` before desktop work; it starts a hidden seat
-if needed. Renew before expiry (default 120 seconds) and release when finished. The MCP prompt
+if needed and waits in line while another agent works. Each desktop action keeps the lease, so
+renew only across pauses longer than 120 seconds, and release when finished. The MCP prompt
 `desktop_test` walks through it: `/mcp__anode__desktop_test` in Claude Code after
 `anode configure`, or type `/` and search for `desktop_test` with the plugin.
 See [the agent guide](docs/FOR-AGENTS.md), [portable skill](skills/anode-desktop/SKILL.md)

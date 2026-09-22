@@ -29,6 +29,7 @@ internal sealed class SeatWindow : Form
     private readonly StatusStrip _statusBar = new();
     private readonly ToolStripStatusLabel _statusLabel = new();
     private readonly ToolStripStatusLabel _seatLabel = new();
+    private readonly ToolStripStatusLabel _deskLabel = new();
     private readonly ToolStripStatusLabel _modeLabel = new();
     private readonly TextBox _details = new();
     private readonly Panel _detailsPanel = new();
@@ -251,7 +252,12 @@ internal sealed class SeatWindow : Form
         _modeLabel.Name = "InputMode";
         _modeLabel.Margin = new Padding(6, 3, 12, 2);
 
-        _statusBar.Items.AddRange(new ToolStripItem[] { _modeLabel, _statusLabel, _seatLabel });
+        // Hidden until the daemon reports who holds the desktop lease.
+        _deskLabel.Name = "DeskOwner";
+        _deskLabel.Margin = new Padding(10, 3, 0, 2);
+        _deskLabel.Visible = false;
+
+        _statusBar.Items.AddRange(new ToolStripItem[] { _modeLabel, _statusLabel, _deskLabel, _seatLabel });
     }
 
     /// <summary>The tray icon's menu, for design previews.</summary>
@@ -405,6 +411,22 @@ internal sealed class SeatWindow : Form
             _ => ViewerTheme.Tone.Busy
         }));
         RefreshDetails();
+    }
+
+    /// <summary>
+    /// Who holds the desktop lease, for someone watching several agents take turns on one seat.
+    /// Unknown hides the label rather than guessing.
+    /// </summary>
+    public void SetDesk(string? owner, int waiting, bool known)
+    {
+        if (InvokeRequired) { BeginInvoke(new Action(() => SetDesk(owner, waiting, known))); return; }
+        if (owner is { Length: > 32 }) owner = owner[..32];
+        _deskLabel.Visible = known;
+        _deskLabel.Text = owner is null ? "Desktop free" : $"In use by {owner}" + (waiting > 0 ? $" · {waiting} waiting" : "");
+        _deskLabel.ToolTipText = owner is null ? "No agent holds the desktop lease."
+            : $"{owner} holds the desktop lease" + (waiting > 0 ? $"; {waiting} more agent(s) waiting in line." : ".");
+        _deskLabel.AccessibleName = _deskLabel.Text;
+        _deskLabel.ForeColor = ViewerTheme.Muted;
     }
 
     public void SetSeatInfo(uint? sessionId, bool hostReady)

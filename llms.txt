@@ -22,8 +22,10 @@ chosen browser or existing session. Anode shares files/account/network; it is no
 With Anode installed, run `anode guide --json` or call `anode_guide`; both work without machine
 setup or starting a seat. `seat_status` checks availability without starting anything. Before
 desktop work call `seat_lease` with `{"action":"acquire"}` (it starts a hidden seat if needed and
-the MCP server keeps the token), then `seat_capabilities`. Renew before expiry (default 120 s,
-range 10-600 s), close owned windows and jobs, and release when finished. Only `seat_lease`
+the MCP server keeps the token; while another agent works it waits in line, `waitSeconds` default
+30), then `seat_capabilities`. Each desktop action keeps the lease; renew only across pauses longer
+than its lifetime (default 120 s, range 10-600 s). Close owned windows and jobs, and release when
+finished so the next agent gets the desktop. Only `seat_lease`
 acquire and `seat_start` start a seat. The MCP prompt `desktop_test` walks through this workflow.
 
 ## Agent entry points
@@ -40,7 +42,7 @@ acquire and `seat_start` start a seat. The MCP prompt `desktop_test` walks throu
 - [Development testing](https://raw.githubusercontent.com/skulitom/Anode/main/docs/DEVELOPMENT-TESTING.md): native/browser tests and jobs.
 - [Troubleshooting](https://raw.githubusercontent.com/skulitom/Anode/main/docs/TROUBLESHOOTING.md): readiness, capture and input blockers.
 - [Security](https://raw.githubusercontent.com/skulitom/Anode/main/docs/SECURITY.md): shared state, machine settings and stopping.
-- [Multiple agents and desktop leases](https://raw.githubusercontent.com/skulitom/Anode/main/docs/MULTI-AGENT.md): acquire/renew/release, agent identities, ownership and restart recovery.
+- [Multiple agents and desktop leases](https://raw.githubusercontent.com/skulitom/Anode/main/docs/MULTI-AGENT.md): taking turns, waiting in line, agent identities, ownership and restart recovery.
 - [Usage and CLI](https://raw.githubusercontent.com/skulitom/Anode/main/docs/USAGE.md): commands, viewer, Steam and gamepad.
 - [Privacy](https://raw.githubusercontent.com/skulitom/Anode/main/docs/PRIVACY.md): what Anode sends, returns and keeps.
 - [Latest release](https://github.com/skulitom/Anode/releases/latest): anode-windows-x64.zip, install.ps1, SHA256SUMS.

@@ -4,9 +4,10 @@ Start with [installation](INSTALL.md) and [agent configuration](CONNECTING-AGENT
 command and option is listed in the [command reference](#command-reference).
 
 > **Before you start:** desktop commands need a [desktop lease](MULTI-AGENT.md#cli-workflow). Set
-> `ANODE_AGENT_ID`, run `anode lease acquire`, keep the returned token in `ANODE_LEASE_TOKEN`,
-> renew before expiry and release when finished. Job reads and cancellation need only the original
-> agent ID. MCP agents call `seat_lease` instead; the server keeps the token for them.
+> `ANODE_AGENT_ID`, run `anode lease acquire` (add `--wait 60` to wait in line while another
+> agent works), keep the returned token in `ANODE_LEASE_TOKEN` and release when finished. Each
+> desktop command extends the lease; renew only across long pauses. Job reads and cancellation need
+> only the original agent ID. MCP agents call `seat_lease` instead; the server keeps the token for them.
 
 ## Develop and test applications
 
@@ -244,10 +245,10 @@ Every `lease` action needs an agent ID; `renew` and `release` also need the toke
 
 | Command | What it does |
 | --- | --- |
-| `anode lease acquire [--ttl SECONDS]` | Acquire exclusive desktop use for 10-600 seconds (default 120). Starts a hidden seat if needed. Prints the lease as JSON, including `leaseToken`. |
-| `anode lease renew [--ttl SECONDS]` | Extend your live lease. |
-| `anode lease release [--cancel-jobs]` | Give up the desktop. `--cancel-jobs` also cancels your running command jobs. |
-| `anode lease [status]` | The owner and time remaining. Never starts anything. |
+| `anode lease acquire [--ttl SECONDS] [--wait SECONDS]` | Acquire exclusive desktop use for 10-600 seconds after your last desktop command (default 120). `--wait` (0-300) waits in a first-come line while another agent has the desktop. Starts a hidden seat if needed. Prints the lease as JSON, including `leaseToken`. |
+| `anode lease renew [--ttl SECONDS]` | Extend your live lease across a pause; desktop commands extend it too. |
+| `anode lease release [--cancel-jobs]` | Hand the desktop to the next agent in line. `--cancel-jobs` also cancels your running command jobs. |
+| `anode lease [status]` | The owner, its name, the time remaining and who is waiting. Never starts anything. Set `ANODE_AGENT_NAME` to name your own agent. |
 | `anode guide [--json]` | The agent guide: when to use Anode and how to choose its tools. Needs no setup. |
 | `anode mcp` | The MCP server on stdin/stdout, which agent clients launch. |
 

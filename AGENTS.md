@@ -70,8 +70,9 @@ See `docs/ARCHITECTURE.md`, `docs/PROTOCOL.md`, `docs/SECURITY.md` and
 ## Live testing without disturbing the user
 
 Use Anode's CLI/MCP tools for seat screenshots, mouse, keyboard and application
-launches, holding a desktop lease (`seat_lease` or `anode lease acquire`); renew it
-during long work and release it after cleanup. The user explicitly wants their
+launches, holding a desktop lease (`seat_lease` or `anode lease acquire`); each desktop
+command extends it, so renew only across long pauses, and release it after cleanup so a waiting
+agent gets its turn. The user explicitly wants their
 foreground desktop left available.
 Do not invoke foreground computer use, activate the parent viewer, or show it as
 a fallback when seat capture fails. Diagnose that failure through code and logs;

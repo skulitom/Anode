@@ -435,6 +435,8 @@ internal static partial class Cli
         }
         if (result.Obj("steam") is { } steam)
             Console.WriteLine($"steam         {steam.Str("summary")}");
+        if (result.Obj("lease") is { } desk)
+            Console.WriteLine($"desktop       {desk.Str("summary")}");
         if (result.Str("lastError") is { Length: > 0 } error)
             Console.WriteLine($"last error    {error}");
         if (result.Str("logError") is { Length: > 0 } logError)
@@ -814,17 +816,19 @@ internal static partial class Cli
             ("anode quit", "stop the seat and exit Anode")),
 
         Row("Desktop leases", "lease", null, 0,
-            "--ttl is 10-600 seconds (default 120). --cancel-jobs also cancels your running command jobs. Commands that need the lease: "
-            + "run, steam <appid>, shot, windows, inspect, window, element, wait, click, move, scroll, key, type, ps kill, exec "
-            + "and gamepad (except state).",
-            ("anode --agent ID lease acquire [--ttl 120]",
-                "take exclusive use of the desktop and print its leaseToken; starts a hidden seat if needed"),
-            ("anode --agent ID --lease TOKEN lease renew [--ttl 120]", "extend the lease before it expires"),
-            ("anode --agent ID --lease TOKEN lease release [--cancel-jobs]", "give the desktop back"),
-            ("anode --agent ID lease status", "who holds the desktop; starts nothing"),
-            ("", "Set ANODE_AGENT_ID and ANODE_LEASE_TOKEN instead of repeating the prefix options. Desktop commands need "
-                + "the lease; job reads and cancellation need their agent ID. MCP keeps its own token; set ANODE_AGENT_ID "
-                + "for restart recovery.")),
+            "--ttl is 10-600 seconds after your last desktop command (default 120); each desktop command extends the lease. "
+            + "--wait is 0-300 seconds in a first-come line while another agent has the desktop. --cancel-jobs also cancels your "
+            + "running command jobs. Commands that need the lease: run, steam <appid>, shot, windows, inspect, window, element, "
+            + "wait, click, move, scroll, key, type, ps kill, exec and gamepad (except state).",
+            ("anode --agent ID lease acquire [--ttl 120] [--wait 60]",
+                "take exclusive use of the desktop and print its leaseToken, waiting in line if another agent has it; starts a hidden seat if needed"),
+            ("anode --agent ID --lease TOKEN lease renew [--ttl 120]", "extend the lease while you are not using the desktop"),
+            ("anode --agent ID --lease TOKEN lease release [--cancel-jobs]", "hand the desktop to the next agent in line"),
+            ("anode --agent ID lease status", "who holds the desktop and who is waiting; starts nothing"),
+            ("", "Set ANODE_AGENT_ID and ANODE_LEASE_TOKEN instead of repeating the prefix options, and ANODE_AGENT_NAME to "
+                + "name this agent in status and the viewer. Desktop commands need the lease; job reads and cancellation need "
+                + "their agent ID. MCP keeps its own token and takes the lease when the desktop is free; set ANODE_AGENT_ID for "
+                + "restart recovery.")),
 
         Row("Work in the seat", "run", null, 0,
             "Everything after the program goes to it unchanged. Use a full path, a shortcut or anything Windows can open.",
@@ -1219,7 +1223,7 @@ internal static partial class Cli
             "waitMs" => "--wait", "executionTimeoutMs" => "--timeout", "maxChars" => "--max-chars",
             "automationId" => "--automation-id", "textContains" => "--text", "maxElements" => "--max-elements",
             "maxDepth" => "--max-depth", "maxTextChars" => "--max-text", "ttlSeconds" => "--ttl",
-            "cancelJobs" => "--cancel-jobs",
+            "cancelJobs" => "--cancel-jobs", "waitSeconds" => "--wait",
             var field => "--" + field
         });
 

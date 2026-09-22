@@ -35,6 +35,8 @@ internal sealed class AnodeDaemon : IDisposable
 
     private SeatWindow? _window;
     private JsonPipeServer? _control;
+    private System.Threading.Timer? _deskWatch;
+    private int _watchingDesk;
     private JsonPipeClient? _seat;
     private uint? _sessionId;
     private bool _hostReady;
@@ -110,6 +112,7 @@ internal sealed class AnodeDaemon : IDisposable
         _control = new JsonPipeServer(Env.ControlPipe, HandleControlAsync);
         _control.Start();
         Log.Info($"control pipe listening on \\\\.\\pipe\\{Env.ControlPipe}");
+        _deskWatch = new System.Threading.Timer(_ => _ = WatchDeskAsync(), null, 2000, 2000);
 
         if (_options.ShowWindow)
         {
@@ -631,7 +634,9 @@ internal sealed class AnodeDaemon : IDisposable
             case "lease":
                 if (_stopRequested && _state != "stopped")
                     return JsonLine.Fail("The seat is stopping or has failed to stop. Wait for Stop to finish before acquiring a desktop lease.");
-                if (request.Str("action") == "acquire" && !_hostReady)
+                // A client helper acquiring on an agent's behalf passes startSeat=false: only an
+                // explicit acquisition may bring a stopped seat back.
+                if (request.Str("action") == "acquire" && !_hostReady && request.Bool("startSeat") != false)
                 {
                     var started = await StartSeatAsync(stopVersion).ConfigureAwait(false);
                     if (started.Bool("ok") != true) return started;
@@ -740,9 +745,38 @@ internal sealed class AnodeDaemon : IDisposable
 
             var steam = await probe.RequestAsync("steam.status", timeoutMs: 5000).ConfigureAwait(false);
             if (steam.Bool("ok") == true) status["steam"] = steam.Obj("result")?.DeepClone();
+
+            if (await DeskAsync(probe).ConfigureAwait(false) is { } desk) status["lease"] = desk;
         }
 
         return status;
+    }
+
+    /// <summary>Who holds the desktop and who is waiting, as any agent would see it; never a token.</summary>
+    private static async Task<JsonObject?> DeskAsync(JsonPipeClient probe)
+    {
+        var response = await probe.RequestAsync("lease", new JsonObject { ["agentId"] = "anode-status", ["action"] = "status" }, 5000).ConfigureAwait(false);
+        if (response.Bool("ok") != true || response.Obj("result")?.DeepClone() is not JsonObject desk) return null;
+        foreach (string caller in new[] { "agentId", "queuePosition", "leaseToken" }) desk.Remove(caller);
+        return desk;
+    }
+
+    /// <summary>
+    /// Keeps the viewer's footer saying who holds the desktop, while someone can see it. The lease
+    /// lives in the seat host, where it also expires, so this asks rather than listening.
+    /// </summary>
+    private async Task WatchDeskAsync()
+    {
+        if (_window is not { Visible: true } window || !_hostReady || _stopRequested || Interlocked.Exchange(ref _watchingDesk, 1) == 1) return;
+        try
+        {
+            using var probe = await JsonPipeClient.TryConnectAsync(Env.SeatPipe, 500).ConfigureAwait(false);
+            var desk = probe is null ? null : await DeskAsync(probe).ConfigureAwait(false);
+            window.SetDesk(desk?.Str("ownerAgentId") is { } owner ? desk.Str("ownerName") ?? owner : null,
+                (desk?["waiting"] as JsonArray)?.Count ?? 0, known: desk is not null);
+        }
+        catch (Exception ex) { Log.Warn($"could not read the desktop lease for the viewer: {ex.Message}"); }
+        finally { Volatile.Write(ref _watchingDesk, 0); }
     }
 
     private void SetState(string state, string message)
@@ -763,6 +797,7 @@ internal sealed class AnodeDaemon : IDisposable
 
     public void Dispose()
     {
+        _deskWatch?.Dispose();
         _bringUpCancellation.Cancel();
         DisposeSeatClient();
         _control?.Dispose();

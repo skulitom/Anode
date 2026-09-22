@@ -26,15 +26,17 @@ internal static class Tools
     private static readonly Tool[] All =
     {
         new("seat_lease", "Anode: acquire, renew or release the desktop lease", "lease", false, Effect.Action,
-            "Coordinate agents sharing Anode's background Windows desktop (the seat). action=acquire starts a hidden seat if needed and grants exclusive desktop use; "
-            + "the MCP server remembers the returned token and supplies it on desktop calls. Acquire before observe/act/verify. "
-            + "action=renew extends a live lease; renew before expiry (default 120 s), including while thinking between calls. "
-            + "action=release gives up the desktop and optionally cancels only your command jobs. status is read-only and never starts a seat. "
-            + "If busy, wait and retry acquisition. After expiry or reacquisition, get fresh windows/observations. "
-            + "Disconnect does not release a lease or stop jobs: the lease expires, and a stable ANODE_AGENT_ID allows recovery. "
-            + "Ownership coordinates trusted agents under the same Windows account; it does not isolate files or applications.",
+            "Coordinate agents sharing Anode's background Windows desktop (the seat). Only one agent uses the desktop at a time. "
+            + "Desktop tools take the lease for you when the desktop is free, and each desktop action keeps it for ttlSeconds more. "
+            + "action=acquire starts a hidden seat if needed; when another agent has the desktop it waits up to waitSeconds (default 30) "
+            + "in a first-come line, and calling it again within 5 s keeps your place. action=renew extends the lease while you think without acting. "
+            + "action=release hands the desktop to the next agent; release when you finish, optionally cancelling only your command jobs. "
+            + "status shows the owner, time left and who is waiting, and never starts a seat. After the lease changes hands, observe again before acting. "
+            + "Closing this MCP session releases its lease unless ANODE_AGENT_ID gives it a stable identity, which keeps the lease until it expires "
+            + "so a restarted session can resume. Ownership coordinates trusted agents under the same Windows account; it does not isolate files or applications.",
             Schema(("action", "string", "status (default), acquire, renew, or release.", false),
-                ("ttlSeconds", "integer", "Lease lifetime, 10-600 seconds; default 120. Only acquire/renew.", false),
+                ("ttlSeconds", "integer", "Lease lifetime after your last desktop action, 10-600 seconds; default 120. Only acquire/renew.", false),
+                ("waitSeconds", "integer", "How long acquire waits in line for another agent to finish, 0-300 seconds; default 30. Only acquire.", false),
                 ("cancelJobs", "boolean", "Cancel your running command jobs on release. Default false; only release.", false))
                 .OneOf("action", "status", "acquire", "renew", "release")),
 
@@ -314,7 +316,8 @@ internal static class Tools
                 ["name"] = tool.Name,
                 ["title"] = tool.Title,
                 ["description"] = tool.Description
-                    + (AgentAccess.RequiresLease(tool.Op) ? " Requires your active desktop lease; call seat_lease action=acquire first."
+                    + (ActsOnScreen(tool.Op) ? " Uses the desktop lease; if Anode takes it for this call, observe first and repeat the action."
+                        : AgentAccess.RequiresLease(tool.Op) ? " Uses the desktop lease, which Anode takes for you when the desktop is free."
                         : tool.StartsDaemon ? " Starts a hidden seat if needed." : ""),
                 ["inputSchema"] = tool.Schema.DeepClone(),
                 // Action tools may drive arbitrary applications. Do not advertise them as
@@ -333,6 +336,12 @@ internal static class Tools
         }
         return array;
     }
+
+    /// <summary>
+    /// Input aimed by an earlier look at the screen: pointer, keyboard and controller presses. When
+    /// the MCP server takes the lease on an agent's behalf, these wait for a fresh observation.
+    /// </summary>
+    internal static bool ActsOnScreen(string op) => op.StartsWith("input.", StringComparison.Ordinal) || op is "gamepad.set" or "gamepad.tap";
 
     public static bool TryResolve(string name, out string op, out bool startsDaemon)
     {
@@ -357,6 +366,7 @@ internal static class Tools
         {
             string action = arguments.Str("action") ?? "status";
             if (Has("ttlSeconds") && action is not "acquire" and not "renew") return "arguments.ttlSeconds is only allowed for acquire/renew.";
+            if (Has("waitSeconds") && action != "acquire") return "arguments.waitSeconds is only allowed for acquire.";
             if (Has("cancelJobs") && action != "release") return "arguments.cancelJobs is only allowed for release.";
         }
         if (name == "seat_exec")
@@ -478,7 +488,7 @@ internal static class Tools
             var property = Property(field.Type, field.Description);
             (int Min, int Max)? range = field.Name switch
             {
-                "slot" => (0, 3), "quality" => (1, 100), "maxWidth" => (1, 8192), "ttlSeconds" => (10, 600),
+                "slot" => (0, 3), "quality" => (1, 100), "maxWidth" => (1, 8192), "ttlSeconds" => (10, 600), "waitSeconds" => (0, 300),
                 "waitMs" => (0, 10000), "executionTimeoutMs" => (100, 1800000), "maxChars" => (1, 20000),
                 "maxElements" => (1, 500), "maxDepth" => (0, 20), "maxTextChars" => (0, 20000),
                 "width" => (160, 8192), "height" => (100, 8192),

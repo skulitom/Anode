@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json.Nodes;
 using Anode.Core.Agents;
 using Anode.Core.Bridge;
@@ -6,7 +7,7 @@ namespace Anode.Cli;
 
 internal static partial class Cli
 {
-    private static string? _agentId, _leaseToken;
+    private static string? _agentId, _leaseToken, _agentName;
 
     private static string[] AgentOptions(string[] args)
     {
@@ -15,6 +16,7 @@ internal static partial class Cli
             && !string.IsNullOrWhiteSpace(value) ? value : null;
         _agentId = Variable("ANODE_AGENT_ID");
         _leaseToken = Variable("ANODE_LEASE_TOKEN");
+        _agentName = Variable("ANODE_AGENT_NAME")?.Trim() is { } name && AgentAccess.ValidName(name) ? name : null;
         int index = 0;
         // Prefix options cannot consume literal text or arguments passed to a launched program.
         while (index < args.Length && args[index] is "--agent" or "--lease")
@@ -33,6 +35,7 @@ internal static partial class Cli
         // Human emergency controls do not depend on an agent's environment or lease.
         var payload = op is "seat.stop" or "quit" ? arguments ?? new JsonObject()
             : AgentAccess.Attach(arguments, _agentId, _leaseToken);
+        if (op == "lease" && _agentName is not null) payload["agentName"] = _agentName;
         payload["op"] = op;
         if (AgentAccess.Validate(payload) is { } error) return Task.FromResult(JsonLine.Fail(error));
         payload.Remove("op");
@@ -52,6 +55,11 @@ internal static partial class Cli
                 if (++i >= args.Length || !int.TryParse(args[i], out int ttl)) throw new UsageException("--ttl requires a number of seconds.");
                 payload["ttlSeconds"] = ttl;
             }
+            else if (args[i] == "--wait")
+            {
+                if (++i >= args.Length || !int.TryParse(args[i], out int seconds)) throw new UsageException("--wait requires a number of seconds.");
+                payload["waitSeconds"] = seconds;
+            }
             else throw new UsageException($"Unknown lease option '{args[i]}'. Run `anode help lease`.");
         }
         if (Mcp.Tools.ValidateArguments("seat_lease", payload) is { } invalid) throw new UsageException(CliError(invalid));
@@ -62,6 +70,21 @@ internal static partial class Cli
         using var client = await Connect(autoStart: acquire);
         // A failed acquisition has already said why the daemon could not start; 3 matches `start`.
         if (client is null) return acquire ? (_startBlocked ? 3 : 1) : NotRunning();
-        return Report(await RequestAsync(client, "lease", payload, acquire ? 180000 : 60000));
+        if (!acquire || payload.Int("waitSeconds") is not int wait || wait == 0)
+            return Report(await RequestAsync(client, "lease", payload, acquire ? 180000 : 60000));
+
+        // Ask about once a second; each ask keeps this agent's place in line until the wait ends.
+        var waited = Stopwatch.StartNew();
+        bool told = false;
+        while (true)
+        {
+            int left = wait - (int)waited.Elapsed.TotalSeconds;
+            payload["waitSeconds"] = Math.Max(0, left);
+            var response = await RequestAsync(client, "lease", payload, 180000);
+            if (response.Bool("ok") == true || response.Str("errorCode") != "seat_busy" || left <= 0 || !client.IsConnected)
+                return Report(response);
+            if (!told) { Console.Error.WriteLine(response.Str("error")); told = true; }
+            await Task.Delay(1000);
+        }
     }
 }

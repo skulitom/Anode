@@ -33,10 +33,13 @@ guide without setup or starting a seat. With CLI access, use `anode guide` or `a
 
 1. Call `seat_status`. It checks for an existing daemon and never starts anything.
 2. When the task needs a desktop, call `seat_lease` with `action: "acquire"`. It starts a hidden
-   seat if needed and waits for readiness, so `seat_start` is optional. Desktop tools are refused
-   without a lease. Every independent agent needs its own ID; MCP assigns one and automatically
-   sends its lease token. If busy, wait and retry acquisition. The default lease lasts 120 seconds
-   (range 10-600); renew with `action: "renew"` before expiry.
+   seat if needed and waits for readiness, so `seat_start` is optional. One agent uses the desktop
+   at a time: if another agent has it, acquire waits in a first-come line (`waitSeconds`, default
+   30), and calling it again within 5 seconds keeps your place. Every independent agent needs its
+   own ID; MCP assigns one, names it after your client and sends its lease token automatically.
+   Desktop tools also take the lease themselves when the desktop is free. Each desktop action keeps
+   the lease for its lifetime (default 120 seconds, range 10-600); renew with `action: "renew"`
+   only when you pause longer than that.
 3. Call `seat_capabilities` before relying on screenshots/input. A connection alone is insufficient.
 4. Launch an owned app with `seat_run`. Discover its actual window with `seat_windows`.
    Apps may reuse another session's process; verify where the resulting window lives.
@@ -58,9 +61,10 @@ and restart the agent session.
 
 ## Observe, act, verify
 
-- Hold the lease throughout observe/act/verify, including time spent deciding the next step.
-  After release or expiry, reacquire and obtain fresh window/control references. Old queued
-  actions are refused. An in-flight action must finish before the lease can transfer.
+- Hold the lease throughout observe/act/verify. After release or expiry, reacquire and obtain
+  fresh window/control references; if Anode takes the lease for you during an input call, it asks
+  you to observe first. Old queued actions are refused. An in-flight action must finish before the
+  lease can transfer. When a result says other agents are waiting, finish and release promptly.
 - Prefer `seat_observe` and the offered `seat_element` actions for accessible controls. References
   expire and actions consume their snapshot, including on failure; observe again before acting.
 - Use `seat_wait` for delayed controls/text instead of repeated screenshots or fixed sleeps.
@@ -91,8 +95,10 @@ Anode does not redirect an unrelated browser/computer-use service into its sessi
 ## Finish and handle blockers
 
 Close owned test windows and cancel owned jobs. Leave other apps and agents' work intact.
-Then call `seat_lease` with `action: "release"`; use `cancelJobs: true` to request cancellation
-of your command jobs. Disconnect alone leaves the lease until expiry and jobs until their timeout.
+Then call `seat_lease` with `action: "release"` so the next agent in line gets the desktop; use
+`cancelJobs: true` to request cancellation of your command jobs. Ending the MCP session also
+releases the lease, unless a stable `ANODE_AGENT_ID` keeps it until expiry for recovery; jobs run
+until their timeout.
 Lease release/expiry clear desktop references, release Anode's held input and detach its gamepads.
 CLI workflows set `ANODE_AGENT_ID` and the acquired `ANODE_LEASE_TOKEN`; see the
 [multi-agent guide](https://github.com/skulitom/Anode/blob/main/docs/MULTI-AGENT.md).

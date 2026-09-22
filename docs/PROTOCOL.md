@@ -24,9 +24,12 @@ after sending closes that connection, because a late reply must not become the n
 result. Reconnect for subsequent requests; a timed-out command may already have executed.
 
 Desktop operations additionally require an `agentId` and live `leaseToken`, acquired through
-`lease` with `action: "acquire"`. `lease` also supports `status`, `renew` and `release`, with
-`ttlSeconds` (10-600, default 120) on acquire/renew and `cancelJobs` on release. Owned job reads
-require `agentId` but no lease. See [the full ownership protocol](MULTI-AGENT.md).
+`lease` with `action: "acquire"`, and may carry an `agentName` for status and the viewer. `lease`
+also supports `status`, `renew` and `release`, with `ttlSeconds` (10-600, default 120) on
+acquire/renew, `waitSeconds` (0-300) and `startSeat` on acquire, and `cancelJobs` on release. A
+desktop operation extends its lease to a full `ttlSeconds` from when it starts; while other agents
+wait, its response carries `waitingAgents`. Owned job reads require `agentId` but no lease. See
+[the full ownership protocol](MULTI-AGENT.md#protocol-and-upgrades).
 
 **Response**
 

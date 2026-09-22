@@ -165,9 +165,9 @@ usual.
 3. Quit Claude Desktop completely, including its tray icon, then reopen it.
 4. Run `anode start --hidden | Out-Host` before the first request, so a cold seat start does not
    exceed Claude Desktop's request timeout.
-5. Ask for desktop work. The agent calls `seat_lease` with `action: "acquire"`, renews before
-   expiry and releases when finished; [section 5](#5-tell-the-agent-how-to-use-it) has
-   instructions you can add to a project.
+5. Ask for desktop work. The agent calls `seat_lease` with `action: "acquire"`, which waits in
+   line if another agent is working, and releases when finished;
+   [section 5](#5-tell-the-agent-how-to-use-it) has instructions you can add to a project.
 
 Claude Desktop writes the server's stderr to `%APPDATA%\Claude\logs\mcp-server-anode.log`
 (standard install). See the
@@ -262,10 +262,12 @@ The `anode` MCP server gives you a seat: a second Windows session with its own s
 keyboard focus. Apps share the user's profile, and virtual gamepads are machine-wide.
 
 - Call `seat_status` first; it never starts anything. Before desktop work, call
-  `seat_lease {action: "acquire"}`; it starts a hidden seat if needed. Desktop tools are refused
-  until you hold the lease. Renew before expiry (default 120 seconds) and release after fixture
-  cleanup. MCP supplies its identity/token automatically. Configure a unique `ANODE_AGENT_ID`
-  per independent agent for restart recovery. See
+  `seat_lease {action: "acquire"}`; it starts a hidden seat if needed and waits in line while
+  another agent works. Desktop tools take a free desktop themselves, and each desktop action
+  keeps the lease; renew only across pauses longer than 120 seconds. Release after fixture
+  cleanup so the next agent gets its turn. MCP supplies its identity/token automatically and names
+  the agent after its client; `ANODE_AGENT_NAME` overrides the name. Configure a unique
+  `ANODE_AGENT_ID` per independent agent for restart recovery. See
   [multiple agents](https://github.com/skulitom/Anode/blob/main/docs/MULTI-AGENT.md).
 - Use `seat_capabilities` to probe actual screenshot availability.
 - Use `seat_exec` with an absolute cwd for builds, test runners and development servers.

@@ -14,10 +14,13 @@ internal static class AgentAccess
     public static bool ValidId(string? value) => value is { Length: > 0 and <= 80 }
         && value.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.');
 
+    /// <summary>A readable owner for status and the viewer, such as the MCP client's name.</summary>
+    public static bool ValidName(string? value) => value is { Length: > 0 and <= 64 } && !value.Any(char.IsControl);
+
     public static JsonObject Arguments(JsonObject request)
     {
         var args = (JsonObject)request.DeepClone();
-        foreach (string key in new[] { "op", "id", "timeoutMs", "agentId", "leaseToken" }) args.Remove(key);
+        foreach (string key in new[] { "op", "id", "timeoutMs", "agentId", "leaseToken", "agentName", "startSeat" }) args.Remove(key);
         return args;
     }
 
@@ -30,6 +33,11 @@ internal static class AgentAccess
         if (request.ContainsKey("leaseToken") && (request["leaseToken"] is not JsonValue lease
             || !lease.TryGetValue<string>(out var token) || token.Length is 0 or > 128))
             return "leaseToken must be a returned lease token.";
+        if (request.ContainsKey("agentName") && (request["agentName"] is not JsonValue named
+            || !named.TryGetValue<string>(out var name) || !ValidName(name)))
+            return "agentName must contain 1-64 printable characters.";
+        if (request.ContainsKey("startSeat") && request["startSeat"]?.GetValueKind() is not (System.Text.Json.JsonValueKind.True or System.Text.Json.JsonValueKind.False))
+            return "startSeat must be true or false.";
         if ((RequiresLease(op) || op is "exec.read" or "lease") && !ValidId(request.Str("agentId")))
             return "An agentId is required. MCP supplies one; CLI users must set ANODE_AGENT_ID or use --agent ID before the command.";
         if ((RequiresLease(op) || op == "lease" && request.Str("action") is "renew" or "release") && request.Str("leaseToken") is null)

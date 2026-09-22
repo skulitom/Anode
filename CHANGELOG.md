@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- **Agents take turns without bookkeeping.** When another agent has the desktop, `seat_lease`
+  acquire waits in a first-come line (`waitSeconds`, 0-300, default 30 over MCP; `anode lease
+  acquire --wait`) instead of failing at once. A place is kept only while its agent keeps asking,
+  so the desktop never goes to an agent that gave up or went away.
+- Each desktop action extends its lease to a full lifetime from when it starts, so a working agent
+  no longer renews; `renew` covers long pauses. An expired lease is still never revived.
+- MCP desktop tools take the lease themselves when the desktop is free, without ever starting a
+  seat. Pointer, keyboard and gamepad input that arrives without a lease is refused once with a
+  request to observe first, because it was aimed at a screen another agent may have changed.
+- Ending an MCP session whose identity Anode generated releases its lease at once instead of
+  leaving others to wait for expiry; a stable `ANODE_AGENT_ID` still keeps it for recovery.
+- Lease status, `seat_status`, `anode status` and the viewer's footer name the owner, from the MCP
+  client (such as Claude Code or Codex) or `ANODE_AGENT_NAME`, and list the agents waiting. While
+  others wait, desktop results say so, so the owner can hand the desktop on.
+
 ## 0.7.0 — 2026-09-22
 
 - The installer adds an **Anode** shortcut to the Start menu, so Windows Search finds Anode.

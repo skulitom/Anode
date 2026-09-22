@@ -4,7 +4,7 @@ Anode supplies a Windows desktop that an agent can inspect and control while the
 remains available. Use the same source files and installed tools, with separate scratch directories
 and unused localhost ports for each test. It does not isolate filesystem changes or app accounts.
 
-> **Before you start:** hold a [desktop lease](MULTI-AGENT.md) and renew it before expiry.
+> **Before you start:** hold a [desktop lease](MULTI-AGENT.md); each desktop command extends it.
 > CLI examples need `ANODE_AGENT_ID` and `ANODE_LEASE_TOKEN`; MCP supplies both after `seat_lease`
 > acquisition. Opt-in live scripts renew an existing lease but never acquire one. Release after
 > cleanup.

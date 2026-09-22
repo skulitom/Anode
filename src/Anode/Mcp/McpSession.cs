@@ -11,6 +11,7 @@ internal sealed class McpSession
 {
     private const string LatestProtocol = "2025-11-25";
     private readonly Func<string, JsonObject, CancellationToken, Task<JsonObject>> _call;
+    private readonly Action<string?>? _identify;
     private readonly SemaphoreSlim _tools = new(1, 1);
     private readonly SemaphoreSlim _output = new(1, 1);
     private readonly ConcurrentDictionary<string, Pending> _pending = new();
@@ -22,7 +23,12 @@ internal sealed class McpSession
         public volatile bool SuppressResponse;
     }
 
-    public McpSession(Func<string, JsonObject, CancellationToken, Task<JsonObject>> call) => _call = call;
+    /// <param name="identify">Receives the client's name from initialize, to label this agent for others.</param>
+    public McpSession(Func<string, JsonObject, CancellationToken, Task<JsonObject>> call, Action<string?>? identify = null)
+    {
+        _call = call;
+        _identify = identify;
+    }
 
     public async Task RunAsync(TextReader input, TextWriter output)
     {
@@ -80,6 +86,7 @@ internal sealed class McpSession
                         }
                         string selected = protocol is "2024-11-05" or "2025-03-26" or "2025-06-18" or LatestProtocol
                             ? protocol : LatestProtocol;
+                        _identify?.Invoke(String(parameters.Obj("clientInfo")!["name"]));
                         response = Result(id, new JsonObject
                         {
                             ["protocolVersion"] = selected,

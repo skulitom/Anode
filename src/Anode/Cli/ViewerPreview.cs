@@ -59,6 +59,7 @@ internal static class ViewerPreview
         using var window = new Daemon.SeatWindow(new Daemon.SeatOptions(), trayIcon: false);
         window.AllowClose();
         window.SetSeatInfo(2, scene.State == "ready");
+        if (scene.State == "ready") window.SetDesk("Claude Code", waiting: 1, known: true);
         window.SetStatus(Samples.GetValueOrDefault(scene.State, scene.State));
         window.SetHeadline(scene.State);
         window.ViewOnly = !scene.Control;

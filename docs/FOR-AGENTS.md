@@ -117,16 +117,17 @@ For an authorized request to test a native app:
 
 1. `seat_status`. It never starts anything.
 2. `seat_lease {action: "acquire"}`. Acquisition starts a hidden seat if needed and the MCP
-   server keeps the token. If another agent owns the desktop (`seat_busy`), wait and retry.
-   Renew with `{action: "renew"}` before expiry: the default is 120 seconds, and `ttlSeconds`
-   accepts 10 to 600.
+   server keeps the token. If another agent owns the desktop, it waits in a first-come line for
+   up to `waitSeconds` (default 30); calling it again within 5 seconds keeps your place. Each
+   desktop action keeps the lease for its lifetime (default 120 seconds, `ttlSeconds` 10 to 600);
+   renew with `{action: "renew"}` only across longer pauses.
 3. `seat_capabilities` to check actual capture/input blockers.
 4. `seat_run` to launch an owned fixture; `seat_windows` to locate its actual window.
 5. `seat_observe` to discover controls; `seat_element` with a fresh snapshot for offered actions.
    `seat_wait` for the resulting state, or a fresh screenshot when pixels matter.
 6. Close the owned fixture and cancel owned command jobs. Keep unrelated apps and jobs running.
-7. `seat_lease {action: "release"}`. `cancelJobs: true` requests cancellation only for your
-   command jobs.
+7. `seat_lease {action: "release"}`, so the next agent in line gets the desktop. `cancelJobs: true`
+   requests cancellation only for your command jobs.
 
 For delayed UI, use waits. For builds/servers, save command job IDs and read incremental output.
 For visual-only controls, use a fresh screenshot and original-screen coordinates. Keep the viewer
