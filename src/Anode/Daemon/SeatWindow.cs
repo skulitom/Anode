@@ -67,8 +67,8 @@ internal sealed class SeatWindow : Form
         Viewer.Connected += () => SetSeatPictureLive(true);
         Viewer.Disconnected += _ => SetSeatPictureLive(false);
 
-        Text = "Anode seat";
-        AccessibleName = "Anode seat viewer";
+        Text = "Anode seat" + Env.ChannelSuffix;
+        AccessibleName = "Anode seat viewer" + Env.ChannelSuffix;
         AutoScaleDimensions = new SizeF(96, 96);
         AutoScaleMode = AutoScaleMode.Dpi;
         StartPosition = FormStartPosition.Manual;
@@ -294,7 +294,7 @@ internal sealed class SeatWindow : Form
 
     private static string TrayText(uint? sessionId)
     {
-        string text = sessionId is null ? "Anode: no seat" : $"Anode background desktop: session {sessionId}";
+        string text = sessionId is null ? $"Anode{Env.ChannelSuffix}: no seat" : $"Anode{Env.ChannelSuffix} background desktop: session {sessionId}";
         return text.Length > 63 ? text[..63] : text;
     }
 
@@ -369,7 +369,7 @@ internal sealed class SeatWindow : Form
             busy: _state is "starting" or "connecting" or "signing-in" or "starting-agent" or "stopping",
             problem: _state is "error" or "logon-error");
         string seat = _sessionId is { } id ? $" · session {id}" : "";
-        string tooltip = $"Anode: {_headline.Text}{seat}";
+        string tooltip = $"Anode{Env.ChannelSuffix}: {_headline.Text}{seat}";
         _tray.Text = tooltip.Length > 63 ? tooltip[..63] : tooltip;
     }
 

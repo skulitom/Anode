@@ -39,8 +39,10 @@ menu, real client settings or the running daemon. Add `-QuickTest` to the build 
 self-test; `-Test` runs the full self-test. Use a separate `git worktree` for parallel work so
 builds do not share `src\Anode\obj` and `bin`.
 
-Every build talks to the same control pipe. While a daemon is running, do not run `start`, `up`,
-`lease` or any other seat command from the new build: it would act on the running seat.
+A release build talks to the installed Anode's control pipe. While a daemon is running, do not run
+`start`, `up`, `lease` or any other seat command from it: it would act on the running seat. Debug
+builds, and any build given `--channel dev`, are a [separate dev Anode](docs/DEVELOPMENT-TESTING.md#a-separate-dev-anode)
+that cannot reach it, and that refuses to start its own seat while the running one is up.
 
 ## Viewer and tray design
 

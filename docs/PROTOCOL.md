@@ -48,7 +48,9 @@ say. `error` is a sentence meant to be shown to a person.
 | `\\.\pipe\anode-control` | the daemon, in your session | `anode <cmd>`, `anode mcp`, anything you write |
 | `\\.\pipe\anode-seat` | the seat host, inside the child session | the daemon only |
 
-Both live in the machine-global pipe namespace. Servers and clients use .NET's
+These are the main channel's names. Another channel, such as a Debug build's `dev`, appends its
+name: `anode-control-dev` and `anode-seat-dev`. Both live in the machine-global pipe namespace.
+Servers and clients use .NET's
 `PipeOptions.CurrentUserOnly`, restricting connections to the same Windows identity and elevation
 level. Run the daemon and clients from ordinary, unelevated terminals; only setup needs elevation.
 See [Microsoft's pipe option documentation](https://learn.microsoft.com/en-us/dotnet/api/system.io.pipes.pipeoptions).
@@ -74,6 +76,7 @@ See [Microsoft's pipe option documentation](https://learn.microsoft.com/en-us/do
 ```json
 {
   "state": "ready",
+  "channel": "main",
   "session": 3,
   "agentReady": true,
   "viewerConnection": 1,
@@ -97,6 +100,8 @@ land on `detached` (seat alive, viewer disconnected), `stopping`, `stopped`, `er
 A viewer disconnect during startup becomes `error`, preserving the disconnect code and explanation
 in `lastError`. Startup waits return that failure immediately. `logError` reports the most recent
 log-write failure and clears after a successful write; `logPath` is the actual resolved destination.
+`channel` is `main` for the installed Anode, or the development channel, such as `dev`, whose pipes
+this daemon serves.
 
 `pointerGuard` describes the gate on the Remote Desktop control's `SetCursorPos` import. `suppressed`
 counts seat pointer moves kept off the user's desktop, `forwarded` those applied because the user had

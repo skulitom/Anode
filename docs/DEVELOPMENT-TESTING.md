@@ -155,9 +155,44 @@ with `scripts\build.ps1 -OutputDirectory artifacts\pkg-build` (see
 [Contributing](../CONTRIBUTING.md#build-while-anode-is-running)), and use a separate `git worktree`
 for parallel work so builds do not share `src\Anode\obj` and `bin`.
 
-Every build talks to the same control pipe. While a daemon is running, do not run `start`, `up`,
-`lease` or any other seat command from a development build: it acts on that running daemon and
-its seat, whichever build started them. `selftest --quick` uses private pipes only.
+Release builds are the main channel and talk to the installed Anode's control pipe. While it runs,
+do not run `start`, `up`, `lease` or any other seat command from a release build: it acts on that
+running daemon and its seat, whichever build started them. Use a dev build instead (below).
+`selftest --quick` uses private pipes only.
+
+## A separate dev Anode
+
+Debug builds are the **dev** channel: a separate Anode with its own daemon, pipes
+(`anode-control-dev` and `anode-seat-dev`), logs in `%LOCALAPPDATA%\Anode-dev`, and a viewer and
+tray icon labelled "(dev)". A dev build cannot reach, stop or quit the installed Anode, and its
+`status` reports only the dev Anode. Any build joins a channel through `ANODE_CHANNEL` or
+`--channel NAME` before the command; the installed Anode is `main`.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\build.ps1 -Configuration Debug -OutputDirectory artifacts\debug -QuickTest
+& .\artifacts\debug\anode.exe status | Out-Host
+# A release candidate, as the dev channel:
+& .\artifacts\pkg-build\anode.exe --channel dev status | Out-Host
+```
+
+Windows gives each Windows session one child session, so one channel at a time can run a seat. A
+dev Anode will not start a seat while the main Anode runs one (`start` and `lease acquire` exit 3
+and name the channel that has it), and the main Anode will not start one while a dev seat runs;
+neither takes the other's seat over. A live check of a dev build therefore needs a moment when the
+main seat can close: save work in it, quit it (`anode quit` closes every program in the seat), run
+and quit the dev Anode, then start the main one again. Only a separate machine or virtual machine
+runs both seats at once.
+
+To point an agent at the dev Anode, register it under its own name next to the main `anode` entry.
+`anode configure` from a dev build refuses, because it writes the clients' `anode` entry.
+
+```powershell
+claude mcp add --transport stdio --scope user anode-dev -- "C:\path\to\artifacts\debug\anode.exe" --channel dev mcp
+codex mcp add anode-dev -- "C:\path\to\artifacts\debug\anode.exe" --channel dev mcp
+```
+
+`--channel dev` also keeps a release build on the dev channel. Remove the entries with
+`claude mcp remove --scope user anode-dev` and `codex mcp remove anode-dev`.
 
 ## Coverage and limits
 

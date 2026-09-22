@@ -177,6 +177,18 @@ The error names the log file; look for `[seat]` lines in it. The usual causes:
   first seat can exceed that. Try `anode kill` then `anode start` again, which is faster the second
   time because the profile is warm.
 
+### Another Anode has the seat
+
+`start` and `lease acquire` exit 3, and `seat_start` fails, with "The main Anode is running this
+Windows session's seat" or another channel's name. Windows gives each Windows session one child
+session, so one Anode at a time can run a seat in it. A development build (the dev channel, see
+[a separate dev Anode](DEVELOPMENT-TESTING.md#a-separate-dev-anode)) will not start a seat while the
+installed Anode runs one, and the installed Anode will not start one while a dev seat runs; neither
+takes the other's seat over. Use the Anode that has the seat, or save work in its seat and quit that
+Anode (`anode quit` from its own `anode.exe` closes every program in the seat), then try again. "Kept
+its seat signed in" means that Anode quit with `--keep`: start it and quit it once to sign the seat
+out. A dev Anode logs to `%LOCALAPPDATA%\Anode-dev\anode.log`.
+
 ---
 
 ## Desktop leases

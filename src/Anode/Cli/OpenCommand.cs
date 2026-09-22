@@ -55,6 +55,13 @@ internal static partial class Cli
             Task.Run(() => RequestAsync(client, "seat.show")).GetAwaiter().GetResult();
             return 0;
         }
+        catch (SeatTakenException ex)
+        {
+            Log.Warn("opened from Windows while another Anode has the seat: " + ex.Message);
+            Tell(TaskDialogIcon.Information, "Another Anode has the seat", ex.Message,
+                "Open troubleshooting", Links.Troubleshooting + "#another-anode-has-the-seat");
+            return 3;
+        }
         catch (Exception ex)
         {
             Log.Error("opening Anode from Windows failed", ex);

@@ -39,7 +39,7 @@ internal sealed class McpServer : IDisposable
     internal const int DefaultWaitSeconds = 30;
 
     private JsonPipeClient? _daemon;
-    private string? _blockedReason;
+    private string? _blockedReason, _seatTaken;
     private bool _launchPending;
     private readonly string _agentId;
     // A generated identity cannot be resumed after this process ends.
@@ -52,12 +52,12 @@ internal sealed class McpServer : IDisposable
     private readonly Func<string?> _blockingSummary;
     private readonly SemaphoreSlim ConnectGate = new(1, 1);
 
-    internal McpServer(string controlPipe = Env.ControlPipe, Action? launchDaemon = null, Func<string?>? blockingSummary = null, string? agentId = null)
+    internal McpServer(string? controlPipe = null, Action? launchDaemon = null, Func<string?>? blockingSummary = null, string? agentId = null)
     {
         // Checks use private pipes. They must never reach Task Scheduler or the real readiness probe.
-        if (controlPipe != Env.ControlPipe && (launchDaemon is null || blockingSummary is null))
+        if (controlPipe is not null && controlPipe != Env.ControlPipe && (launchDaemon is null || blockingSummary is null))
             throw new ArgumentException("A private control pipe requires an injected launcher and readiness check.", nameof(controlPipe));
-        _controlPipe = controlPipe;
+        _controlPipe = controlPipe ?? Env.ControlPipe;
         _launchDaemon = launchDaemon ?? (() => DaemonLauncher.Launch(new[] { "--hidden" }));
         _blockingSummary = blockingSummary ?? Core.Session.Preconditions.BlockingSummary;
         // An empty value (for example an unset MCPB user_config field) means no stable identity.
@@ -163,10 +163,10 @@ internal sealed class McpServer : IDisposable
         if (client is null)
         {
             if (mayStart)
-                return TextResult(_blockedReason is not null
+                return TextResult(_seatTaken ?? (_blockedReason is not null
                     ? _blockedReason + " Tell the user to run `anode setup` in a terminal and approve the administrator prompt; "
                       + "this cannot be done from here."
-                    : "Anode is not running and could not be started. Run `anode doctor` in a terminal to see why.", isError: true);
+                    : "Anode is not running and could not be started. Run `anode doctor` in a terminal to see why."), isError: true);
             return Unavailable(toolName, leaseAction, leaseGated, daemonRunning: false);
         }
 
@@ -364,6 +364,7 @@ internal sealed class McpServer : IDisposable
             _daemon = await JsonPipeClient.TryConnectAsync(_controlPipe, ConnectTimeoutMs, cancel).ConfigureAwait(false);
             if (_daemon is not null || !mayStart) return _daemon;
 
+            _seatTaken = null;
             if (_blockingSummary() is { } blocked)
             {
                 Log.Warn($"not starting a daemon: {blocked}");
@@ -376,6 +377,13 @@ internal sealed class McpServer : IDisposable
             cancel.ThrowIfCancellationRequested();
             _launchPending = true;
             try { _launchDaemon(); }
+            catch (SeatTakenException ex)
+            {
+                _launchPending = false;
+                Log.Warn($"not starting a daemon: {ex.Message}");
+                _seatTaken = ex.Message;
+                return null;
+            }
             catch { _launchPending = false; throw; }
 
             var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(40);

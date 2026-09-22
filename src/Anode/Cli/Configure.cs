@@ -28,6 +28,13 @@ internal static partial class Cli
     private static int Configure(string[] args)
     {
         var (client, noSkill) = ConfigureArguments(args);
+        // configure writes the clients' one "anode" entry, which belongs to the main Anode.
+        if (!Env.IsMainChannel)
+        {
+            Console.Error.WriteLine($"configure registers the main Anode, and this is the {Env.Channel} channel. Register a "
+                + $"{Env.Channel} build under its own name by hand: {Links.Repository}/blob/main/docs/DEVELOPMENT-TESTING.md#a-separate-dev-anode");
+            return 2;
+        }
         string script = Path.Combine(AppContext.BaseDirectory, "connect-agents.ps1");
         if (!File.Exists(script))
             throw new FileNotFoundException("The connector script is missing. Extract the complete release next to anode.exe, "

@@ -29,9 +29,15 @@ does not create a seat or inject input. Full `selftest` also captures the curren
 desktop, launches a scheduler test process and exercises a machine-wide gamepad;
 choose it only when those actions are appropriate to the task.
 
-Every build shares the `anode-control` pipe. Never run `start`, `up`, `lease` or
-any other seat command from a development build while a daemon is running: it acts
-on the user's running seat. `selftest --quick` is private-pipe only and stays safe.
+Debug builds are the `dev` channel, with their own pipes, daemon mutex, logs
+(`%LOCALAPPDATA%\Anode-dev`) and viewer title, so they cannot reach or stop the
+user's Anode. Release builds (`dist`, `artifacts\pkg-build`) are the main channel
+and share the installed Anode's `anode-control` pipe: never run `start`, `up`,
+`lease` or any other seat command from one while the user's daemon runs; put
+`--channel dev` before the command instead. Windows allows one seat per session,
+so a dev seat refuses to start while the user's seat runs; a live check needs the
+user to close their seat first. `selftest --quick` is private-pipe only and stays
+safe. See [a separate dev Anode](docs/DEVELOPMENT-TESTING.md#a-separate-dev-anode).
 Read a command's usage with `anode help <command>`, which never dispatches it.
 
 `doctor` reads prerequisites and exits nonzero when setup is missing. Live seat

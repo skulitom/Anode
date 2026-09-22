@@ -214,7 +214,9 @@ without running it. Releases up to 0.5.0 ignore `--help` after a command and run
 the agent ID and token through `ANODE_AGENT_ID` and `ANODE_LEASE_TOKEN`, or as
 `--agent ID --lease TOKEN` **before** the command. Usage errors exit with code 2 before anything
 runs: an unknown command, an unknown option on commands such as `setup`, `start` and `kill`, or
-malformed input such as a single click coordinate.
+malformed input such as a single click coordinate. `--channel NAME` before the command, or
+`ANODE_CHANNEL`, selects a [separate development Anode](DEVELOPMENT-TESTING.md#a-separate-dev-anode);
+Debug builds are the `dev` channel.
 
 ### Start here
 
@@ -330,7 +332,8 @@ These need the [ViGEm bus driver](TROUBLESHOOTING.md#the-vigem-bus-driver-did-no
 ### Exit codes
 
 `0` success, `1` failure, `2` usage error or Anode already running, `3` `start`, `up` or
-`lease acquire` blocked by missing prerequisites, or a `wait` that did not match, `1223` setup prompt declined. `exec` and `job` return the program's own exit
+`lease acquire` blocked by missing prerequisites or by [another channel's seat](TROUBLESHOOTING.md#another-anode-has-the-seat),
+or a `wait` that did not match, `1223` setup prompt declined. `exec` and `job` return the program's own exit
 code when it completed, so `1` or `2` may come from the program (read stderr); `124` means it timed
 out, `130` that it was cancelled, and `0` with a job ID that it is still running.
 
@@ -419,4 +422,6 @@ anode selftest --quick  # includes MCP discovery, pipe deadlines and identity ch
 
 If a running Anode or MCP client uses `dist\anode.exe`, publish elsewhere with
 `-OutputDirectory artifacts\pkg-build`; see [Contributing](../CONTRIBUTING.md#build-while-anode-is-running).
+`-Configuration Debug` builds the dev channel, which cannot reach the installed Anode; see
+[a separate dev Anode](DEVELOPMENT-TESTING.md#a-separate-dev-anode).
 CI builds on `windows-latest` and runs the quick self-test on every push and pull request.

@@ -8,10 +8,13 @@ namespace Anode.Core.Launch;
 /// <summary>Shared by the CLI and MCP so the daemon can outlive either client.</summary>
 internal static class DaemonLauncher
 {
+    /// <exception cref="SeatTakenException">Another channel's Anode has this Windows session's seat.</exception>
     public static void Launch(string[] extra)
     {
+        if (SeatSlot.Blocker() is { } taken) throw new SeatTakenException(taken);
         Env.ResolveStateDirectory();
-        string[] launchArguments = new[] { "up", "--state-dir", Env.StateDirectory }.Concat(extra).ToArray();
+        // The Task Scheduler passes no environment, so the channel travels as an argument.
+        string[] launchArguments = new[] { "--channel", Env.Channel, "up", "--state-dir", Env.StateDirectory }.Concat(extra).ToArray();
         string arguments = string.Join(' ', launchArguments.Select(Quote));
         try
         {

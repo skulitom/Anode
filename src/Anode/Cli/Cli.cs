@@ -23,9 +23,9 @@ internal static partial class Cli
 
     public static int Run(string[] args)
     {
-        bool bare = args.Length == 0;
-        try { args = AgentOptions(args); }
+        try { args = PrefixOptions(args); }
         catch (ArgumentException ex) { ConsoleBridge.Attach(); Console.Error.WriteLine($"anode: {ex.Message}"); return 2; }
+        bool bare = args.Length == 0;
         string command = args.Length > 0 ? args[0].ToLowerInvariant() : "help";
         var rest = args.Skip(1).ToArray();
 
@@ -369,7 +369,12 @@ internal static partial class Cli
             return 3;
         }
 
-        DaemonLauncher.Launch(args);
+        try { DaemonLauncher.Launch(args); }
+        catch (SeatTakenException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            return 3;
+        }
         if (options.Flag("sign-in"))
             Console.WriteLine("Complete the Windows credential dialog in Anode. Your current desktop stays signed in.");
         var client = await WaitForDaemon(TimeSpan.FromSeconds(30));
@@ -405,6 +410,9 @@ internal static partial class Cli
         if (client is null)
         {
             Console.WriteLine(json ? StoppedStatus(_agentId).ToJsonString(Indented) : NotRunningText);
+            if (json) return 1;
+            if (!Env.IsMainChannel) Console.WriteLine($"Channel: {Env.Channel}, separate from the main Anode.");
+            if (SeatSlot.Blocker() is { } taken) Console.WriteLine(taken);
             return 1;
         }
 
@@ -419,6 +427,7 @@ internal static partial class Cli
         }
 
         Console.WriteLine($"state         {result.Str("state")}");
+        if (!Env.IsMainChannel) Console.WriteLine($"channel       {Env.Channel}");
         Console.WriteLine($"seat session  {result.Int("session")?.ToString() ?? "none"}");
         Console.WriteLine($"seat host     {(result.Bool("agentReady") == true ? "ready" : "not ready")}");
         Console.WriteLine($"viewer        {(result.Int("viewerConnection") == 1 ? "connected" : "disconnected")}, {(result.Bool("viewerVisible") == true ? "visible" : "hidden")}, {(result.Bool("viewOnly") == true ? "view only" : "you have control")}");
@@ -678,7 +687,7 @@ internal static partial class Cli
         return 2;
     }
 
-    /// <summary>Set when Connect refused to start Anode because machine prerequisites are missing.</summary>
+    /// <summary>Set when Connect refused to start Anode: prerequisites are missing or another channel has the seat.</summary>
     private static bool _startBlocked;
 
     private static async Task<JsonPipeClient?> Connect(bool autoStart)
@@ -694,8 +703,14 @@ internal static partial class Cli
             return null;
         }
 
+        try { DaemonLauncher.Launch(new[] { "--hidden" }); }
+        catch (SeatTakenException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            _startBlocked = true;
+            return null;
+        }
         Console.Error.WriteLine("Anode is not running; starting it...");
-        DaemonLauncher.Launch(new[] { "--hidden" });
         client = await WaitForDaemon(TimeSpan.FromSeconds(30));
         if (client is null)
         {
@@ -958,13 +973,19 @@ internal static partial class Cli
         text.Append("\n  Stopping a seat that has frozen\n");
         Wrap(text, "    ", "Press Ctrl+Alt+Shift+K anywhere, use the tray icon, or run `anode kill`. All three sign the "
             + "child session out, which force-closes everything in it.", "    ");
+        text.Append("\n  Development builds\n");
+        Wrap(text, "    ", "Debug builds are the dev channel. Any build takes a channel from ANODE_CHANNEL or from --channel "
+            + "NAME before the command. Each channel has its own daemon, logs and viewer, so a dev build cannot reach or "
+            + "stop the main Anode. Windows allows one seat per session, so a channel starts its seat only while no other "
+            + "channel's seat runs.", "    ");
         text.Append("\nPowerShell: append | Out-Host so the prompt waits for output and $LASTEXITCODE.\n")
             .Append("Run `anode help <command>` for one command. Agents: anode guide.\n")
             .Append("Docs: ").Append(Links.Readme).Append('\n')
             .Append("Problems: ").Append(Links.Troubleshooting).Append('\n');
-        Wrap(text, "", "Exit codes: 0 ok, 1 failed, 2 usage or already running, 3 start blocked by prerequisites or wait "
-            + "unmatched, 1223 setup prompt declined. exec and job return 124 on timeout, 130 when cancelled, 0 while the "
-            + "job is still running, and otherwise the program's own code, so 1 or 2 may come from the program; read stderr.", "");
+        Wrap(text, "", "Exit codes: 0 ok, 1 failed, 2 usage or already running, 3 start blocked by prerequisites or "
+            + "another channel's seat, or wait unmatched, 1223 setup prompt declined. exec and job return 124 on timeout, "
+            + "130 when cancelled, 0 while the job is still running, and otherwise the program's own code, so 1 or 2 may "
+            + "come from the program; read stderr.", "");
         return text.ToString();
     }
 

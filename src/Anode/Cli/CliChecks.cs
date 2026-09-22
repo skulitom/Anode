@@ -160,6 +160,7 @@ internal static class CliChecks
         foreach (string text in new[] { "not a security sandbox", "anode start --hidden", "anode doctor", "anode configure",
             "report seat capture and known input blockers", "anode selftest --quick", "ignores leases", "anode help <command>",
             "Agents: anode guide", "| Out-Host", "Exit codes:", "1223", "seat_drag is MCP-only", "seat_observe = inspect",
+            "ANODE_CHANNEL", "one seat per session",
             Links.Readme, Links.Troubleshooting, @"C:\project " })
             Require(flat.Contains(text, StringComparison.Ordinal), $"full help lacks '{text.Trim()}'");
         Require(full.Contains("\n  Start here\n", StringComparison.Ordinal) && full.Contains("\n  Diagnose\n", StringComparison.Ordinal),

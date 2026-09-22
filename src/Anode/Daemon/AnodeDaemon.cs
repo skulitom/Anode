@@ -69,6 +69,14 @@ internal sealed class AnodeDaemon : IDisposable
             return 2;
         }
 
+        using var seat = SeatSlot.Claim(out string? taken);
+        if (seat is null)
+        {
+            Console.Error.WriteLine(taken);
+            Log.Warn("not starting: " + taken);
+            return 3;
+        }
+
         var checks = Preconditions.Run();
         if (Preconditions.AnyFailed(checks))
         {
@@ -305,7 +313,7 @@ internal sealed class AnodeDaemon : IDisposable
                 SeatLauncher.LaunchInSession(
                     id.Value,
                     Env.ExecutablePath,
-                    "__seat-host --state-dir " + DaemonLauncher.Quote(Env.StateDirectory),
+                    $"--channel {Env.Channel} __seat-host --state-dir " + DaemonLauncher.Quote(Env.StateDirectory),
                     AppContext.BaseDirectory);
 
                 _seat = await ConnectSeatWithRetryAsync(TimeSpan.FromSeconds(90), cancel).ConfigureAwait(false);
@@ -717,6 +725,7 @@ internal sealed class AnodeDaemon : IDisposable
         var status = new JsonObject
         {
             ["state"] = _state,
+            ["channel"] = Env.Channel,
             ["session"] = _sessionId,
             ["agentReady"] = _hostReady,
             ["viewerConnection"] = _window?.Viewer.ConnectionState ?? 0,

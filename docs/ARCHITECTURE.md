@@ -122,7 +122,10 @@ connections so they do not wait behind long desktop actions. Stop keeps its sepa
 See [multiple agents](MULTI-AGENT.md) for recovery, cleanup and the trust model.
 
 Newline-delimited JSON over named pipes, request then response, on one connection. Two hops:
-CLI or MCP to daemon over `anode-control`, daemon to seat host over `anode-seat`. Named pipes are
+CLI or MCP to daemon over `anode-control`, daemon to seat host over `anode-seat`. A development
+channel appends its name to both, and holds its own daemon mutex and state folder; every channel's
+daemon also holds one shared seat mutex, because Windows gives a session one child session (see
+[a separate dev Anode](DEVELOPMENT-TESTING.md#a-separate-dev-anode)). Named pipes are
 machine-global. Clients and servers use `PipeOptions.CurrentUserOnly`, restricting
 connections to the same Windows identity and elevation level. Deadlines include
 queue time; timed-out requests close their connection and are never replayed.

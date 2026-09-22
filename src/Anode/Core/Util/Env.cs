@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
@@ -8,24 +9,67 @@ namespace Anode.Core.Util;
 /// <summary>Well-known paths, pipe names and a very small log.</summary>
 internal static class Env
 {
+    /// <summary>The installed Anode's channel. It keeps the names every earlier version used.</summary>
+    public const string MainChannel = "main";
+
+#if DEBUG
+    public const string BuildChannel = "dev";
+#else
+    public const string BuildChannel = MainChannel;
+#endif
+
+    /// <summary>
+    /// Which Anode this process belongs to. Each channel has its own daemon, pipes, logs and viewer,
+    /// so a development build cannot reach or stop the installed Anode. Debug builds are dev;
+    /// ANODE_CHANNEL or --channel choose another.
+    /// </summary>
+    public static string Channel { get; private set; } = BuildChannel;
+
+    public static bool IsMainChannel => Channel == MainChannel;
+
+    /// <summary>" (dev)" after names people see, so two channels' windows and tray icons differ.</summary>
+    public static string ChannelSuffix => IsMainChannel ? string.Empty : $" ({Channel})";
+
     /// <summary>Control pipe: the daemon serves it, the CLI and the MCP server talk to it.</summary>
-    public const string ControlPipe = "anode-control";
+    public static string ControlPipe => ChannelName("anode-control");
 
     /// <summary>Seat pipe: the seat host inside the child session serves it, the daemon talks to it.</summary>
-    public const string SeatPipe = "anode-seat";
+    public static string SeatPipe => ChannelName("anode-seat");
 
-    /// <summary>Mutex proving a daemon already owns the seat.</summary>
-    public const string DaemonMutex = @"Local\Anode.Daemon";
+    /// <summary>The main channel's daemon mutex, the only one Anode 0.8.0 and earlier take.</summary>
+    public const string MainDaemonMutex = @"Local\Anode.Daemon";
+
+    /// <summary>Mutex proving this channel's daemon is running.</summary>
+    public static string DaemonMutex => IsMainChannel ? MainDaemonMutex : MainDaemonMutex + "." + Channel;
+
+    private static string ChannelName(string name) => IsMainChannel ? name : name + "-" + Channel;
+
+    public static bool IsChannelName(string name) => Regex.IsMatch(name, "^[a-z0-9][a-z0-9-]{0,31}$");
+
+    public static void SetChannel(string name)
+    {
+        string channel = name.Trim().ToLowerInvariant();
+        if (!IsChannelName(channel))
+            throw new ArgumentException($"'{name}' is not a channel name. Use 1-32 letters, digits or hyphens, such as dev.");
+        Channel = channel;
+        if (!_stateDirectoryChosen)
+        {
+            StateDirectory = DefaultStateDirectory();
+            _stateDirectoryResolved = false;
+        }
+        // Programs this process starts, such as its workers, resolve the same channel.
+        System.Environment.SetEnvironmentVariable("ANODE_CHANNEL", channel == BuildChannel ? null : channel);
+    }
 
     public static string StateDirectory { get; private set; } = DefaultStateDirectory();
-    private static bool _stateDirectoryResolved;
+    private static bool _stateDirectoryResolved, _stateDirectoryChosen;
 
     private static string DefaultStateDirectory()
     {
         string local = System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData);
         if (string.IsNullOrWhiteSpace(local))
             local = Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), "AppData", "Local");
-        return Path.GetFullPath(Path.Combine(local, "Anode"));
+        return Path.GetFullPath(Path.Combine(local, IsMainChannel ? "Anode" : "Anode-" + Channel));
     }
 
     public static void SetStateDirectory(string path)
@@ -33,6 +77,7 @@ internal static class Env
         if (!Path.IsPathFullyQualified(path)) throw new ArgumentException("--state-dir must be an absolute path.");
         StateDirectory = Path.GetFullPath(path);
         _stateDirectoryResolved = false;
+        _stateDirectoryChosen = true;
     }
 
     public static string LogPath => Path.Combine(StateDirectory, "anode.log");

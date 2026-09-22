@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json.Nodes;
 using Anode.Core.Agents;
 using Anode.Core.Bridge;
+using Anode.Core.Util;
 
 namespace Anode.Cli;
 
@@ -9,7 +10,7 @@ internal static partial class Cli
 {
     private static string? _agentId, _leaseToken, _agentName;
 
-    private static string[] AgentOptions(string[] args)
+    private static string[] PrefixOptions(string[] args)
     {
         // A blank variable is unset, not an invalid identity.
         static string? Variable(string name) => Environment.GetEnvironmentVariable(name) is { } value
@@ -17,15 +18,18 @@ internal static partial class Cli
         _agentId = Variable("ANODE_AGENT_ID");
         _leaseToken = Variable("ANODE_LEASE_TOKEN");
         _agentName = Variable("ANODE_AGENT_NAME")?.Trim() is { } name && AgentAccess.ValidName(name) ? name : null;
+        string? channel = Variable("ANODE_CHANNEL");
         int index = 0;
         // Prefix options cannot consume literal text or arguments passed to a launched program.
-        while (index < args.Length && args[index] is "--agent" or "--lease")
+        while (index < args.Length && args[index] is "--agent" or "--lease" or "--channel")
         {
             string option = args[index++];
             if (index == args.Length) throw new ArgumentException($"{option} requires a value before the command.");
             if (option == "--agent") _agentId = args[index++];
-            else _leaseToken = args[index++];
+            else if (option == "--lease") _leaseToken = args[index++];
+            else channel = args[index++];
         }
+        if (channel is not null) Env.SetChannel(channel);
         return args[index..];
     }
 

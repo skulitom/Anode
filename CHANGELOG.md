@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- **A separate dev Anode.** Debug builds are the `dev` channel, and any build joins a channel with
+  `ANODE_CHANNEL` or `--channel NAME` before the command. A channel has its own daemon, pipes, logs
+  (`%LOCALAPPDATA%\Anode-dev`) and a viewer and tray icon labelled "(dev)", so a development build
+  cannot reach, stop or quit the installed Anode. The installed Anode keeps every name it had.
+- Windows gives a Windows session one child session, so one channel at a time runs a seat. A dev
+  Anode will not start a seat while the installed Anode's runs, including Anode 0.8.0 and earlier,
+  and the installed Anode will not start one while a dev seat runs; `start`, `lease acquire`,
+  `seat_start` and the Start menu say which Anode has the seat instead of taking it over.
+- `anode status` from a dev build names its channel and says when another Anode has the seat; the
+  daemon's status reports `channel`. `anode configure` refuses on a dev channel, since it would
+  replace the clients' `anode` entry.
+- Quick checks cover channel names and the seat hand-off with a private mutex and made-up pipe
+  lists, never the real seat.
+
 ## 0.8.0 — 2026-09-22
 
 - **Agents take turns without bookkeeping.** When another agent has the desktop, `seat_lease`
