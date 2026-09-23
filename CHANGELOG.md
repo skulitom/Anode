@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **.NET 10.** Anode moves to .NET 10, the current long-term support release, before .NET 8 support
+  ends on 10 November 2026. Release builds bundle runtime 10.0.12 and still need no .NET
+  installation; building from source needs the .NET 10 SDK. The viewer renders as it did on .NET 8.
 - **A separate dev Anode.** Debug builds are the `dev` channel, and any build joins a channel with
   `ANODE_CHANNEL` or `--channel NAME` before the command. A channel has its own daemon, pipes, logs
   (`%LOCALAPPDATA%\Anode-dev`) and a viewer and tray icon labelled "(dev)", so a development build

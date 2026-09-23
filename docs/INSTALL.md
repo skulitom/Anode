@@ -7,7 +7,7 @@
 - The downloadable package targets Windows x64. ARM64 is not validated.
 - PowerShell 5.1 or later for the installer and agent connector.
 - Administrator permission for the separate, one-time `anode setup` step.
-- No .NET installation for release builds. Building from source requires the .NET 8 SDK.
+- No .NET installation for release builds. Building from source requires the .NET 10 SDK.
 - [ViGEmBus](https://github.com/nefarius/ViGEmBus/releases) only if you want a virtual gamepad.
 
 ## Recommended: install for your user

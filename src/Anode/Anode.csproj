@@ -2,9 +2,9 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <!-- Self-contained releases must not inherit an old runtime from a developer's SDK. -->
-    <RuntimeFrameworkVersion>8.0.31</RuntimeFrameworkVersion>
+    <RuntimeFrameworkVersion>10.0.12</RuntimeFrameworkVersion>
     <UseWindowsForms>true</UseWindowsForms>
     <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable>
@@ -44,7 +44,7 @@
     <!-- WPF supplies UI Automation and the opt-in interoperability test fixture. -->
     <Using Include="System.IO" />
     <PackageReference Include="Nefarius.ViGEm.Client" Version="1.21.256" />
-    <PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.1" />
+    <PackageReference Include="System.ServiceProcess.ServiceController" Version="10.0.12" />
   </ItemGroup>
 
 </Project>

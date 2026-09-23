@@ -21,7 +21,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\test-distribution.ps
 | `LICENSE` | the repository license |
 | `icon.png` | `assets/anode-512.png`, only when that file exists; otherwise `icon` is removed from the manifest |
 
-The build needs only the .NET 8 SDK. CI uploads the bundle with the workflow artifacts for manual testing.
+The build needs only the .NET 10 SDK. CI uploads the bundle with the workflow artifacts for manual testing.
 `scripts/test-distribution.ps1` checks the entry names, the manifest fields, the version and that the
 tool list equals the `tools/list` reply. To run the official validator (it downloads Node packages),
 validate the extracted bundle, not this folder: the validator requires the file named by `icon`, and

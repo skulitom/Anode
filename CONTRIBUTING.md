@@ -1,6 +1,6 @@
 # Contributing to Anode
 
-Anode is a Windows-only .NET 8 application. Read [AGENTS.md](AGENTS.md) and
+Anode is a Windows-only .NET 10 application. Read [AGENTS.md](AGENTS.md) and
 [the architecture](docs/ARCHITECTURE.md) before changing session or input behavior.
 
 ## Build and verify
@@ -9,7 +9,7 @@ From the repository root in PowerShell:
 
 ```powershell
 dotnet build Anode.sln --nologo
-& .\src\Anode\bin\Debug\net8.0-windows\win-x64\anode.exe selftest --quick | Out-Host
+& .\src\Anode\bin\Debug\net10.0-windows\win-x64\anode.exe selftest --quick | Out-Host
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build.ps1 -QuickTest -Package
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\test-install.ps1
 ```
@@ -50,7 +50,7 @@ that cannot reach it, and that refuses to start its own seat while the running o
 mode keeps the system look. To review a change without a seat or a visible window:
 
 ```powershell
-& .\src\Anode\bin\Debug\net8.0-windows\win-x64\anode.exe __viewer-preview --out artifacts\ui-preview | Out-Host
+& .\src\Anode\bin\Debug\net10.0-windows\win-x64\anode.exe __viewer-preview --out artifacts\ui-preview | Out-Host
 ```
 
 It writes PNGs of the viewer, title bar included, in sample states (ready, hover, control,

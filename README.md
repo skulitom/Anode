@@ -191,7 +191,7 @@ client may send them to its model provider. Read the [privacy policy](docs/PRIVA
 
 ## Build and contribute
 
-Install the **.NET 8 SDK**, then:
+Install the **.NET 10 SDK**, then:
 
 ```powershell
 git clone https://github.com/skulitom/Anode.git

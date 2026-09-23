@@ -1,6 +1,6 @@
 # Working on Anode
 
-Anode is a Windows-only .NET 8 application. One executable implements the CLI,
+Anode is a Windows-only .NET 10 application. One executable implements the CLI,
 WinForms/RDP daemon, child-session host, setup and MCP stdio server.
 
 ## Build and verify
@@ -9,7 +9,7 @@ Run from the repository root in PowerShell:
 
 ```powershell
 dotnet build Anode.sln --nologo
-& .\src\Anode\bin\Debug\net8.0-windows\win-x64\anode.exe selftest --quick | Out-Host
+& .\src\Anode\bin\Debug\net10.0-windows\win-x64\anode.exe selftest --quick | Out-Host
 powershell -ExecutionPolicy Bypass -File scripts\build.ps1 -QuickTest
 ```
 

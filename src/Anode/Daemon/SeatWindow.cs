@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.Windows.Forms;
@@ -122,6 +123,7 @@ internal sealed class SeatWindow : Form
     /// True while the viewer swallows your clicks and keystrokes. The seat still runs;
     /// this only decides whether a stray click of yours reaches it.
     /// </summary>
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public bool ViewOnly
     {
         get => _viewOnly;

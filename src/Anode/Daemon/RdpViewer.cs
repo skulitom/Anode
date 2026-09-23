@@ -55,13 +55,16 @@ internal sealed class RdpViewer : AxHost
         base.OnHandleDestroyed(e);
     }
 
+    /// <summary>The control's automation object, which exists once its handle does.</summary>
+    private object Ocx => GetOcx() ?? throw new InvalidOperationException("The Remote Desktop control has not been created.");
+
     /// <summary>0 = disconnected, 1 = connected, 2 = connecting.</summary>
     public int ConnectionState
     {
         get
         {
             if (!IsHandleCreated) return 0;
-            try { return Convert.ToInt32(Dispatch.Get(GetOcx(), "Connected") ?? 0); }
+            try { return Convert.ToInt32(Dispatch.Get(Ocx, "Connected") ?? 0); }
             catch { return 0; }
         }
     }
@@ -72,7 +75,7 @@ internal sealed class RdpViewer : AxHost
         try
         {
             _sink = new EventSink(this);
-            _cookie = new ConnectionPointCookie(GetOcx(), _sink, typeof(IMsTscAxEvents));
+            _cookie = new ConnectionPointCookie(Ocx, _sink, typeof(IMsTscAxEvents));
         }
         catch (Exception ex)
         {
@@ -97,7 +100,7 @@ internal sealed class RdpViewer : AxHost
     {
         if (ConnectionState != 0) return;
 
-        object control = GetOcx();
+        object control = Ocx;
 
         Dispatch.Set(control, "Server", "localhost");
         Dispatch.Set(control, "DesktopWidth", Math.Clamp(options.Width, 640, 8192));
@@ -177,7 +180,7 @@ internal sealed class RdpViewer : AxHost
     {
         try
         {
-            object control = GetOcx();
+            object control = Ocx;
             int extended = Convert.ToInt32(Dispatch.Get(control, "ExtendedDisconnectReason") ?? 0);
             string? description = Dispatch.Call(control, "GetErrorDescription", reason, extended) as string;
             if (string.IsNullOrWhiteSpace(description)) return null;
@@ -204,7 +207,7 @@ internal sealed class RdpViewer : AxHost
     public void Disconnect()
     {
         if (!IsHandleCreated || ConnectionState == 0) return;
-        try { Dispatch.Call(GetOcx(), "Disconnect"); }
+        try { Dispatch.Call(Ocx, "Disconnect"); }
         catch (Exception ex) { Log.Warn($"viewer disconnect failed: {ex.Message}"); }
     }
 
@@ -213,7 +216,7 @@ internal sealed class RdpViewer : AxHost
         if (!IsHandleCreated) return;
         try
         {
-            object advanced = Dispatch.Get(GetOcx(), "AdvancedSettings9")!;
+            object advanced = Dispatch.Get(Ocx, "AdvancedSettings9")!;
             Dispatch.Set(advanced, "SmartSizing", enabled);
         }
         catch (Exception ex) { Log.Warn($"could not change scaling: {ex.Message}"); }

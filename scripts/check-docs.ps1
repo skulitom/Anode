@@ -11,7 +11,7 @@
     seat_/anode_/steam_/gamepad_ tokens are compared with the tools/list reply of 'anode mcp'.
     Runs no other anode command.
 .EXAMPLE
-    powershell -NoProfile -ExecutionPolicy Bypass -File scripts\check-docs.ps1 -Anode src\Anode\bin\Debug\net8.0-windows\win-x64\anode.exe
+    powershell -NoProfile -ExecutionPolicy Bypass -File scripts\check-docs.ps1 -Anode src\Anode\bin\Debug\net10.0-windows\win-x64\anode.exe
 #>
 param([string]$Anode)
 $ErrorActionPreference = 'Stop'
@@ -22,7 +22,7 @@ $problems = [Collections.Generic.List[string]]::new()
 function Report([string]$Document, [int]$Line, [string]$Message) { $problems.Add("${Document}:${Line}: $Message") }
 
 if (-not $Anode) {
-    $Anode = @('Debug', 'Release') | ForEach-Object { Join-Path $root "src\Anode\bin\$_\net8.0-windows\win-x64\anode.exe" } |
+    $Anode = @('Debug', 'Release') | ForEach-Object { Join-Path $root "src\Anode\bin\$_\net10.0-windows\win-x64\anode.exe" } |
         Where-Object { Test-Path -LiteralPath $_ } | Sort-Object { (Get-Item -LiteralPath $_).LastWriteTimeUtc } -Descending | Select-Object -First 1
     if (-not $Anode) { throw 'Pass -Anode with a freshly built anode.exe, or run dotnet build Anode.sln first.' }
 }
