@@ -32,7 +32,7 @@ internal static class SeatHost
     private static readonly Stopwatch Uptime = Stopwatch.StartNew();
     private static readonly DesktopTools Desktop = new();
     private static readonly ExecutionJobs Jobs = new();
-    private static readonly DesktopLease Lease = new(EndLease, Jobs.CancelOwned);
+    private static readonly DesktopLease Lease = new(EndLease, Jobs.CancelOwned, record: Log.Info);
     private static readonly CancellationTokenSource DesktopStopping = new();
     /// <summary>The user's own session, as the parent daemon reported it; Steam belongs there.</summary>
     private static uint? _desktopSession;

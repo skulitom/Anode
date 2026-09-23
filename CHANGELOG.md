@@ -16,6 +16,11 @@
 - `steam status` and `steam_status` report which session the Steam client runs in and whether it is
   signed in (`clientSession`, `signedIn`). Quick checks cover launch configurations, the launch
   paths and the namespace links without starting Steam.
+- **Agents can tell who has the desktop.** Every session of one client used to share its name, so
+  an agent holding the desktop read "Desktop in use by Claude Code" and took it for another Claude
+  Code session. MCP now names an agent after its client and project folder, such as "Claude Code in
+  WebShop", `seat_status` tells the owner "You hold the desktop lease", and the seat's log
+  records each time the desktop is taken, released or expires. `ANODE_AGENT_NAME` still overrides.
 - **A separate dev Anode.** Debug builds are the `dev` channel, and any build joins a channel with
   `ANODE_CHANNEL` or `--channel NAME` before the command. A channel has its own daemon, pipes, logs
   (`%LOCALAPPDATA%\Anode-dev`) and a viewer and tray icon labelled "(dev)", so a development build

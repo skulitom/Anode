@@ -266,7 +266,7 @@ keyboard focus. Apps share the user's profile, and virtual gamepads are machine-
   another agent works. Desktop tools take a free desktop themselves, and each desktop action
   keeps the lease; renew only across pauses longer than 120 seconds. Release after fixture
   cleanup so the next agent gets its turn. MCP supplies its identity/token automatically and names
-  the agent after its client; `ANODE_AGENT_NAME` overrides the name. Configure a unique
+  the agent after its client and project folder; `ANODE_AGENT_NAME` overrides the name. Configure a unique
   `ANODE_AGENT_ID` per independent agent for restart recovery. See
   [multiple agents](https://github.com/skulitom/Anode/blob/main/docs/MULTI-AGENT.md).
 - Use `seat_capabilities` to probe actual screenshot availability.

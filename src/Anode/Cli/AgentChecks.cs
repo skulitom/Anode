@@ -199,6 +199,57 @@ internal static class AgentChecks
         return "first-come line, places kept only while asking, owner names, waiting counts and leases extended by work";
     }
 
+    /// <summary>
+    /// Every session of one client shares its name, so an agent is named after its client and project
+    /// folder; an agent reading status learns when the desktop is its own; the log records hand-overs.
+    /// </summary>
+    public static async Task<string> Names()
+    {
+        string profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        foreach (var (folder, expected) in new (string?, string?)[]
+                 {
+                     (@"C:\Projects\WebShop", "WebShop"), (@"C:\Projects\DroneSim\", "DroneSim"), (@"D:\", null), (profile, null),
+                     (Path.Combine(profile, "Projects", "Game"), "Game"), (Path.Combine(local, "OpenAI", "Codex", "bin"), null),
+                     (Path.GetTempPath(), null), (Environment.SystemDirectory, null), (AppContext.BaseDirectory, null), ("", null), (null, null)
+                 })
+            Require(McpServer.Workspace(folder) == expected, $"the workspace of '{folder}' was '{McpServer.Workspace(folder)}', not '{expected}'");
+
+        string pipe = "anode-selftest-" + Guid.NewGuid().ToString("N");
+        using var claude = McpChecks.Isolated(pipe, "A", @"C:\Projects\WebShop");
+        using var codex = McpChecks.Isolated(pipe, "B", @"C:\Projects\DroneSim");
+        using var other = McpChecks.Isolated(pipe, "C", @"C:\DEV\" + new string('x', 80));
+        using var bare = McpChecks.Isolated(pipe, "D");
+        claude.Identify("claude-code");
+        codex.Identify("codex-mcp-client");
+        other.Identify("harness");
+        bare.Identify("claude-code");
+        Require(claude.AgentName == "Claude Code in WebShop" && codex.AgentName == "Codex in DroneSim" && bare.AgentName == "Claude Code"
+            && other.AgentName is { Length: 64 } truncated && truncated.StartsWith("harness in xxx", StringComparison.Ordinal),
+            $"agents were named '{claude.AgentName}', '{codex.AgentName}', '{other.AgentName}' and '{bare.AgentName}'");
+
+        long now = 0;
+        var record = new List<string>();
+        var lease = new DesktopLease(milliseconds: () => now, record: record.Add);
+        Task<JsonObject> Call(JsonObject request) => lease.HandleAsync(request, (_, _) => Task.FromResult(JsonLine.Ok()));
+        var take = Lease("A", "acquire"); take["agentName"] = claude.AgentName;
+        string token = (await Call(take)).Obj("result")!.Str("leaseToken")!;
+        Require((await Call(Lease("A", "status"))).Obj("result")!.Str("summary")!.StartsWith("You hold the desktop lease", StringComparison.Ordinal)
+            && (await Call(Lease("B", "status"))).Obj("result")!.Str("summary")!.Contains("Desktop in use by Claude Code in WebShop (A)"),
+            "status did not tell the owner the desktop is its own, or did not name it to others");
+        await Call(Lease("A", "release", token));
+        var again = Lease("B", "acquire"); again["agentName"] = codex.AgentName;
+        await Call(again);
+        now += 600_001;
+        lease.ExpireIdle();
+        Require(record.SequenceEqual(new[]
+            {
+                "desktop lease taken by Claude Code in WebShop (A)", "desktop lease released by Claude Code in WebShop (A)",
+                "desktop lease taken by Codex in DroneSim (B)", "desktop lease of Codex in DroneSim (B) expired"
+            }), "desktop hand-overs were not recorded: " + string.Join(" | ", record));
+        return "agents are named after their client and project folder; status says when the desktop is yours; hand-overs are logged";
+    }
+
     public static async Task<string> McpLeaseHelper()
     {
         int actions = 0;

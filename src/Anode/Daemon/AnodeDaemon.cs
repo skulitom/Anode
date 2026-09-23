@@ -615,7 +615,8 @@ internal sealed class AnodeDaemon : IDisposable
                 return JsonLine.Ok(new JsonObject { ["daemon"] = true, ["state"] = _state });
 
             case "status":
-                return JsonLine.Ok(await StatusAsync().ConfigureAwait(false));
+                // An agent asking learns whether the desktop is its own, not only who holds it.
+                return JsonLine.Ok(await StatusAsync(request.Str("agentId")).ConfigureAwait(false));
 
             case "seat.identity":
                 // Queried by the seat host before it starts accepting any input.
@@ -720,7 +721,7 @@ internal sealed class AnodeDaemon : IDisposable
         return response;
     }
 
-    internal async Task<JsonObject> StatusAsync()
+    internal async Task<JsonObject> StatusAsync(string? agentId = null)
     {
         var status = new JsonObject
         {
@@ -755,18 +756,23 @@ internal sealed class AnodeDaemon : IDisposable
             var steam = await probe.RequestAsync("steam.status", timeoutMs: 5000).ConfigureAwait(false);
             if (steam.Bool("ok") == true) status["steam"] = steam.Obj("result")?.DeepClone();
 
-            if (await DeskAsync(probe).ConfigureAwait(false) is { } desk) status["lease"] = desk;
+            if (await DeskAsync(probe, agentId).ConfigureAwait(false) is { } desk) status["lease"] = desk;
         }
 
         return status;
     }
 
-    /// <summary>Who holds the desktop and who is waiting, as any agent would see it; never a token.</summary>
-    private static async Task<JsonObject?> DeskAsync(JsonPipeClient probe)
+    /// <summary>
+    /// Who holds the desktop and who is waiting, as <paramref name="agentId"/> sees it (its own lease
+    /// is "yours", its place in line is given) or as any agent would; never a token.
+    /// </summary>
+    private static async Task<JsonObject?> DeskAsync(JsonPipeClient probe, string? agentId = null)
     {
-        var response = await probe.RequestAsync("lease", new JsonObject { ["agentId"] = "anode-status", ["action"] = "status" }, 5000).ConfigureAwait(false);
+        var response = await probe.RequestAsync("lease", new JsonObject { ["agentId"] = agentId ?? "anode-status", ["action"] = "status" }, 5000).ConfigureAwait(false);
         if (response.Bool("ok") != true || response.Obj("result")?.DeepClone() is not JsonObject desk) return null;
-        foreach (string caller in new[] { "agentId", "queuePosition", "leaseToken" }) desk.Remove(caller);
+        desk.Remove("agentId");
+        desk.Remove("leaseToken");
+        if (agentId is null) desk.Remove("queuePosition");
         return desk;
     }
 

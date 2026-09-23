@@ -45,6 +45,7 @@ internal sealed class McpServer : IDisposable
     // A generated identity cannot be resumed after this process ends.
     private readonly bool _ephemeral;
     private readonly bool _namePinned;
+    private readonly string? _workspace;
     private string? _agentName;
     private string? _leaseToken;
     private readonly string _controlPipe;
@@ -52,7 +53,8 @@ internal sealed class McpServer : IDisposable
     private readonly Func<string?> _blockingSummary;
     private readonly SemaphoreSlim ConnectGate = new(1, 1);
 
-    internal McpServer(string? controlPipe = null, Action? launchDaemon = null, Func<string?>? blockingSummary = null, string? agentId = null)
+    internal McpServer(string? controlPipe = null, Action? launchDaemon = null, Func<string?>? blockingSummary = null, string? agentId = null,
+        string? workingDirectory = null)
     {
         // Checks use private pipes. They must never reach Task Scheduler or the real readiness probe.
         if (controlPipe is not null && controlPipe != Env.ControlPipe && (launchDaemon is null || blockingSummary is null))
@@ -66,6 +68,8 @@ internal sealed class McpServer : IDisposable
         _agentId = agentId ?? (string.IsNullOrWhiteSpace(configured) ? null : configured) ?? "a_" + Guid.NewGuid().ToString("N");
         string? named = Environment.GetEnvironmentVariable("ANODE_AGENT_NAME")?.Trim();
         if (AgentAccess.ValidName(named)) { _agentName = named; _namePinned = true; }
+        // MCP clients start their servers in the session's project folder.
+        _workspace = Workspace(workingDirectory ?? Environment.CurrentDirectory);
     }
 
     /// <summary>Whether this connection holds a cached lease token.</summary>
@@ -75,20 +79,55 @@ internal sealed class McpServer : IDisposable
     internal string? AgentName => _agentName;
 
     /// <summary>
-    /// Names this agent after its MCP client, so status and the viewer can say who holds the desktop.
-    /// ANODE_AGENT_NAME takes precedence, for telling apart several sessions of one client.
+    /// Names this agent after its MCP client and the project folder it runs in, such as
+    /// "Claude Code in WebShop", so status and the viewer can say which session holds the desktop:
+    /// every session of one client has the same client name. ANODE_AGENT_NAME takes precedence.
     /// </summary>
     internal void Identify(string? clientName)
     {
         if (_namePinned || string.IsNullOrWhiteSpace(clientName)) return;
-        string name = clientName.Trim() switch
+        string client = clientName.Trim() switch
         {
             "claude-code" => "Claude Code",
             "claude-ai" => "Claude",
             "codex-mcp-client" or "codex" => "Codex",
-            string other => new string(other.Where(c => !char.IsControl(c)).Take(64).ToArray())
+            string other => other
         };
+        string name = _workspace is null ? client : $"{client} in {_workspace}";
+        name = new string(name.Where(c => !char.IsControl(c)).Take(64).ToArray()).Trim();
         if (AgentAccess.ValidName(name)) _agentName = name;
+    }
+
+    /// <summary>
+    /// The name of the folder a client started this server in, when it can be a project: not a drive
+    /// root or the profile itself, and not inside Windows, program, app-data or temporary folders or
+    /// Anode's own, where a client started from no project runs its servers.
+    /// </summary>
+    internal static string? Workspace(string? directory)
+    {
+        if (string.IsNullOrWhiteSpace(directory)) return null;
+        string path;
+        try { path = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory)); }
+        catch (Exception ex) when (ex is ArgumentException or IOException or NotSupportedException or System.Security.SecurityException) { return null; }
+
+        static bool Same(string a, string b) => a.Equals(Path.TrimEndingDirectorySeparator(b), StringComparison.OrdinalIgnoreCase);
+        static bool Within(string a, string folder) => folder.Length > 0
+            && (Same(a, folder) || a.StartsWith(Path.TrimEndingDirectorySeparator(folder) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
+        if (Path.GetPathRoot(path) is { } root && Same(path, root)) return null;
+        if (Same(path, Environment.GetFolderPath(Environment.SpecialFolder.UserProfile))) return null;
+        foreach (string folder in new[]
+                 {
+                     Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+                     Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                     Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+                     Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                     Path.GetTempPath(),
+                     AppContext.BaseDirectory
+                 })
+            if (Within(path, folder)) return null;
+        string name = Path.GetFileName(path);
+        return name.Length > 0 ? name : null;
     }
 
     /// <summary>How long a call waits for an existing daemon's pipe before treating Anode as stopped.</summary>

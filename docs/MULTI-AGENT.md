@@ -29,9 +29,12 @@ Use separate agent IDs for independent tasks. Agents deliberately using the same
   when the server generated its identity, because nothing could resume it; with a stable
   `ANODE_AGENT_ID` the lease stays until it expires, so a restarted session can recover it.
 - **Seeing who has it.** `seat_lease` with `{"action":"status"}`, `seat_status`, `anode status` and
-  `anode lease status` report the owner, its name, the time left and the line. MCP names an agent
-  after its client (for example Claude Code or Codex); `ANODE_AGENT_NAME` overrides that, which
-  helps tell apart several sessions of one client. The viewer's footer shows the owner too. Status
+  `anode lease status` report the owner, its name, the time left and the line. An agent asking
+  about a lease it holds is told "You hold the desktop lease", so it never mistakes its own lease
+  for another agent's. MCP names an agent after its client and the project folder the client started
+  it in, for example "Claude Code in WebShop" or "Codex in DroneSim", because every session of one
+  client has the same client name; `ANODE_AGENT_NAME` overrides that. The viewer's footer shows the
+  owner too, and the seat's log records each time the desktop is taken, released or expires. Status
   never starts a daemon or seat and never exposes another agent's token.
 
 ## MCP workflow

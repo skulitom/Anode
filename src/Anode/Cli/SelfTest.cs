@@ -130,6 +130,7 @@ internal static class SelfTest
         Check(results, "agent ownership", () => AgentChecks.Ownership().GetAwaiter().GetResult());
         Check(results, "agent queue and disconnect", () => AgentChecks.QueueAndDisconnect().GetAwaiter().GetResult());
         Check(results, "agent line", () => AgentChecks.Line().GetAwaiter().GetResult());
+        Check(results, "agent names", () => AgentChecks.Names().GetAwaiter().GetResult());
         Check(results, "MCP ownership", () => AgentChecks.McpOwnership().GetAwaiter().GetResult());
         Check(results, "MCP lease helper", () => AgentChecks.McpLeaseHelper().GetAwaiter().GetResult());
         Check(results, "agent startup and Stop", () => AgentChecks.StartupAndStop().GetAwaiter().GetResult());

@@ -104,6 +104,11 @@ log-write failure and clears after a successful write; `logPath` is the actual r
 `channel` is `main` for the installed Anode, or the development channel, such as `dev`, whose pipes
 this daemon serves.
 
+`lease` is the desktop lease as the requesting `agentId` sees it: its `summary` begins "You hold the
+desktop lease" when that agent is the owner, and `queuePosition` gives its place in line. Without an
+`agentId` it is reported as to any agent. MCP names each agent after its client and the folder the
+client started the server in, such as "Claude Code in WebShop", unless `ANODE_AGENT_NAME` is set.
+
 `pointerGuard` describes the gate on the Remote Desktop control's `SetCursorPos` import. `suppressed`
 counts seat pointer moves kept off the user's desktop, `forwarded` those applied because the user had
 taken control in a visible, focused viewer, and `viewer` is the control's rectangle on the user's

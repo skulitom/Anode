@@ -33,8 +33,9 @@ seat can open anything your account can.
 All of this lives in `%LOCALAPPDATA%\Anode`, or the folder you pass with `--state-dir`:
 
 - `anode.log`: timestamps, roles, process and session IDs, launched program paths, Steam app IDs,
-  seat stop reasons, startup checks and errors. Command-job requests, argument values and
-  environment overrides are not logged.
+  who took, released or let expire the desktop lease (agent names, which include the agent's
+  project folder name, and the start of agent IDs), seat stop reasons, startup checks and errors.
+  Command-job requests, argument values and environment overrides are not logged.
 - `rdp-rendering-backup.json`: your previous per-user RDP rendering preference, so
   `anode rendering --restore` can put it back.
 

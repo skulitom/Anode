@@ -26,23 +26,31 @@ internal sealed class DesktopLease
     private readonly Func<long> _milliseconds;
     private readonly Action _invalidateReferences;
     private readonly Func<string, int> _cancelJobs;
+    private readonly Action<string> _record;
     private readonly List<Waiter> _line = new();
     private string? _owner, _ownerName, _token;
     private long _expires, _ttl = DefaultTtlMs;
     private bool _active;
 
-    public DesktopLease(Action? invalidateReferences = null, Func<string, int>? cancelJobs = null, Func<long>? milliseconds = null)
+    /// <param name="record">Receives a line each time the desktop changes hands, for the log.</param>
+    public DesktopLease(Action? invalidateReferences = null, Func<string, int>? cancelJobs = null, Func<long>? milliseconds = null,
+        Action<string>? record = null)
     {
         _invalidateReferences = invalidateReferences ?? (() => { });
         _cancelJobs = cancelJobs ?? (_ => 0);
         _milliseconds = milliseconds ?? (() => Environment.TickCount64);
+        _record = record ?? (_ => { });
     }
 
     private void Expire()
     {
         long now = _milliseconds();
         _line.RemoveAll(waiter => now - waiter.Seen > PlaceHoldMs);
-        if (!_active && _owner is not null && _expires <= now) EndLease();
+        if (!_active && _owner is not null && _expires <= now)
+        {
+            _record($"desktop lease of {Label(_owner, _ownerName)} expired");
+            EndLease();
+        }
     }
 
     private void EndLease()
@@ -133,6 +141,7 @@ internal sealed class DesktopLease
                 _token = "l_" + Guid.NewGuid().ToString("N");
                 _ttl = (request.Int("ttlSeconds") ?? DefaultTtlMs / 1000) * 1000L;
                 _expires = now + _ttl;
+                _record($"desktop lease taken by {Label(agent, _ownerName)}");
                 return JsonLine.Ok(State(agent, includeToken: true));
             }
             if (Check(request) is { } error) return error;
@@ -145,6 +154,7 @@ internal sealed class DesktopLease
             if (_active) return Fail("seat_busy", "Wait for this agent's in-flight desktop operation to finish before releasing its lease.", agent);
             int cancelled = request.Bool("cancelJobs") == true ? _cancelJobs(agent) : 0;
             _expires = _milliseconds();
+            _record($"desktop lease released by {Label(agent, _ownerName)}");
             EndLease();
             var result = State(agent);
             result["cancelledJobs"] = cancelled;

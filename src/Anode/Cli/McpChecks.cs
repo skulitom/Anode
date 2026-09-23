@@ -35,9 +35,10 @@ internal static class McpChecks
     /// An MCP backend on a private pipe that refuses to start anything. McpServer rejects private
     /// pipes without injected startup hooks, so no check can reach Task Scheduler by omission.
     /// </summary>
-    internal static McpServer Isolated(string pipe, string? agentId = null) => new(pipe,
+    // The temporary folder names no project, so agents are named after their client alone.
+    internal static McpServer Isolated(string pipe, string? agentId = null, string? workingDirectory = null) => new(pipe,
         () => throw new InvalidOperationException("a self-test tried to launch a daemon"),
-        () => "self-test: daemon startup is disabled", agentId);
+        () => "self-test: daemon startup is disabled", agentId, workingDirectory ?? Path.GetTempPath());
 
     public static async Task<string> Discovery()
     {
