@@ -35,7 +35,7 @@ Useful options:
 
 ```powershell
 # Choose a version and register installed Codex/Claude Code CLIs as well.
-powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Version 0.8.0 -Client Auto
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Version 0.9.0 -Client Auto
 # A dedicated custom folder; leave PATH and the Start menu alone.
 powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -InstallDirectory C:\Tools\Anode -NoPath -NoShortcut
 ```

@@ -24,39 +24,43 @@ anode capabilities | Out-Host
 the discoverable `anode-desktop` skill. Use `--no-skill` for MCP registration alone.
 Restart the agent afterward. Other MCP clients can launch `anode.exe` with the argument `mcp`.
 
-## What's new in 0.8.0
+## What's new in 0.9.0
 
-**Agents take turns without bookkeeping.** Several agents share one background desktop, one at a
-time. When another agent is using it, `seat_lease` acquire now waits in a first-come line, for up
-to 30 seconds by default (`waitSeconds`, up to 300; `anode lease acquire --wait` on the CLI),
-instead of failing at once. An agent keeps its place only while it keeps asking, so the desktop
-never goes to an agent that gave up or went away.
+**Steam stays on your desktop.** A Steam game launched through Anode (`anode steam <appid>`,
+`steam_launch`) now runs in the seat and uses the Steam client already running on your desktop, which
+stays there. Before, a launch started a Steam client in the seat, and that took Steam over from your
+desktop. When Steam is not running, Anode starts it on your desktop, minimized, and starts the game
+once Steam could serve it. The game's program comes from Steam's own launch configuration; `--exe`
+(MCP: `exe`) names another. Games started this way run without the Steam overlay and Steam Input.
+`--force` launches through a Steam client in the seat, as before.
 
-**Leases that follow the work.** Each desktop action extends the lease, so an agent that keeps
-working no longer renews; `renew` covers long pauses. Desktop tools take the lease themselves when
-the desktop is free, and never start a seat to do it. Pointer, keyboard and gamepad input that
-arrives without a lease is refused once with a request to observe first, because it was aimed at a
-screen another agent may have changed. An MCP session whose identity Anode generated releases its
-lease when it ends; a stable `ANODE_AGENT_ID` still keeps it for recovery.
+**Agents can tell who has the desktop.** MCP names each agent after its client and project folder,
+for example "Claude Code in WebShop", instead of giving every session of a client one name. An agent
+asking about a lease it holds is told "You hold the desktop lease", so it no longer mistakes its own
+lease for another agent's. The log records who took, released or let the desktop expire.
 
-**See who has the desktop.** Lease status, `seat_status`, `anode status` and the viewer's footer
-name the owner (the MCP client's name, such as Claude Code or Codex, or `ANODE_AGENT_NAME`) and
-list who is waiting. While others wait, the owner's desktop results say so, so it can hand the
-desktop on.
+**.NET 10.** Anode moves to .NET 10, the current long-term support release, before .NET 8 support
+ends on 10 November 2026. The download still includes the runtime, so no .NET installation is needed.
+
+**A separate dev Anode.** Debug builds run as their own `dev` channel, with separate pipes, logs and a
+viewer labelled "(dev)", so a development build cannot reach or stop the installed Anode. Windows
+allows one seat per session, so only one channel runs a seat; the others say which one has it.
 
 **Upgrading.** Save seat work, run `anode quit` (it closes every program in the seat) and close the
-agent sessions that use Anode, then install 0.8.0 and start Anode again. The lease protocol gained
-`waitSeconds`, `agentName` and `startSeat`, so a 0.8.0 MCP server cannot take leases from an older
-running daemon. Run `anode configure` to update the installed skill. Over MCP, acquire now waits up
-to 30 seconds while another agent works; pass `waitSeconds: 0` for the previous immediate answer.
+agent sessions that use Anode, then install 0.9.0 and start Anode again. Older MCP servers work with
+the 0.9.0 daemon and are told when they hold the desktop, but only 0.9.0 MCP servers name agents
+after their project folder. Run `anode configure` to update the installed skill. `steam_launch` no
+longer refuses while Steam runs on your desktop, and `force` now means launching through a Steam
+client in the seat.
 
-**Validation and limits.** The candidate passes all 53 local quick checks, including new checks of
-the line, lapsed places, owner names, activity-extended leases, and MCP lease taking, look-first
-input and hand-off with real MCP servers over private pipes, plus package, installation and
-distribution checks. After release, the same code passed live checks on a real seat: two agents
-waiting in line, handing over and observing after a take; the native and browser suites with real
-input; and the 0.7.0 viewer. Start menu launch from a new installation and the pointer-isolation
-script remain. See the
+**Validation and limits.** The candidate passes all 59 local quick checks, including new checks of
+Steam launch configurations, every launch path, namespace links, agent names and status as the asking
+agent sees it, plus package, installation and distribution checks. Live on a real seat, Liftoff ran
+in the seat against the Steam client on the desktop, which never moved, and two MCP agents in
+different project folders were told apart. On .NET 10, the native desktop suite and the
+pointer-isolation script passed. The browser suite with real input did not run, because a GameInput
+helper held the new seat's foreground. Games wrapped in Steam's DRM stub or needing its overlay are
+untested. See the
 [validation record](https://github.com/skulitom/Anode/blob/main/docs/RELEASE-READINESS.md#live-validation--23-september-2026).
 
 Requires 64-bit Windows 10/11 Pro, Enterprise or Education, or Windows Server with a Remote Desktop

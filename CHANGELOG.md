@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.0 — 2026-09-24
 
 - **.NET 10.** Anode moves to .NET 10, the current long-term support release, before .NET 8 support
   ends on 10 November 2026. Release builds bundle runtime 10.0.12 and still need no .NET
