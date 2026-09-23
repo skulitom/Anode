@@ -90,8 +90,9 @@ See [Microsoft's pipe option documentation](https://learn.microsoft.com/en-us/do
   "logPath": "C:\\Users\\you\\AppData\\Local\\Anode\\anode.log",
   "logError": null,
   "seat":  { "session": 3, "pid": 9120, "user": "you", "screen": {"width":1280,"height":720}, "cursor": {"x":640,"y":360} },
-  "steam": { "steamExe": "D:\\STEAM\\steam.exe", "seatSession": 3, "runningSessions": [3],
-             "runningOutsideSeat": false, "summary": "Steam is running inside the seat..." }
+  "steam": { "steamExe": "D:\\STEAM\\steam.exe", "seatSession": 3, "runningSessions": [1],
+             "runningOutsideSeat": true, "clientSession": 1, "signedIn": true,
+             "summary": "Steam is running on your desktop (session 1)..." }
 }
 ```
 
@@ -191,19 +192,37 @@ Buttons: `left`, `right`, `middle`, `x1`, `x2`. Key names: letters, digits, `f1`
 | `op` | Arguments | Result |
 | --- | --- | --- |
 | `run` | `path`, `args` (array), `cwd` | `{pid, path, session}` |
-| `steam.status` | | `{steamExe, seatSession, runningSessions, runningOutsideSeat, summary}` |
-| `steam.launch` | `appId`, `args`, `force` | `{appId, session, note}` |
+| `steam.status` | | `{steamExe, seatSession, runningSessions, runningOutsideSeat, clientSession, signedIn, summary}` |
+| `steam.launch` | `appId`, `args`, `exe`, `force`, `timeoutMs` | `{appId, session, pid, path, steamSession, bridged, note}` |
 | `ps.list` | `windowedOnly` | `{session, processes:[{pid,name,title,started,memoryMb}]}` |
 | `ps.kill` | `pid` or `name` | `{killed}` |
 
-`steam.launch` fails with an explanation when Steam is already running outside the seat: another
-launch can disrupt that client or open the game on its screen. `force: true` overrides this protection;
-it does not create an independent client. `ps.kill` refuses any pid outside the seat's
-session.
+`steam.launch` never moves Steam. When the Steam client runs outside the seat, the seat host starts
+the game's program in the seat (`bridged: true`, with its `pid` and `path`) and connects it to that
+client, whose session is `steamSession`. The program, its arguments and working folder come from
+Steam's launch configuration unless `exe` names a program, absolute or relative to the game's folder.
+When Steam is not running, the seat host first starts it minimized in the parent session. Either way
+it then asks the client what a game's `SteamAPI_Init` asks, a pipe and then the signed-in user, by
+running `anode __steam-ready` in the seat through the bridge and without an app id, so Steam does not
+count it as a game. Steam's own records name an account before a game could use it, and keep one after
+an unclean exit. The game starts once the account is connected to Steam, five seconds later if it had
+to wait, or at the deadline if the account is signed in offline; the answer is due within `timeoutMs`
+(default 60000, less a margin), and the CLI and MCP server allow about two and three minutes. A client
+already in the seat launches the game itself
+(`bridged: false`). `force: true` also launches through a client in the seat, which takes Steam over
+from any other session. `ps.kill` refuses any pid outside the seat's session.
+
+The bridge works because Steam's client library finds its client through two named objects,
+`Steam3Master_SharedMemFile` and `Steam3Master_SharedMemLock`, and accepts another name for them in
+the `steam_master_ipc_name_override` environment variable. Windows keeps such names per session, so
+the seat host links a name of its own in the seat's object namespace to the client's objects and
+gives a bridged game that name, with `SteamAppId`, `SteamGameId` and `SteamOverlayGameId`. The rest of
+the conversation uses handles Steam duplicates into the game, which works across sessions for the
+same user. The links last as long as the seat host.
 
 `run` also refuses direct `steam.exe`/`steam` commands and `steam://` URLs when Steam is running
-outside the seat. Starting another client can disrupt the existing one. This check does not inspect
-shortcuts or wrapper scripts. Other applications may also reuse an existing instance in another
+outside the seat, because they would start a second client that takes Steam over. This check does
+not inspect shortcuts or wrapper scripts. Other applications may also reuse an existing instance in another
 session; a `run` response confirms where the launch originated, not where every resulting window
 will appear.
 

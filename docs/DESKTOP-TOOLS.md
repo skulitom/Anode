@@ -98,9 +98,9 @@ desktop as a fallback. Do not guess coordinates from a missing or stale image.
 See [capture troubleshooting](TROUBLESHOOTING.md#hidden-viewer-capture-fails).
 
 Anode shares your user profile and installed apps. Some applications reuse an
-existing instance in another session. Steam needs special handling when its main
-client must remain on your desktop; see [Launch a Steam game](USAGE.md#launch-a-steam-game-with-a-joystick)
-and [Steam troubleshooting](TROUBLESHOOTING.md#steam-opens-the-game-on-my-screen-instead).
+existing instance in another session. Steam games launched with `steam_launch` run in the seat
+and use the Steam client on your desktop, which stays there; see [Launch a Steam game](USAGE.md#launch-a-steam-game-with-a-joystick)
+and [Steam troubleshooting](TROUBLESHOOTING.md#a-steam-game-will-not-start-in-the-seat).
 Virtual gamepads remain visible across Windows sessions.
 
 ## Verification

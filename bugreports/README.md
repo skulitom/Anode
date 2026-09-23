@@ -24,6 +24,11 @@ real mouse pointer when a seat program called `SetCursorPos`, the measurements t
 Remote Desktop control only checks whether the pointer is over its rectangle, and the import gate
 that fixes it. Its live verification against a restarted daemon is still outstanding.
 
+The [September 23 record](2026-09-23-steam-stays-on-the-desktop.md) supersedes the September 14
+conclusion that a game in the seat cannot reach the desktop's Steam client: only the names of
+Steam's handshake objects are bound to a session, and the seat now links them. Liftoff launched
+that way ran in the seat against the desktop's Steam, which never moved.
+
 `fix-rdp-listener.ps1` is the administrator script used for a specific private-key
 permission failure. It creates and binds a certificate, grants NETWORK SERVICE
 read access to that certificate's key, and restarts Remote Desktop Services. It

@@ -1,14 +1,18 @@
 using System.Diagnostics;
+using System.Globalization;
 using Microsoft.Win32;
 
 namespace Anode.Core.Steam;
 
+/// <summary>The Steam client this Windows user runs: its process, its session and whether an account is signed in.</summary>
+internal readonly record struct SteamClient(int Pid, int Session, bool SignedIn);
+
 /// <summary>
-/// Locating and starting Steam games. The seat shares the parent's Windows user;
-/// starting another Steam client can affect the existing client in another session.
-/// Steam launches are refused by default while a client runs outside the seat.
-/// <see cref="Describe"/> reports which case you are in so callers can say so plainly
-/// instead of silently launching a game onto the user's own screen.
+/// Locating Steam and its games. The seat shares the parent's Windows user, and Steam keeps one
+/// client per user: a client started in one session takes over from the one in another. Games
+/// launched through Anode therefore use the client where it already runs (see <see cref="SteamLaunch"/>),
+/// and a Steam client starts in the seat only when asked to or when it already runs there.
+/// <see cref="Describe"/> says which case applies, so callers can say so plainly.
 /// </summary>
 internal static class Steam
 {
@@ -62,8 +66,8 @@ internal static class Steam
         int[] elsewhere = (readSessions ?? RunningSessions)().Where(id => id != (int)seatSession).Distinct().ToArray();
         return elsewhere.Length == 0 ? null
             : $"Steam is already running outside the seat in session {string.Join(", ", elsewhere)}. "
-            + "Launching another Steam client or Steam URL can affect that existing client. "
-            + "The launch was refused. Leave Steam there, or explicitly close it before starting it inside the seat.";
+            + "A Steam client or Steam URL started in the seat would take Steam over from that session, so the launch was refused. "
+            + "Launch Steam games with `anode steam <appid>` (agents: steam_launch): they run in the seat and use the running client.";
     }
 
     /// <summary>The session ids Steam is currently running in, if any.</summary>
@@ -79,56 +83,83 @@ internal static class Steam
     }
 
     /// <summary>
-    /// Reports Steam's session and the consequences of launching from the seat.
+    /// The Steam client this user runs, from the record Steam keeps under HKCU while it runs, or the
+    /// running steam.exe when that record is stale. Null when Steam is not running.
     /// </summary>
-    public static string Describe(uint seatSession)
+    public static SteamClient? ActiveClient()
     {
-        int[] sessions = RunningSessions();
-        if (sessions.Length == 0)
-            return "Steam is not running. Starting a game from the seat will start Steam in the seat, and the game opens in the seat.";
-        if (sessions.All(id => id == (int)seatSession))
-            return $"Steam is running inside the seat (session {seatSession}). Games will open in the seat.";
-        return $"Steam is already running in session {string.Join(", ", sessions)}, outside the seat. "
-             + "Launching from the seat can affect that client or open the game in its session. "
-             + "Anode refuses conflicting Steam launches by default. Keep the existing client running if you need it on that desktop.";
+        int pid = 0;
+        bool signedIn = false;
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam\ActiveProcess");
+            pid = key?.GetValue("pid") is int id ? id : 0;
+            signedIn = key?.GetValue("ActiveUser") is int user && user != 0;
+        }
+        catch (Exception ex) when (ex is System.Security.SecurityException or IOException or UnauthorizedAccessException) { }
+
+        if (pid > 0 && SessionOf(pid) is int session) return new SteamClient(pid, session, signedIn);
+
+        // Steam leaves its last process id behind when it exits, and a client that has not written
+        // its record yet has not signed in either.
+        SteamClient? found = null;
+        foreach (var process in Process.GetProcessesByName("steam"))
+        {
+            try { found ??= new SteamClient(process.Id, process.SessionId, false); }
+            catch (InvalidOperationException) { }
+            finally { process.Dispose(); }
+        }
+        return found;
     }
 
-    /// <summary>
-    /// Starts Steam itself inside the caller's session. Call this from the seat host
-    /// before launching a game, so the seat owns the Steam instance.
-    /// </summary>
-    public static Process? StartClient(bool silent = true)
+    private static int? SessionOf(int pid)
     {
-        string exe = FindExecutable()
-            ?? throw new FileNotFoundException("Steam was not found. Install Steam, or pass the game's executable to `anode run` instead.");
-
-        var info = new ProcessStartInfo
+        try
         {
-            FileName = exe,
-            WorkingDirectory = Path.GetDirectoryName(exe)!,
-            UseShellExecute = false
-        };
-        if (silent) info.ArgumentList.Add("-silent");
-        return Process.Start(info);
+            using var process = Process.GetProcessById(pid);
+            return process.ProcessName.Equals("steam", StringComparison.OrdinalIgnoreCase) ? process.SessionId : null;
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException) { return null; }
     }
 
-    /// <summary>Launches an app id through the Steam client in the caller's session.</summary>
-    public static Process? LaunchApp(int appId, IEnumerable<string>? gameArguments = null)
-    {
-        string exe = FindExecutable()
-            ?? throw new FileNotFoundException("Steam was not found. Install Steam, or pass the game's executable to `anode run` instead.");
+    /// <summary>Where Steam runs and what a launch through Anode will do about it.</summary>
+    public static string Describe(uint seatSession, uint? desktopSession = null) => Describe(seatSession, desktopSession, ActiveClient());
 
+    internal static string Describe(uint seatSession, uint? desktopSession, SteamClient? client)
+    {
+        if (client is not { } steam)
+            return "Steam is not running. A Steam game launched through Anode starts Steam on your desktop, minimized, "
+                + "and runs in the seat.";
+        if (steam.Session == (int)seatSession)
+            return $"Steam is running inside the seat (session {seatSession}), so its games open there. "
+                + "To keep Steam on your desktop instead, close it in the seat and start it on your desktop.";
+        string place = desktopSession is uint desktop && steam.Session == (int)desktop
+            ? $"on your desktop (session {steam.Session})"
+            : $"in session {steam.Session}, outside the seat";
+        return $"Steam is running {place}. Steam games launched through Anode run in the seat and use that client, "
+            + "so Steam stays where it is." + (steam.SignedIn ? "" : " It is not signed in yet; sign in to Steam there first.");
+    }
+
+    /// <summary>Starts the Steam client itself, minimized, in the session of whoever runs it.</summary>
+    internal static ProcessStartInfo ClientStart(string steamExe) => new()
+    {
+        FileName = steamExe,
+        WorkingDirectory = Path.GetDirectoryName(steamExe)!,
+        UseShellExecute = false,
+        ArgumentList = { "-silent" }
+    };
+
+    /// <summary>Asks the Steam client in the caller's session to launch an app.</summary>
+    internal static ProcessStartInfo AppLaunch(string steamExe, int appId, IEnumerable<string> gameArguments)
+    {
         var info = new ProcessStartInfo
         {
-            FileName = exe,
-            WorkingDirectory = Path.GetDirectoryName(exe)!,
-            UseShellExecute = false
+            FileName = steamExe,
+            WorkingDirectory = Path.GetDirectoryName(steamExe)!,
+            UseShellExecute = false,
+            ArgumentList = { "-applaunch", appId.ToString(CultureInfo.InvariantCulture) }
         };
-        info.ArgumentList.Add("-applaunch");
-        info.ArgumentList.Add(appId.ToString());
-        foreach (string argument in gameArguments ?? Array.Empty<string>())
-            info.ArgumentList.Add(argument);
-
-        return Process.Start(info);
+        foreach (string argument in gameArguments) info.ArgumentList.Add(argument);
+        return info;
     }
 }

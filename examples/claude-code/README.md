@@ -42,8 +42,8 @@ A reasonable tool sequence:
 seat_status                                          -> state: stopped
 seat_lease      {action: "acquire", ttlSeconds: 600} -> starts a hidden seat; MCP keeps the token
 seat_capabilities                                    -> capture and input available
-steam_status                                         -> "Steam is not running. ..."
-steam_launch    {appId: 220}                         -> launching
+steam_status                                         -> "Steam is running on your desktop (session 1). ..."
+steam_launch    {appId: 220}                         -> hl2.exe runs in the seat; Steam stays on the desktop
 seat_screenshot {maxWidth: 1000, format: "jpeg"}     -> still loading
 seat_lease      {action: "renew", ttlSeconds: 600}
 seat_screenshot {maxWidth: 1000, format: "jpeg"}     -> main menu

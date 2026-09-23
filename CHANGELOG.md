@@ -5,6 +5,17 @@
 - **.NET 10.** Anode moves to .NET 10, the current long-term support release, before .NET 8 support
   ends on 10 November 2026. Release builds bundle runtime 10.0.12 and still need no .NET
   installation; building from source needs the .NET 10 SDK. The viewer renders as it did on .NET 8.
+- **Steam stays on your desktop.** `anode steam <appid>` and `steam_launch` start the game itself in
+  the seat and connect it to the Steam client already running on your desktop, instead of starting
+  a Steam client in the seat that took Steam over from you. When Steam is not running, it starts on
+  your desktop, minimized. Before starting the game Anode asks Steam, the way a game does, whether an
+  account is signed in and connected, because Steam's own records claim one too early. The program
+  comes from Steam's launch configuration; `--exe` (MCP: `exe`) names another. Such games run without
+  the Steam overlay or Steam Input. `--force` keeps the old launch through a client in the seat, and a
+  client already in the seat is used as before.
+- `steam status` and `steam_status` report which session the Steam client runs in and whether it is
+  signed in (`clientSession`, `signedIn`). Quick checks cover launch configurations, the launch
+  paths and the namespace links without starting Steam.
 - **A separate dev Anode.** Debug builds are the `dev` channel, and any build joins a channel with
   `ANODE_CHANNEL` or `--channel NAME` before the command. A channel has its own daemon, pipes, logs
   (`%LOCALAPPDATA%\Anode-dev`) and a viewer and tray icon labelled "(dev)", so a development build

@@ -10,8 +10,9 @@ namespace Anode.Core.Launch;
 /// another session: the child would inherit the parent's session id. The Task
 /// Scheduler can, through <c>IRegisteredTask::RunEx</c> with TASK_RUN_USE_SESSION_ID,
 /// and it does so as the same interactive user with no elevation and no extra rights.
-/// Anode uses it once, to place the seat host inside the seat. After that the seat
-/// host starts everything else itself, because it is already in the right session.
+/// Anode uses it to place the seat host inside the seat. After that the seat host starts
+/// everything else itself, because it is already in the right session, except Steam: the
+/// seat host starts that on the user's desktop when a game needs it (see SteamLaunch).
 /// </summary>
 internal static class SeatLauncher
 {
@@ -27,7 +28,8 @@ internal static class SeatLauncher
         string executable,
         string arguments,
         string workingDirectory,
-        bool elevated = false)
+        bool elevated = false,
+        string? purpose = null)
     {
         if (sessionId == 0 || sessionId == uint.MaxValue)
             throw new ArgumentOutOfRangeException(nameof(sessionId), $"Session {sessionId} is not a usable target.");
@@ -54,8 +56,9 @@ internal static class SeatLauncher
             definition = service.NewTask(0);
             dynamic task = definition;
             task.RegistrationInfo.Author = "Anode";
-            task.RegistrationInfo.Description =
-                $"Temporary: start {Path.GetFileName(executable)} inside Anode seat (session {sessionId}).";
+            task.RegistrationInfo.Description = purpose is null
+                ? $"Temporary: start {Path.GetFileName(executable)} inside Anode seat (session {sessionId})."
+                : $"Temporary: {purpose}.";
 
             task.Settings.Enabled = true;
             task.Settings.Hidden = true;

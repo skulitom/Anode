@@ -108,9 +108,11 @@ CLI workflows set `ANODE_AGENT_ID` and the acquired `ANODE_LEASE_TOKEN`; see the
 the task calls for stopping that whole session, not as routine fixture cleanup.
 
 Never replay timed-out input; its effects may already have happened. Reconnect and observe.
-Check `steam_status` before Steam launches; a client on the main desktop should stay there unless
-the user agrees to move it. Virtual gamepads are machine-wide and can affect the user's games:
-use them only when that scope is appropriate, and detach your controller afterward.
+Launch Steam games with `steam_launch`, never by starting `steam.exe` or a `steam://` link: the game
+runs in the seat against the user's desktop Steam, which stays there. Use `force` only with the
+user's agreement, since it moves Steam into the seat. Virtual gamepads are machine-wide and can
+affect the user's games: use them only when that scope is appropriate, and detach your controller
+afterward.
 
 More: [desktop tools](https://github.com/skulitom/Anode/blob/main/docs/DESKTOP-TOOLS.md),
 [development testing](https://github.com/skulitom/Anode/blob/main/docs/DEVELOPMENT-TESTING.md),

@@ -116,6 +116,9 @@ internal static class SelfTest
         });
         Check(results, "launch arguments", TransportChecks.LaunchArguments);
         Check(results, "Steam launch guard", DiagnosticsChecks.SteamLaunchGuard);
+        Check(results, "Steam launch configuration", SteamChecks.LaunchConfiguration);
+        Check(results, "Steam launch placement", SteamChecks.Launch);
+        Check(results, "Steam namespace links", SteamChecks.Links);
         Check(results, "desktop references", DesktopChecks.References);
         Check(results, "desktop dispatch", () => DesktopChecks.Dispatch().GetAwaiter().GetResult());
         Check(results, "desktop worker deadline", () => DesktopChecks.WorkerTimeout().GetAwaiter().GetResult());

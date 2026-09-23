@@ -285,9 +285,9 @@ keyboard focus. Apps share the user's profile, and virtual gamepads are machine-
 - Use `seat_screenshot` with `maxWidth: 1000` and `format: "jpeg"` while waiting on something, and
   full size only when you need detail. Click coordinates always use the capture size, not the
   scaled size.
-- Check `steam_status` before launching Steam. If a client is running outside the
-  seat, keep it there unless the user explicitly agrees to move it. A second bare
-  client can disrupt it; `force` does not provide two independent clients.
+- Launch Steam games with `steam_launch`: the game runs in the seat and uses the Steam client on
+  the user's desktop, which stays there. Use `force`, which takes Steam over from the desktop, only
+  when the user agrees and the game will not start otherwise.
 - `gamepad_set` is sticky: it changes only the fields you pass, so hold a stick and tap a button in
   two calls.
 - Detach the gamepad when you are done. It is a machine-wide device the user's own games can see.

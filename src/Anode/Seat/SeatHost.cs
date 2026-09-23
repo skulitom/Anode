@@ -34,6 +34,8 @@ internal static class SeatHost
     private static readonly ExecutionJobs Jobs = new();
     private static readonly DesktopLease Lease = new(EndLease, Jobs.CancelOwned);
     private static readonly CancellationTokenSource DesktopStopping = new();
+    /// <summary>The user's own session, as the parent daemon reported it; Steam belongs there.</summary>
+    private static uint? _desktopSession;
 
     public static int Run()
     {
@@ -81,6 +83,7 @@ internal static class SeatHost
         var identity = daemon?.RequestAsync("seat.identity", timeoutMs: 5000).GetAwaiter().GetResult();
         if (!MatchesSeat(session, identity))
             throw new InvalidOperationException($"Refusing desktop access: the parent daemon did not verify session {session} as its child.");
+        _desktopSession = (uint?)identity!.Obj("result")!.Int("parentSession");
     }
 
     private static void EndLease()
@@ -250,50 +253,21 @@ internal static class SeatHost
                 // Clients that read only structured results need the verdict as data, not just in the summary.
                 uint session = ChildSession.CurrentSessionId();
                 int[] running = Core.Steam.Steam.RunningSessions();
+                var client = Core.Steam.Steam.ActiveClient();
                 return JsonLine.Ok(new JsonObject
                 {
                     ["steamExe"] = Core.Steam.Steam.FindExecutable(),
                     ["seatSession"] = (int)session,
                     ["runningSessions"] = new JsonArray(running.Select(s => (JsonNode)s).ToArray()),
                     ["runningOutsideSeat"] = running.Any(s => s != (int)session),
-                    ["summary"] = Core.Steam.Steam.Describe(session)
+                    ["clientSession"] = client?.Session,
+                    ["signedIn"] = client?.SignedIn ?? false,
+                    ["summary"] = Core.Steam.Steam.Describe(session, _desktopSession, client)
                 });
             }
 
             case "steam.launch":
-            {
-                int appId = r.Int("appId") ?? throw new ArgumentException("steam.launch needs 'appId'.");
-                uint session = ChildSession.CurrentSessionId();
-                string summary = Core.Steam.Steam.Describe(session);
-
-                int[] elsewhere = Core.Steam.Steam.RunningSessions().Where(s => s != (int)session).ToArray();
-                if (elsewhere.Length > 0 && (r.Bool("force") ?? false) == false)
-                {
-                    return JsonLine.Fail(summary + " Pass force=true to launch anyway.");
-                }
-
-                if (Core.Steam.Steam.RunningSessions().Length == 0 && (r.Bool("startClient") ?? true))
-                {
-                    Core.Steam.Steam.StartClient();
-                    Thread.Sleep(r.Int("clientWarmupMs") ?? 4000);
-                }
-
-                var arguments = new List<string>();
-                if (r["args"] is JsonArray extra)
-                {
-                    foreach (var argument in extra)
-                        if (argument is not null) arguments.Add(argument.ToString());
-                }
-
-                using var launcher = Core.Steam.Steam.LaunchApp(appId, arguments);
-                Log.Info($"seat launched steam app {appId}");
-                return JsonLine.Ok(new JsonObject
-                {
-                    ["appId"] = appId,
-                    ["session"] = session,
-                    ["note"] = summary
-                });
-            }
+                return Core.Steam.SteamLaunch.Run(r, ChildSession.CurrentSessionId(), _desktopSession, Core.Steam.SteamLaunch.Machine.Real);
 
             case "ps.list":
                 return JsonLine.Ok(new JsonObject

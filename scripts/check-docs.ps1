@@ -16,8 +16,8 @@
 param([string]$Anode)
 $ErrorActionPreference = 'Stop'
 $root = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
-# Error codes that share a tool prefix.
-$nonTools = @('seat_busy', 'seat_stopped', 'seat_not_ready')
+# Error codes and a Steam environment variable that share a tool prefix.
+$nonTools = @('seat_busy', 'seat_stopped', 'seat_not_ready', 'steam_master_ipc_name_override')
 $problems = [Collections.Generic.List[string]]::new()
 function Report([string]$Document, [int]$Line, [string]$Message) { $problems.Add("${Document}:${Line}: $Message") }
 

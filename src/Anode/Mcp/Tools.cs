@@ -162,7 +162,7 @@ internal static class Tools
         new("seat_run", "Anode: launch an app on the background Windows desktop", "run", false, Effect.Action,
             "Launch a Windows app, browser, document or shortcut on Anode's background desktop (the seat) for GUI automation or headed tests. "
             + "Applications may reuse an existing instance in another session; confirm the window with seat_windows. "
-            + "Direct Steam clients and Steam URLs are refused while Steam runs outside the seat. "
+            + "Direct Steam clients and Steam URLs are refused while Steam runs outside the seat; use steam_launch for Steam games. "
             + "Use a full path, a shortcut, or anything Windows can open.",
             Schema(
                 ("path", "string", "Full path to the program, document or shortcut.", true),
@@ -170,17 +170,19 @@ internal static class Tools
                 ("cwd", "string", "Working directory. Defaults to the program's folder.", false))),
 
         new("steam_status", "Anode: find where Steam is running", "steam.status", false, Effect.ReadOnly,
-            "Report where Steam is running. Launching from the seat while Steam runs elsewhere can affect that "
-            + "existing client or open games in its session. Keep it there if the user needs access on that desktop. Never starts a seat.",
+            "Report where Steam is running, whether it is signed in, and what steam_launch will do about it. "
+            + "Never starts a seat.",
             Schema()),
 
         new("steam_launch", "Anode: launch a Steam game", "steam.launch", false, Effect.Action,
-            "Start a Steam game inside the seat by its app id. If Steam is not running anywhere, Steam is started inside "
-            + "the seat first so the game lands there. If Steam is already running outside the seat this fails with an "
-            + "explanation, unless force is true.",
+            "Start an installed Steam game inside the seat by its app id. The game uses the Steam client already running "
+            + "outside the seat, normally on the user's desktop, and Steam stays there. If Steam is not running, it is started "
+            + "on the user's desktop, minimized, and must be signed in. If Steam already runs in the seat, the game opens through it. "
+            + "The Steam overlay and Steam Input are unavailable to a game launched this way; Steam still shows it running.",
             Schema(
                 ("appId", "integer", "Steam app id, the number in the game's store URL.", true),
-                ("force", "boolean", "Launch even though Steam is running outside the seat. This can disrupt that client or open the game on the user's screen.", false),
+                ("exe", "string", "Program to start instead of the one Steam's launch configuration names, absolute or relative to the game's install folder.", false),
+                ("force", "boolean", "Launch through a Steam client inside the seat instead. That takes Steam over from the user's desktop; only with the user's agreement.", false),
                 ("args", "array", "Extra arguments for the game.", false))),
 
         new("seat_processes", "Anode: list programs on the background desktop", "ps.list", false, Effect.ReadOnly,
@@ -402,6 +404,9 @@ internal static class Tools
                 return "Provide either x and y or dx and dy.";
         }
         if (name == "seat_kill_process" && Has("pid") == Has("name")) return "Provide exactly one of pid or name.";
+        if (name == "steam_launch" && arguments.Str("exe") is { } exe
+            && (exe.Length is 0 or > 1024 || exe.Contains('\0') || exe.IndexOfAny(Path.GetInvalidPathChars()) >= 0))
+            return "exe must name a program with 1-1024 characters.";
         if (name.StartsWith("seat_", StringComparison.Ordinal))
             foreach (string key in new[] { "windowId", "snapshotId", "elementId", "query" })
                 if (arguments[key] is { } text && (text.GetValue<string>().Length is 0 or > 256)) return $"{key} must contain 1-256 characters.";

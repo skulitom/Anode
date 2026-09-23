@@ -101,6 +101,11 @@ Read this list before you point an agent at it.
   editors reopen what you last had open when they start, unsaved documents included. Started in the
   seat, they reopen yours, where an agent can read them.
 - **The file system and the network.** Full access to both, as you.
+- **Your Steam client.** A Steam game launched through Anode runs in the seat and talks to the Steam
+  client on your desktop, signed in as you, as any game you start does. To let it, the seat host
+  links two names in the seat's own object namespace to that client's handshake objects; nothing
+  outside the seat resolves differently, and the links end with the seat host. When Steam is not
+  running, Anode starts it on your desktop, minimized.
 - **Other sessions' data at rest.** Separate sessions, one disk.
 - **The virtual gamepad.** A ViGEm pad is a HID device on the **machine**, not in a session. Every
   session sees it, exactly like a controller plugged into USB. A game running on your own screen can

@@ -71,6 +71,8 @@ internal static partial class Cli
                 return Core.Processes.ExecutionWorker.Run();
             case "__desktop-fixture":
                 return DesktopFixture.Run();
+            case "__steam-ready":
+                return Core.Steam.SteamReadiness.Probe();
             case "__viewer-preview":
                 return ViewerPreview.Run(rest);
             case "__log-probe":
@@ -523,10 +525,14 @@ internal static partial class Cli
         if (client is null) return NotRunning();
 
         if (status) return Report(await RequestAsync(client, "steam.status"));
+        var options = new Args(args);
         var payload = new JsonObject
         {
-            ["appId"] = int.Parse(words[0], CultureInfo.InvariantCulture), ["force"] = new Args(args).Flag("force")
+            ["appId"] = int.Parse(words[0], CultureInfo.InvariantCulture), ["force"] = options.Flag("force"),
+            // The daemon gives the seat 60 seconds unless told otherwise; Steam may first have to start on the desktop.
+            ["timeoutMs"] = 115_000
         };
+        if (options.Value("exe") is { } exe) payload["exe"] = exe;
         return Report(await RequestAsync(client, "steam.launch", payload, 120_000));
     }
 
@@ -848,10 +854,12 @@ internal static partial class Cli
         Row("Work in the seat", "run", null, 0,
             "Everything after the program goes to it unchanged. Use a full path, a shortcut or anything Windows can open.",
             ("anode run <program> [args]", "start a program inside the seat")),
-        Row("Work in the seat", "steam", "force", 1,
-            "The app id is the number in the game's Steam store URL. If Steam already runs outside the seat, a launch fails "
-            + "unless --force, which can disrupt that client or open the game on your screen.",
-            ("anode steam <appid> [--force]", "start a Steam game inside the seat"),
+        Row("Work in the seat", "steam", "force exe=", 1,
+            "The app id is the number in the game's Steam store URL. The game uses the Steam client on your desktop, which "
+            + "stays there; if Steam is not running, it starts there minimized. --exe names the program to start, absolute or "
+            + "relative to the game's folder, when Steam's choice is wrong. --force launches through a Steam client in the seat "
+            + "instead, which takes Steam over from your desktop.",
+            ("anode steam <appid> [--exe PROGRAM] [--force]", "start a Steam game inside the seat"),
             ("anode steam [status]", "report where Steam is running")),
         Row("Work in the seat", "ps", "all", 2, null,
             ("anode ps [--all]", "list windowed programs in the seat; --all lists every process"),
@@ -1163,6 +1171,7 @@ internal static partial class Cli
                 if (words.Count == 0 || words[0].Equals("status", StringComparison.OrdinalIgnoreCase))
                 {
                     if (options.Flag("force")) throw new UsageException("--force applies only when launching a game.");
+                    if (options.Value("exe") is not null) throw new UsageException("--exe applies only when launching a game.");
                 }
                 else if (!int.TryParse(words[0], NumberStyles.None, CultureInfo.InvariantCulture, out int app) || app < 1)
                     throw new UsageException($"steam takes status or a Steam app id (the number in the game's store URL), not '{words[0]}'.");

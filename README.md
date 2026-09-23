@@ -175,9 +175,10 @@ and [llms.txt documentation index](llms.txt).
 ## Limits to know
 
 - One connected child session per machine. Agents and CLI clients share that seat.
-- Files, accounts, network ports and application singletons are shared. Steam or another
-  single-instance app may already belong to your main session; Anode refuses unsafe direct Steam
-  launches. Use separate browser profiles for browser testing.
+- Files, accounts, network ports and application singletons are shared. Steam games run in the seat
+  using the Steam client on your desktop, which stays there, without the overlay or Steam Input; other
+  single-instance apps may already belong to your main session. Use separate browser profiles for
+  browser testing.
 - Capture and input depend on Windows and the application. Use `anode capabilities` to check;
   a connected seat alone does not prove screenshots or input work.
 - Protected video and exclusive fullscreen may not capture. Virtual gamepads can also affect

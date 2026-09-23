@@ -268,19 +268,34 @@ also clear window and control references, held keys and buttons, and this host's
 
 ## Programs in the seat
 
-### Steam opens the game on my screen instead
+### A Steam game will not start in the seat
 
-Steam allows one instance per Windows user, and the seat is the same user. Whichever session Steam
-started in owns the games.
+`anode steam <appid>` starts the game in the seat and connects it to the Steam client on your
+desktop, so Steam never moves. Start with where Steam is:
 
 ```powershell
-anode steam status     # says which case you are in
+anode steam status     # where Steam runs, and whether it is signed in
 ```
 
-If you need Steam on your main desktop, leave it there. Starting another client in the seat can
-disrupt the existing one. Moving Steam into the seat is an optional tradeoff: explicitly close it on
-your desktop, then `anode steam <appid>` starts it in the seat. You lose main-desktop client access.
-`--force` (MCP: `force: true`) does not provide two independent clients.
+- **"not ready for games"**: Steam is still starting or updating, or no account is signed in. When
+  Steam was not running, Anode started it minimized; look for it in the notification area, sign in if
+  it asks, then launch again. Anode asks Steam the way a game does before starting one, so a game it
+  starts does not find Steam half ready.
+- **The wrong program starts, or none is found**: pass the right one with `--exe` (MCP: `exe`),
+  absolute or relative to the game's folder.
+- **The game exits at once or says Steam is not running**: some games need Steam's overlay or are
+  wrapped in Steam's DRM stub, and those only work when Steam itself starts them. `--force`
+  (MCP: `force: true`) starts the game through a Steam client in the seat, which takes Steam over
+  from your desktop; see below to bring it back.
+
+### Steam left my desktop
+
+A Steam client started in the seat takes Steam over from your desktop, because Steam keeps one
+client per Windows user. Anode only does that with `--force`. It can also happen when something in
+the seat starts `steam.exe` or a `steam://` link: a Steam entry in your startup programs, an older
+Anode, or a game that restarts itself through Steam. `anode run` refuses those while Steam runs on
+your desktop. To bring Steam back, exit it in the seat from its notification-area icon in the viewer,
+or with `anode ps kill steam`, then start it on your desktop again.
 
 ### A browser will not start in the seat
 

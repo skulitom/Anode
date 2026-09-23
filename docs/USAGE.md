@@ -129,21 +129,27 @@ anode lease release | Out-Host
 The lease lasts ten minutes here. Run `anode lease renew --ttl 600 | Out-Host` during a longer
 session; once it expires, input is refused until you acquire again.
 
-**Read this before you try it.** Steam normally reuses one client per Windows user, and the seat runs as
-the same user as your desktop. Whichever session Steam started in is the session its games open in.
-So:
+**Steam stays on your desktop.** Steam keeps one client per Windows user, and the seat is the same
+user as your desktop, so a second Steam client started in the seat would take Steam over from your
+desktop. `anode steam <appid>` never starts one. It starts the game's own program in the seat and
+connects it to the Steam client that is already running, which stays where it is:
 
-- **Steam not running anywhere:** `anode steam <appid>` starts Steam inside the seat first, and the
-  game opens in the seat. This is the case you want.
-- **Steam already running on your desktop:** the command refuses and tells you why, because the game
-  can open on your screen or the existing client can be disrupted. Keep Steam there if you need it on
-  your desktop. Moving it into the seat means giving up that desktop access.
-  `anode steam <appid> --force` (MCP: `force: true`) overrides the check; it does not create two
-  independent clients.
+- **Steam running on your desktop:** the game runs in the seat and uses that client. Steam shows it
+  running, and you keep using Steam as usual.
+- **Steam not running:** Anode starts it on your desktop, minimized, waits for it to sign in, then
+  starts the game. If Steam asks you to sign in, do that and launch again.
+- **Steam already running in the seat:** the game opens through that client, as it always did.
 
-`anode steam status` says which case you are in, in one line. The generic `anode run` command also
-refuses direct Steam clients and `steam://` URLs while Steam is running outside the seat. Starting
-another client can disrupt the existing client; it does not reliably provide two independent ones.
+Anode takes the program, arguments and working folder from Steam's own launch configuration.
+When that names the wrong program, pass `--exe` (MCP: `exe`) with its path, absolute or relative
+to the game's folder. A game started this way has no Steam overlay and no Steam Input remapping,
+and games wrapped in Steam's DRM stub may refuse to start. For those,
+`anode steam <appid> --force` (MCP: `force: true`) launches through a Steam client in the seat
+instead, which takes Steam over from your desktop until you start it there again.
+
+`anode steam status` says where Steam runs and whether it is signed in. The generic `anode run`
+command refuses direct Steam clients and `steam://` URLs while Steam runs outside the seat, because
+they would start that second client.
 
 `anode run "D:\Games\thing\game.exe"` starts the process inside the seat. Some applications hand
 work to an existing instance in another session, so verify the resulting application's session.
@@ -260,7 +266,7 @@ Every `lease` action needs an agent ID; `renew` and `release` also need the toke
 | --- | --- |
 | `anode run <program> [args...]` | *Lease.* Start a program, document or shortcut inside the seat. |
 | `anode steam [status]` | Say where Steam is running. |
-| `anode steam <appid> [--force]` | *Lease.* Start a Steam game in the seat. `--force` launches even while Steam runs outside the seat. |
+| `anode steam <appid> [--exe PROGRAM] [--force]` | *Lease.* Start a Steam game in the seat, using the Steam client on your desktop, which is started there if needed. `--exe` names the program; `--force` launches through a Steam client in the seat, which takes Steam over from your desktop. |
 | `anode ps [--all]` | Windowed programs in the seat; `--all` lists every process. |
 | `anode ps kill <pid\|name>` | *Lease.* Close one program in the seat. |
 | `anode shot [file] [--width N] [--jpeg]` (alias `screenshot`) | *Lease.* Save a seat screenshot, by default `anode-<time>.png` in the current folder. |
@@ -389,7 +395,8 @@ More in [docs/ARCHITECTURE.md](ARCHITECTURE.md) and [docs/PROTOCOL.md](PROTOCOL.
 ## Limits, honestly
 
 - **One seat at a time.** Windows allows exactly one connected child session per machine.
-- **Steam is one instance per user.** See the walkthrough above.
+- **Steam is one client per user.** Games in the seat use the client on your desktop; see the
+  walkthrough above for what that leaves out.
 - **Apps that refuse to run twice** (browsers with the same profile, Office) will not run in both
   sessions at once. Browsers work if you give the seat its own profile directory.
 - **Startup programs run in the seat too.** Anything in your Run key or Startup folder launches when

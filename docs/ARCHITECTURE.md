@@ -185,3 +185,10 @@ bounded, expiring references; actions verify the window and control identities
 again. Input and inspection serialize through one host gate, while status and Stop
 remain independent. MCP returns readable summaries, structured data and optional
 images. The CLI can also produce a standalone HTML report. See [Desktop tools](DESKTOP-TOOLS.md).
+
+**Steam stays where it runs.** Steam keeps one client per Windows user, and a client started in the
+seat takes over from the one on the desktop. A game, however, needs only to find its client, which
+it does through two named objects that Windows keeps per session. The seat host links a name of its
+own in the seat's namespace to the desktop client's objects and starts the game with that name in
+`steam_master_ipc_name_override`; everything after the handshake already crosses sessions. So a
+Steam launch starts the game, never a client, and the user keeps Steam. See `Core/Steam`.
