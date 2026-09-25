@@ -14,12 +14,14 @@ namespace Anode.Cli;
 /// </summary>
 internal static class ViewerPreview
 {
+    /// <param name="Startup">Keeps the size the window opens at, fitted to the seat, instead of a fixed preview size.</param>
     private sealed record Scene(string Name, string State, bool Control = false, bool Details = false,
-        bool Seat = true, bool Narrow = false, string? Hover = null);
+        bool Seat = true, bool Narrow = false, string? Hover = null, bool Startup = false);
 
     private static readonly Scene[] Scenes =
     {
         new("ready", "ready"),
+        new("startup", "ready", Startup: true),
         new("hover", "ready", Hover: "ControlSeat"),
         new("control", "ready", Control: true),
         new("connecting", "connecting", Seat: false),
@@ -73,9 +75,12 @@ internal static class ViewerPreview
             window.SetSeatPictureLive(true);
         }
         window.CreateControl();
-        window.Size = scene.Narrow
-            ? new Size(window.MinimumSize.Width, window.LogicalToDeviceUnits(420))
-            : new Size(window.LogicalToDeviceUnits(1100), window.LogicalToDeviceUnits(680));
+        // The window fits itself to the seat when its handle is created; a scene's own size comes after.
+        _ = window.Handle;
+        if (!scene.Startup)
+            window.Size = scene.Narrow
+                ? new Size(window.MinimumSize.Width, window.LogicalToDeviceUnits(420))
+                : new Size(window.LogicalToDeviceUnits(1100), window.LogicalToDeviceUnits(680));
         var toolbar = window.Controls.OfType<ToolStrip>().Single(s => s.Name == "SeatToolbar");
         if (scene.Details && toolbar.Items["ShowDetails"] is ToolStripButton details) details.Checked = true;
         window.PerformLayout();
@@ -142,13 +147,8 @@ internal static class ViewerPreview
         image.Save(Path.Combine(output, "tray-menu.png"), ImageFormat.Png);
     }
 
-    private static void ShowBackdrop(Daemon.SeatWindow window, string path)
-    {
-        var picture = new PictureBox { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.StretchImage, Image = Image.FromFile(path) };
-        window.Controls.Add(picture);
-        // Docking runs from the back of the z-order; the front control fills what is left.
-        window.Controls.SetChildIndex(picture, 0);
-    }
+    private static void ShowBackdrop(Daemon.SeatWindow window, string path) =>
+        window.ShowStandIn(new PictureBox { SizeMode = PictureBoxSizeMode.StretchImage, Image = Image.FromFile(path) });
 
     private static string? DefaultBackdrop()
     {

@@ -38,6 +38,12 @@ internal sealed class SeatWindow : Form
     private readonly ToolStripMenuItem _traySignIn = new("Sign in…");
     private readonly Icon? _icon = LoadIcon();
     private readonly SeatPlaceholder _placeholder;
+    /// <summary>Where the seat shows: the viewer's dark background around a control of the seat's shape.</summary>
+    private readonly Panel _seatArea = new();
+    private readonly bool _fitSeat;
+    private Size _seatSize;
+    private Control? _standIn;
+    private bool _fitted;
     private Icon? _trayIcon;
     private bool _seatPictureLive;
 
@@ -67,6 +73,21 @@ internal sealed class SeatWindow : Form
         _placeholder = new SeatPlaceholder(_icon) { Dock = DockStyle.Fill };
         Viewer.Connected += () => SetSeatPictureLive(true);
         Viewer.Disconnected += _ => SetSeatPictureLive(false);
+        _seatSize = new Size(Math.Clamp(options.Width, 640, 8192), Math.Clamp(options.Height, 480, 8192));
+        // Scaled to fit, the seat keeps its shape inside the control, and the control pads any other
+        // shape with white bars. Keep the control at the seat's shape; the dark area fills the rest.
+        _fitSeat = options.SmartSizing;
+        _seatArea.Name = "SeatArea";
+        _seatArea.Dock = DockStyle.Fill;
+        if (_fitSeat) Viewer.Dock = DockStyle.None;
+        _seatArea.Controls.Add(Viewer);
+        _seatArea.Resize += (_, _) => PlaceSeat();
+        Viewer.RemoteSizeChanged += (width, height) =>
+        {
+            if (width <= 0 || height <= 0) return;
+            _seatSize = new Size(width, height);
+            PlaceSeat();
+        };
 
         Text = "Anode seat" + Env.ChannelSuffix;
         AccessibleName = "Anode seat viewer" + Env.ChannelSuffix;
@@ -104,19 +125,57 @@ internal sealed class SeatWindow : Form
 
         // In front of the viewer and filling the same space until the seat picture is live.
         Controls.Add(_placeholder);
-        Controls.Add(Viewer);
+        Controls.Add(_seatArea);
         Controls.Add(_detailsPanel);
         Controls.Add(_toolbar);
         Controls.Add(_statusBar);
-
-        var work = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1600, 900);
-        int width = Math.Min(work.Width - 80, options.Width + 32);
-        int height = Math.Min(work.Height - 80, options.Height + 108);
-        Size = new Size(Math.Max(640, width), Math.Max(420, height));
-        Location = new Point(work.Right - Size.Width - 24, work.Bottom - Size.Height - 24);
+        FitToSeat();
 
         ViewOnly = options.StartViewOnly;
         KeyDown += OnKeyDown;
+    }
+
+    /// <summary>
+    /// Sizes the window so its seat area has the seat's shape: the seat at its own size (1:1 at 100% scaling)
+    /// when that fits the screen, otherwise the largest size of that shape that does. The frame, toolbar and
+    /// status bar are measured rather than assumed, so the seat fills the area with nothing beside it.
+    /// </summary>
+    private void FitToSeat()
+    {
+        var work = (IsHandleCreated ? Screen.FromHandle(Handle) : Screen.PrimaryScreen)?.WorkingArea ?? new Rectangle(0, 0, 1600, 900);
+        PerformLayout();
+        var chrome = Size - _seatArea.ClientSize;
+        float dpi = DeviceDpi / 96f;
+        float room = Math.Min((work.Width - 80 - chrome.Width) / (_seatSize.Width * dpi), (work.Height - 80 - chrome.Height) / (_seatSize.Height * dpi));
+        float scale = dpi * Math.Clamp(room, 0.1f, 1f);
+        Size = new Size(Math.Max(MinimumSize.Width, (int)Math.Round(_seatSize.Width * scale) + chrome.Width),
+            Math.Max(MinimumSize.Height, (int)Math.Round(_seatSize.Height * scale) + chrome.Height));
+        Location = new Point(work.Right - Width - 24, work.Bottom - Height - 24);
+    }
+
+    /// <summary>
+    /// Centres the control, at the seat's shape, in the seat area. Smart sizing scales the seat to the control,
+    /// so the seat is never padded with the control's own white bars; any other space shows the dark area.
+    /// </summary>
+    private void PlaceSeat()
+    {
+        var area = _seatArea.ClientSize;
+        if (!_fitSeat || area.Width <= 0 || area.Height <= 0) return;
+        double scale = Math.Min((double)area.Width / _seatSize.Width, (double)area.Height / _seatSize.Height);
+        int width = Math.Clamp((int)Math.Round(_seatSize.Width * scale), 1, area.Width);
+        int height = Math.Clamp((int)Math.Round(_seatSize.Height * scale), 1, area.Height);
+        var bounds = new Rectangle((area.Width - width) / 2, (area.Height - height) / 2, width, height);
+        Viewer.Bounds = bounds;
+        if (_standIn is not null) _standIn.Bounds = bounds;
+    }
+
+    /// <summary>For design previews: a picture that stands in for the seat, placed where the seat shows.</summary>
+    internal void ShowStandIn(Control picture)
+    {
+        _standIn = picture;
+        _seatArea.Controls.Add(picture);
+        picture.BringToFront();
+        PlaceSeat();
     }
 
     /// <summary>
@@ -323,7 +382,7 @@ internal sealed class SeatWindow : Form
 
     private void ApplyTheme()
     {
-        BackColor = ViewerTheme.Background;
+        BackColor = _seatArea.BackColor = ViewerTheme.Background;
         ForeColor = ViewerTheme.Text;
         ViewerTheme.Apply(_toolbar);
         ViewerTheme.Apply(_statusBar);
@@ -558,6 +617,13 @@ internal sealed class SeatWindow : Form
     {
         base.OnHandleCreated(e);
         ViewerTheme.ApplyFrame(Handle);
+        // Measured again on the monitor the window opens on, whose DPI sizes its frame and bars; only once,
+        // so later handles (full screen changes the border) keep the size the user chose.
+        if (!_fitted)
+        {
+            _fitted = true;
+            FitToSeat();
+        }
         // Ctrl+Alt+Shift+K works from anywhere on the user's desktop. If something
         // else already owns it, the toolbar and tray buttons still do the job.
         _hotkeyAvailable = Native.RegisterHotKey(Handle, HotkeyId,

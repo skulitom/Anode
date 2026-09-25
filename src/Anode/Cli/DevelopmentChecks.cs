@@ -25,6 +25,15 @@ internal static class DevelopmentChecks
                     window.CreateHiddenViewer();
                     Application.DoEvents();
                     Require(window.IsHandleCreated && window.Viewer.IsHandleCreated && !window.Visible && shown == 0, "hidden startup showed the viewer or omitted its native control");
+                    // The window opens with the seat filling its area; other shapes keep the seat's shape, centred on
+                    // the dark area, since the Remote Desktop control pads a mismatched shape with white bars.
+                    var area = (Panel)window.Controls.Find("SeatArea", false).Single();
+                    Require(SeatShaped(window.Viewer.Bounds, area.ClientSize, fills: true),
+                        $"the viewer opened with space beside the seat: area {area.ClientSize}, seat {window.Viewer.Bounds}");
+                    window.Width += 300;
+                    Require(SeatShaped(window.Viewer.Bounds, area.ClientSize, fills: false) && area.BackColor == Daemon.ViewerTheme.Background,
+                        $"a wider viewer stretched or padded the seat: area {area.ClientSize}, seat {window.Viewer.Bounds}");
+                    window.Width -= 300;
                     var toolbar = window.Controls.OfType<ToolStrip>().Single(s => s.Name == "SeatToolbar");
                     var status = window.Controls.OfType<StatusStrip>().Single();
                     var details = (TextBox)window.Controls.Find("SeatDetails", true).Single();
@@ -77,7 +86,17 @@ internal static class DevelopmentChecks
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         finished.Task.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
-        return "hidden RDP initialization, input labels, connecting screen, full diagnostics, full-screen Stop/exit and narrow layout; no connection or shown form";
+        return "hidden RDP initialization, a window fitted to the seat, input labels, connecting screen, full diagnostics, full-screen Stop/exit "
+            + "and narrow layout; no connection or shown form";
+    }
+
+    /// <summary>A 1280x720 seat within a pixel, centred in the area; <paramref name="fills"/> also requires no space beside it.</summary>
+    private static bool SeatShaped(Rectangle seat, Size area, bool fills)
+    {
+        bool shaped = Math.Abs(seat.Width * 720 - seat.Height * 1280) <= 1280;
+        bool centred = Math.Abs(seat.Left * 2 + seat.Width - area.Width) <= 1 && Math.Abs(seat.Top * 2 + seat.Height - area.Height) <= 1;
+        bool filled = Math.Abs(seat.Width - area.Width) <= 1 && Math.Abs(seat.Height - area.Height) <= 1;
+        return shaped && centred && (!fills || filled);
     }
     public static string Output()
     {

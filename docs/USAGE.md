@@ -325,9 +325,9 @@ These need the [ViGEm bus driver](TROUBLESHOOTING.md#the-vigem-bus-driver-did-no
 
 | Option | Effect |
 | --- | --- |
-| `--width N --height N` | Seat resolution; default 1280x720. |
+| `--width N --height N` | Seat resolution; default 1280x720. The viewer opens sized to show the seat at that size, or the largest that fits your screen. |
 | `--scale N` | DPI scale percentage for the seat, above 100 and up to 500. |
-| `--no-scaling` | Show the seat at its real size instead of fitting it to the viewer window. |
+| `--no-scaling` | Show the seat at its real size instead of fitting it to the viewer window. Fitted, the seat keeps its shape, with the viewer's dark background beside it when the window has another shape. |
 | `--audio` | Play the seat's sound on this computer (off by default). |
 | `--clipboard` | Share your clipboard with the seat (off by default). |
 | `--winkeys` | Send Windows-key shortcuts to the seat, not to you. |

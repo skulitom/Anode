@@ -18,6 +18,11 @@
   next start, and switches HidHide on only when nothing else is listed. `anode doctor` checks for
   HidHide. Without it, controllers are machine-wide as before, and each attach says so.
 - The seat log records each controller plugged in or unplugged.
+- **The viewer opens fitted to the seat.** Its size was estimated, so the seat was scaled slightly and
+  white strips showed at its sides. The viewer now measures its frame, toolbar and status bar and
+  opens with the seat at its own size (1:1 at 100% scaling), or the largest that fits the screen. A
+  resized, maximized or full-screen viewer keeps the seat's shape, centred on the viewer's dark
+  background instead of the Remote Desktop control's white bars.
 
 ## 0.9.0 — 2026-09-24
 

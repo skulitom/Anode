@@ -53,8 +53,9 @@ mode keeps the system look. To review a change without a seat or a visible windo
 & .\src\Anode\bin\Debug\net10.0-windows\win-x64\anode.exe __viewer-preview --out artifacts\ui-preview | Out-Host
 ```
 
-It writes PNGs of the viewer, title bar included, in sample states (ready, hover, control,
-connecting, failed sign-in with details, minimum width) and of the tray menu. It never connects.
+It writes PNGs of the viewer, title bar included, in sample states (ready, the size it opens at,
+hover, control, connecting, failed sign-in with details, minimum width) and of the tray menu. It
+never connects.
 Each view comes from a cloaked window far off-screen that has no taskbar button and cannot take
 focus, and a view is skipped unless Windows confirms the cloak.
 
