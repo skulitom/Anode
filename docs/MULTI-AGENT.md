@@ -91,7 +91,8 @@ not a live lease. The CLI never takes a lease implicitly.
   replaced token cannot issue later input. Expired leases cannot be renewed.
 - Release/expiry invalidate all window and control references, release keyboard/mouse input
   held by Anode and detach this host's virtual controllers. Idle expiry is checked every second.
-  Always acquire fresh references after reacquisition. Virtual controllers remain machine-wide.
+  Always acquire fresh references after reacquisition. Virtual controllers stay inside the seat
+  only when HidHide is installed.
 - Job listing, reading and cancellation are restricted to the recorded agent ID. Release with
   `cancelJobs` requests cancellation only for that agent's running jobs and descendants. Job
   output survives until the host exits or its bounded history evicts the completed job.

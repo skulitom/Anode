@@ -29,6 +29,10 @@ conclusion that a game in the seat cannot reach the desktop's Steam client: only
 Steam's handshake objects are bound to a session, and the seat now links them. Liftoff launched
 that way ran in the seat against the desktop's Steam, which never moved.
 
+The [September 25 record](2026-09-25-virtual-pad-reaches-desktop-games.md) covers an agent's virtual
+controller steering the user's own game on the desktop, the options weighed, and HidHide's session
+jail, which now keeps the seat's virtual pads inside it, verified live on the same day.
+
 `fix-rdp-listener.ps1` is the administrator script used for a specific private-key
 permission failure. It creates and binds a certificate, grants NETWORK SERVICE
 read access to that certificate's key, and restarts Remote Desktop Services. It

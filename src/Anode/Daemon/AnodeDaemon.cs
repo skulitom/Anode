@@ -76,6 +76,8 @@ internal sealed class AnodeDaemon : IDisposable
             Log.Warn("not starting: " + taken);
             return 3;
         }
+        // A seat that ended without its daemon, for example at a restart, left its entries behind.
+        ClearEndedPads(null);
 
         var checks = Preconditions.Run();
         if (Preconditions.AnyFailed(checks))
@@ -497,6 +499,7 @@ internal sealed class AnodeDaemon : IDisposable
                 : $"Seat {was} was signed out. Everything that was running in it is closed.");
 
             Log.Info($"seat stopped ({why}); session {was?.ToString() ?? "none"}");
+            if (was is not null) ClearEndedPads(was);
             return JsonLine.Ok(new JsonObject { ["stopped"] = was is not null, ["session"] = was });
         }
         finally
@@ -504,6 +507,20 @@ internal sealed class AnodeDaemon : IDisposable
             _seatGate.Release();
         }
     }
+
+    /// <summary>
+    /// Removes the HidHide entries that kept an ended seat's virtual controllers inside it, and those of
+    /// any other session that has ended. The seat host cannot: it ends with its session.
+    /// </summary>
+    private static void ClearEndedPads(uint? ended) => _ = Task.Run(() =>
+    {
+        try
+        {
+            int removed = Core.Gamepad.PadIsolation.ClearEnded(ended);
+            if (removed > 0) Log.Info($"removed {removed} HidHide entries that kept an ended seat's virtual controllers inside it");
+        }
+        catch (Exception ex) { Log.Warn($"could not remove the HidHide entries of an ended seat: {ex.Message}"); }
+    });
 
     internal async Task<JsonObject> StartSeatAsync(int? expectedStopVersion = null)
     {
@@ -625,6 +642,11 @@ internal sealed class AnodeDaemon : IDisposable
                     ["session"] = ChildSession.TryGetId(),
                     ["parentSession"] = ChildSession.CurrentSessionId()
                 });
+
+            case "seat.pad-visibility":
+                // Asked by the seat host after it plugs in a controller: can this, the user's session, open it?
+                return JsonLine.Ok(Core.Gamepad.PadIsolation.DesktopView(
+                    (request["devices"] as JsonArray ?? new JsonArray()).Select(device => device?.ToString() ?? "")));
 
             case "doctor":
             {

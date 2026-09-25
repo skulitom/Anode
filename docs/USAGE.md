@@ -204,10 +204,13 @@ anode gamepad reset
 anode gamepad detach
 ```
 
-One honest caveat: a ViGEm pad is a real HID device plugged into the **machine**, not into a session.
-Every session sees it, exactly like a controller in a USB port. That is what makes it work for a game
-in the seat, and it also means a game on your own screen can read it. Anode unplugs it when the seat
-stops.
+A ViGEm pad is a device plugged into the **machine**, not into a session: by itself every session sees
+it, exactly like a controller in a USB port, so a game on your own screen would read it too. Install
+[HidHide](https://github.com/nefarius/HidHide/releases) and the seat keeps its virtual pads to itself,
+including pads a program in the seat plugs in on its own: games, Steam and the Xbox Game Bar on your
+desktop cannot open them, so you can play while an agent tests a game in the seat. Each `attach` says
+whether the pad is `seatOnly`, and `anode gamepad state` shows every pad. Anode unplugs its pads when
+the lease ends or the seat stops. See [the virtual controller](SECURITY.md#the-virtual-controller).
 
 ---
 
@@ -293,8 +296,8 @@ These need the [ViGEm bus driver](TROUBLESHOOTING.md#the-vigem-bus-driver-did-no
 
 | Command | What it does |
 | --- | --- |
-| `anode gamepad attach`, `detach`, `reset` | *Lease.* Plug in, unplug, or release every button and center both sticks. |
-| `anode gamepad [state]` | List the attached virtual controller slots. |
+| `anode gamepad attach`, `detach`, `reset` | *Lease.* Plug in, unplug, or release every button and center both sticks. With HidHide installed, `attach` keeps the controller inside the seat, or fails with `not_isolated` rather than let your desktop read it. |
+| `anode gamepad [state]` | List the attached virtual controller slots, and under `isolation` whether HidHide keeps each virtual pad inside the seat. |
 | `anode gamepad tap <button> [--ms 80]` | *Lease.* Press a button or trigger briefly. |
 | `anode gamepad hold <button>`, `release <button>` | *Lease.* Hold or release a button. |
 | `anode gamepad stick <left\|right> <x> <y>` | *Lease.* Set a stick, each axis from -1 to 1. |
@@ -312,7 +315,7 @@ These need the [ViGEm bus driver](TROUBLESHOOTING.md#the-vigem-bus-driver-did-no
 | Command | What it does |
 | --- | --- |
 | `anode selftest --quick` (alias `self-test`) | Anode's own checks on private pipes; no seat, capture or input. |
-| `anode selftest [--no-gamepad] [--no-scheduler]` | Also captures your current desktop, runs a Task Scheduler check and attaches a machine-wide virtual gamepad. `--no-scheduler` skips the capture and Task Scheduler checks; `--no-gamepad` skips the gamepad. |
+| `anode selftest [--no-gamepad] [--no-scheduler]` | Also captures your current desktop, runs a Task Scheduler check and attaches a machine-wide virtual gamepad; with HidHide installed it also plugs in a pad jailed to an unused session and checks that your desktop cannot open it. `--no-scheduler` skips the capture and Task Scheduler checks; `--no-gamepad` skips the gamepad. |
 | `anode version` | Print `anode x.y.z`. |
 | `anode help [command]` | Print all commands, or one. |
 

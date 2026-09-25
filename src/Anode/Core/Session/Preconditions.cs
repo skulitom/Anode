@@ -91,6 +91,30 @@ internal static class Preconditions
         catch { return false; }
     }
 
+    /// <summary>Whether HidHide can keep virtual controllers inside the seat. Reads its settings, changes nothing.</summary>
+    private static Check ControllerIsolation()
+    {
+        const string Name = "Controller isolation";
+        const string Install = "Only needed for gamepad control while you use your own games. Install HidHide from "
+            + "https://github.com/nefarius/HidHide/releases and restart when it asks.";
+        try
+        {
+            using var hidHide = Gamepad.HidHideDevice.Open(waitMs: 500);
+            if (hidHide is null)
+                return new Check(Name, CheckLevel.Warn, "HidHide not found; virtual controllers are machine-wide, so games on your desktop read them too", Install);
+            if (hidHide.Inverse())
+                return new Check(Name, CheckLevel.Warn, "HidHide's application list is inverted, so it cannot keep controllers inside the seat",
+                    "Turn off the inverse application list in HidHide's configuration.");
+            return new Check(Name, CheckLevel.Pass, hidHide.Active()
+                ? "HidHide keeps the seat's virtual controllers inside the seat"
+                : "HidHide installed; a seat switches it on when it has nothing else to hide");
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            return new Check(Name, CheckLevel.Pass, "HidHide installed (" + ex.Message + ")");
+        }
+    }
+
     public static IReadOnlyList<Check> Run()
     {
         var checks = new List<Check>();
@@ -136,6 +160,7 @@ internal static class Preconditions
             ? new Check("Virtual gamepad", CheckLevel.Pass, "ViGEm bus driver responds")
             : new Check("Virtual gamepad", CheckLevel.Warn, "ViGEm bus driver not found",
                 "Only needed for gamepad control. Install ViGEmBus from https://github.com/nefarius/ViGEmBus/releases"));
+        checks.Add(ControllerIsolation());
 
         uint? existing = ChildSession.TryGetId();
         bool? sessionExists = existing is { } id ? ChildSession.Exists(id) : false;

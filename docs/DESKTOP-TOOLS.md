@@ -101,7 +101,8 @@ Anode shares your user profile and installed apps. Some applications reuse an
 existing instance in another session. Steam games launched with `steam_launch` run in the seat
 and use the Steam client on your desktop, which stays there; see [Launch a Steam game](USAGE.md#launch-a-steam-game-with-a-joystick)
 and [Steam troubleshooting](TROUBLESHOOTING.md#a-steam-game-will-not-start-in-the-seat).
-Virtual gamepads remain visible across Windows sessions.
+Virtual gamepads stay inside the seat only when HidHide is installed; otherwise they are visible
+across Windows sessions. See [the virtual controller](SECURITY.md#the-virtual-controller).
 
 ## Verification
 

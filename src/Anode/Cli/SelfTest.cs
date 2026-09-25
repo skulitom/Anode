@@ -56,6 +56,8 @@ internal static class SelfTest
             return "15 buttons, 4 axes, 2 triggers";
         });
 
+        Check(results, "controller isolation", GamepadChecks.Lists);
+        Check(results, "isolated controller attach", GamepadChecks.Attach);
         Check(results, "CLI help routing", CliChecks.HelpRouting);
         Check(results, "CLI argument checks", CliChecks.Arguments);
         Check(results, "CLI help and messages", CliChecks.HelpText);
@@ -193,6 +195,7 @@ internal static class SelfTest
                 finally { pads.Detach(0); }
                 return "attached an Xbox 360 pad, moved a stick, tapped a button, detached";
             });
+            Check(results, "seat-only gamepad", GamepadChecks.Live);
         }
 
         Check(results, "child-session API", () =>

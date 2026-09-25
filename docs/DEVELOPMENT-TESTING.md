@@ -203,7 +203,7 @@ Games and custom-rendered applications generally need visual input because their
 sparse. Electron, WinUI, IDEs, installers and each real application need their own smoke tests;
 these fixtures do not certify every application. Secure desktops, UAC and password controls require
 direct user interaction. App singletons may redirect a launch into another session; verify process
-and window placement. Virtual controllers remain machine-wide.
+and window placement. Virtual controllers stay inside the seat only when HidHide is installed.
 
 Anode's MCP tools do not redirect another computer-use plugin into this seat. Route native desktop
 actions through Anode, or run an application-specific test backend inside an owned seat process.

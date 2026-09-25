@@ -27,7 +27,8 @@ namespace Anode.Seat;
 /// </summary>
 internal static class SeatHost
 {
-    private static readonly GamepadManager Gamepads = new();
+    private static readonly GamepadManager Gamepads = new(record: Log.Info);
+    private static PadIsolation? _padIsolation;
     private static readonly ManualResetEventSlim Stopping = new(false);
     private static readonly Stopwatch Uptime = Stopwatch.StartNew();
     private static readonly DesktopTools Desktop = new();
@@ -58,6 +59,15 @@ internal static class SeatHost
             return 3;
         }
 
+        // Virtual controllers plugged in while the seat runs stay in the seat when HidHide is installed.
+        try
+        {
+            _padIsolation = new PadIsolation(session, desktopProbe: AskDesktop, record: Log.Info);
+            Gamepads.Isolate(_padIsolation);
+            _padIsolation.Start();
+        }
+        catch (Exception ex) { Log.Error("could not start keeping virtual controllers inside the seat", ex); }
+
         using var server = new JsonPipeServer(Env.SeatPipe, HandleAsync);
         server.Start();
         using var expiry = new System.Threading.Timer(_ =>
@@ -67,13 +77,23 @@ internal static class SeatHost
         }, null, 1000, 1000);
         Log.Info($"seat host listening on \\\\.\\pipe\\{Env.SeatPipe}");
 
-        AppDomain.CurrentDomain.ProcessExit += (_, _) => { Jobs.Dispose(); Gamepads.Dispose(); };
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => { Jobs.Dispose(); Gamepads.Dispose(); _padIsolation?.Dispose(); };
         Stopping.Wait();
 
         Gamepads.Dispose();
+        _padIsolation?.Dispose();
         Jobs.Dispose();
         Log.Info("seat host stopped");
         return 0;
+    }
+
+    /// <summary>Asks the daemon, which runs in the user's session, whether that session can open these pad devices.</summary>
+    private static JsonObject? AskDesktop(IReadOnlyList<string> devices)
+    {
+        using var daemon = JsonPipeClient.TryConnectAsync(Env.ControlPipe, 2000).GetAwaiter().GetResult();
+        var response = daemon?.RequestAsync("seat.pad-visibility",
+            new JsonObject { ["devices"] = new JsonArray(devices.Select(device => (JsonNode)device).ToArray()) }, 5000).GetAwaiter().GetResult();
+        return response?.Bool("ok") == true ? response.Obj("result") : null;
     }
 
     internal static void VerifyCurrentSession()
@@ -290,7 +310,13 @@ internal static class SeatHost
             }
 
             case "gamepad.attach":
-                return JsonLine.Ok(Gamepads.Attach(r.Int("slot") ?? 0));
+                try { return JsonLine.Ok(Gamepads.Attach(r.Int("slot") ?? 0)); }
+                catch (PadIsolationException ex)
+                {
+                    var refused = JsonLine.Fail(ex.Message);
+                    refused["errorCode"] = "not_isolated";
+                    return refused;
+                }
 
             case "gamepad.detach":
                 return JsonLine.Ok(Gamepads.Detach(r.Int("slot") ?? 0));
@@ -308,7 +334,7 @@ internal static class SeatHost
                     r.Int("ms") ?? 80));
 
             case "gamepad.state":
-                return JsonLine.Ok(new JsonObject { ["slots"] = Gamepads.Slots() });
+                return JsonLine.Ok(new JsonObject { ["slots"] = Gamepads.Slots(), ["isolation"] = _padIsolation?.Describe() });
 
             case "shutdown":
                 Log.Info("seat host asked to stop");

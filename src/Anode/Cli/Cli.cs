@@ -810,7 +810,8 @@ internal static partial class Cli
             "--no-scheduler skips the desktop capture and scheduled-task checks; --no-gamepad skips the gamepad.",
             ("anode selftest --quick", "check Anode itself; no seat, capture or input"),
             ("anode selftest [--no-gamepad] [--no-scheduler]",
-                "the full suite also captures this desktop, runs a scheduled task and attaches a machine-wide virtual gamepad")),
+                "the full suite also captures this desktop, runs a scheduled task, attaches a machine-wide virtual gamepad "
+                + "and, with HidHide, checks that a jailed one is hidden from this desktop")),
         Row("Diagnose", "status", "json", 0,
             "Never starts anything. Exits 1 when Anode is not running; --json then prints {\"state\": \"stopped\", \"daemonRunning\": false, ...}.",
             ("anode status [--json]", "what the seat is doing right now")),
@@ -904,8 +905,8 @@ internal static partial class Cli
 
         Row("Virtual controller (needs the ViGEm bus driver)", "gamepad pad", "slot# ms#", 4,
             "Buttons: a, b, x, y, lb, rb, back, start, guide, ls, rs, up, down, left, right; tap also takes lt and rt. "
-            + "Every action takes --slot N (0-3, default 0). The controller is machine-wide, so programs on your own "
-            + "desktop see it too.",
+            + "Every action takes --slot N (0-3, default 0). With HidHide installed the seat keeps the controller to "
+            + "itself; without it, programs on your own desktop see it too. state says which.",
             ("anode gamepad attach [--slot N]", "plug in a virtual Xbox 360 controller"),
             ("anode gamepad tap <button> [--ms 80]", "press and release a button"),
             ("anode gamepad hold <button> | release <button>", "keep a button down, or let it go"),

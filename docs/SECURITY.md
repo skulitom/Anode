@@ -107,15 +107,50 @@ Read this list before you point an agent at it.
   outside the seat resolves differently, and the links end with the seat host. When Steam is not
   running, Anode starts it on your desktop, minimized.
 - **Other sessions' data at rest.** Separate sessions, one disk.
-- **The virtual gamepad.** A ViGEm pad is a HID device on the **machine**, not in a session. Every
-  session sees it, exactly like a controller plugged into USB. A game running on your own screen can
-  read input the agent generates.
+- **The virtual gamepad, without HidHide.** A ViGEm pad is a device on the **machine**, not in a
+  session. By itself every session can open it, exactly like a controller plugged into USB, so a game
+  on your own screen reads the input an agent generates. With [HidHide](https://github.com/nefarius/HidHide/releases)
+  installed, the seat lists each virtual pad and every device Windows makes for it with HidHide,
+  jailed to the seat's session, and only programs in the seat can open it (see
+  [the virtual controller](#the-virtual-controller)).
 - **Machine-wide state.** Services, scheduled tasks, and anything else a standard user can change.
 - **UAC.** The seat runs unelevated, and elevation prompts inside a child session are awkward at best.
   Do not plan on the seat installing software.
 
 If you need a real boundary, put Anode inside a Windows Sandbox, a VM, or run it under a separate,
 less privileged Windows user. Anode's isolation is about **attention**, not about **authority**.
+
+## The virtual controller
+
+Games read controllers through devices that any session can open. With HidHide installed, the seat
+host puts each virtual pad on HidHide's list as `instance path!session`, which HidHide reads as
+"refuse every program outside this session". Programs in the seat open the pad as usual. Programs on
+your desktop, services and other sessions are refused, whether they use XInput, DirectInput, raw
+input, Windows.Gaming.Input or HID directly. That includes Steam and the Xbox Game Bar, so the guide
+button opens neither on your desktop.
+
+- **What is listed.** Anode's own controllers, and any other ViGEm pad plugged in while the seat runs,
+  such as a seat program's own pad. While a program outside the seat uses ViGEm (DS4Windows, for
+  example), a new pad could be that program's, so only Anode's own are listed. Pads that existed
+  before the seat started are never listed.
+- **Listed before it exists.** HidHide checks each open, not handles already open. The seat lists the
+  names ViGEm hands out next, with every device name Windows has recorded under them, before a pad
+  takes them. Windows names the pad's HID device after a counter that restarts at boot. The first
+  time that counter reaches a value it never had before, the new device is listed the moment Windows
+  announces it, and a desktop program that opens HID devices as they arrive can open it first.
+- **Checked from your desktop.** After plugging a controller in, the seat asks the daemon, which runs
+  in your session, to open it the way XInput and HID readers do. If your session can, Anode unplugs
+  it again and the attach fails with `not_isolated`. It also refuses to plug one in while HidHide is
+  switched off with other devices listed, or while HidHide's application list is inverted. A pad a
+  seat program plugged in is checked the same way once; Anode cannot unplug it, so a failure is logged
+  and shown by `anode gamepad state` (`verifiedFromDesktop`).
+- **Programs HidHide allows everywhere.** A program on HidHide's application list opens hidden devices
+  from any session. `anode gamepad state` names them.
+- **Your HidHide settings.** Anode adds and removes only its own entries, which end in `!` and a
+  session number. It switches HidHide on only when nothing else is listed, and never changes the
+  application list or the inverse setting. When a seat ends, the daemon removes its entries; a seat
+  that ended without the daemon, at a restart for example, is cleaned up the next time Anode starts.
+- **Without HidHide** controllers are machine-wide, and each attach says so (`seatOnly: false`).
 
 ## Stopping the seat
 

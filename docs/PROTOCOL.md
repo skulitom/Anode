@@ -62,6 +62,7 @@ See [Microsoft's pipe option documentation](https://learn.microsoft.com/en-us/do
 | `ping` | | `{daemon, state}` |
 | `status` | | see below |
 | `seat.identity` | | `{session, parentSession}` from Windows; used by the seat host to verify its session before serving input |
+| `seat.pad-visibility` | `devices` (instance paths of ViGEm pads and their devices) | `{session, devices: [{device, interfaces: [{path, opens}]}]}`; used by the seat host to check that the user's session cannot open a controller HidHide keeps in the seat. `opens` is `false` when refused, `null` when unknown. |
 | `doctor` | | `{checks: [{name, state, detail, fix}]}` |
 | `seat.start` | | `{session}` when ready |
 | `seat.stop` (alias `kill`) | `reason` | `{stopped, session}` |
@@ -239,6 +240,15 @@ will appear.
 | `gamepad.set` | `slot`, `buttons` `{name: bool}`, `axes` `{lx,ly,rx,ry: -1..1}`, `triggers` `{lt,rt: 0..1}` |
 | `gamepad.tap` | `slot`, `button`, `ms` |
 | `gamepad.state` | |
+
+With HidHide installed, `gamepad.attach` returns `{slot, attached, device, seatOnly, verifiedFromDesktop, summary}`:
+the pad's instance path, whether it is kept inside the seat, and whether the daemon, in the user's
+session, was refused when it tried to open it. When HidHide cannot keep it in the seat the attach fails
+with `errorCode` `not_isolated` and nothing stays plugged in; without HidHide, `seatOnly` is `false`.
+`gamepad.state` returns `{slots, isolation}`; `isolation` has `hidHide` (`active`, `not installed`,
+`switched off`, `inverted` or `unavailable`), `seatSession`, `pads` (`device`, `owner`: `anode`, `seat`
+or `outside`, `seatOnly`, `verifiedFromDesktop`), `otherViGEmPrograms`, `allowedEverywhere` and a `summary`. See
+[the virtual controller](SECURITY.md#the-virtual-controller).
 
 `gamepad.set` is **sticky**: only the fields you pass change, and the whole report is resubmitted. So
 holding a stick while tapping a button is two calls, not one combined call.

@@ -8,7 +8,9 @@
 - PowerShell 5.1 or later for the installer and agent connector.
 - Administrator permission for the separate, one-time `anode setup` step.
 - No .NET installation for release builds. Building from source requires the .NET 10 SDK.
-- [ViGEmBus](https://github.com/nefarius/ViGEmBus/releases) only if you want a virtual gamepad.
+- [ViGEmBus](https://github.com/nefarius/ViGEmBus/releases) only if you want a virtual gamepad, and
+  [HidHide](https://github.com/nefarius/HidHide/releases) to keep it inside the seat while you use your
+  own games. Both need an administrator once; HidHide asks for a restart.
 
 ## Recommended: install for your user
 

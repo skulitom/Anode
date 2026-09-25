@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+- **Virtual controllers stay in the seat.** A ViGEm pad is a device on the machine, so a game on your
+  desktop read the input an agent sent to a game in the seat: an agent flying Liftoff steered No Man's
+  Sky. With [HidHide](https://github.com/nefarius/HidHide/releases) installed, the seat lists every
+  virtual pad plugged in while it runs with HidHide, jailed to the seat's session. Programs in the seat
+  open it as usual; games, Steam and the Xbox Game Bar on your desktop are refused, so you can play
+  while agents test games. This covers pads a program in the seat plugs in on its own. While a
+  program outside the seat uses ViGEm, such as DS4Windows, only Anode's own pads are kept in the seat.
+- The names a pad takes are listed before it plugs in, because HidHide checks each open, not handles
+  already open. After plugging a controller in, the seat asks the daemon to open it from your session;
+  if it can, the controller is unplugged again and `gamepad_attach` fails with `not_isolated`, as it
+  does when HidHide is switched off with other devices listed or its application list is inverted.
+- `gamepad_attach` reports `seatOnly` and the pad's device; `anode gamepad state` reports each pad and
+  HidHide's state. Anode changes only its own HidHide entries, removes them when a seat ends or at the
+  next start, and switches HidHide on only when nothing else is listed. `anode doctor` checks for
+  HidHide. Without it, controllers are machine-wide as before, and each attach says so.
+- The seat log records each controller plugged in or unplugged.
+
 ## 0.9.0 — 2026-09-24
 
 - **.NET 10.** Anode moves to .NET 10, the current long-term support release, before .NET 8 support

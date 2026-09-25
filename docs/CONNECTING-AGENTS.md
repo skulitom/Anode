@@ -259,7 +259,8 @@ Put this in `CLAUDE.md` for Claude Code, or `AGENTS.md` for Codex:
 ## The Anode seat
 
 The `anode` MCP server gives you a seat: a second Windows session with its own screen, pointer and
-keyboard focus. Apps share the user's profile, and virtual gamepads are machine-wide.
+keyboard focus. Apps share the user's profile. Virtual gamepads stay in the seat only when HidHide is
+installed; otherwise they are machine-wide.
 
 - Call `seat_status` first; it never starts anything. Before desktop work, call
   `seat_lease {action: "acquire"}`; it starts a hidden seat if needed and waits in line while
@@ -290,7 +291,9 @@ keyboard focus. Apps share the user's profile, and virtual gamepads are machine-
   when the user agrees and the game will not start otherwise.
 - `gamepad_set` is sticky: it changes only the fields you pass, so hold a stick and tap a button in
   two calls.
-- Detach the gamepad when you are done. It is a machine-wide device the user's own games can see.
+- Detach the gamepad when you are done. Check `seatOnly` in the attach result: without HidHide the
+  controller is machine-wide, so the user's own games read it too. Use Anode's gamepad tools rather
+  than a ViGEm client of your own when the user may be gaming.
 - Cancel your execution jobs and close your test fixtures when finished. Use `seat_stop`
   only when the whole seat can be closed; it ends other applications and agents' work too.
 ```

@@ -9,12 +9,12 @@ namespace Anode.Core.Gamepad;
 /// <summary>
 /// Virtual Xbox 360 controllers, backed by the ViGEm bus driver.
 ///
-/// One caveat worth stating plainly: a ViGEm pad is a real HID device plugged into
-/// the machine, not into a session. Every session sees it, exactly as it would see a
-/// controller you plugged into a USB port. That is what makes it work for a game in
-/// the seat, and it also means a game running on your own screen can read it too.
-/// Anode attaches the pad when the seat comes up and detaches it when the seat goes
-/// down, so it does not outlive the agent that asked for it.
+/// A ViGEm pad is a device plugged into the machine, not into a session: by itself every
+/// session can open it, exactly like a controller in a USB port, so a game on your own
+/// screen would read the input an agent sends. In the seat, <see cref="PadIsolation"/>
+/// lists each pad with HidHide before it is plugged in, so only programs in the seat can
+/// open it; without HidHide the pad stays machine-wide and each attach says so. Pads are
+/// unplugged when the lease ends or the seat goes down.
 ///
 /// State is sticky: <see cref="Apply"/> changes only the fields it is given and
 /// resubmits the whole report, so holding W while nudging a stick works the way a
@@ -23,10 +23,28 @@ namespace Anode.Core.Gamepad;
 internal sealed class GamepadManager : IDisposable
 {
     private readonly object _gate = new();
+    private readonly Func<IXbox360Controller> _createPad;
+    private readonly Action<string> _record;
     private ViGEmClient? _client;
     private readonly Dictionary<int, IXbox360Controller> _pads = new();
+    private readonly Dictionary<int, string> _devices = new();
+    private PadIsolation? _isolation;
 
     public const int MaxSlots = 4;
+
+    /// <param name="createPad">Makes a controller; the default asks the ViGEm bus.</param>
+    /// <param name="record">Receives a line whenever a controller is plugged in or unplugged, for the log.</param>
+    public GamepadManager(Func<IXbox360Controller>? createPad = null, Action<string>? record = null)
+    {
+        _createPad = createPad ?? (() => Client().CreateXbox360Controller());
+        _record = record ?? (_ => { });
+    }
+
+    /// <summary>Keeps every controller plugged in from now on inside the seat.</summary>
+    public void Isolate(PadIsolation isolation)
+    {
+        lock (_gate) _isolation = isolation;
+    }
 
     private ViGEmClient Client()
     {
@@ -53,13 +71,48 @@ internal sealed class GamepadManager : IDisposable
             if (_pads.ContainsKey(slot))
                 return new JsonObject { ["slot"] = slot, ["attached"] = true, ["note"] = "already attached" };
 
-            var pad = Client().CreateXbox360Controller();
-            pad.AutoSubmitReport = false;
-            pad.Connect();
-            pad.ResetReport();
-            pad.SubmitReport();
+            // Listed with HidHide before it exists, so no program outside the seat opens it first.
+            var before = _isolation?.BeforePlugIn();
+            IXbox360Controller pad;
+            try
+            {
+                pad = _createPad();
+                pad.AutoSubmitReport = false;
+                pad.Connect();
+                pad.ResetReport();
+                pad.SubmitReport();
+            }
+            catch
+            {
+                _isolation?.PlugInFailed();
+                throw;
+            }
             _pads[slot] = pad;
-            return new JsonObject { ["slot"] = slot, ["attached"] = true };
+            if (_isolation is null || before is null)
+            {
+                _record($"virtual controller plugged into slot {slot}");
+                return new JsonObject { ["slot"] = slot, ["attached"] = true };
+            }
+
+            var adoption = _isolation.Adopt(before, TimeSpan.FromSeconds(3));
+            if (adoption.Required && !adoption.Isolated)
+            {
+                // Never leave a pad the user's desktop can read once HidHide is expected to hide it.
+                _pads.Remove(slot);
+                Unplug(pad);
+                if (adoption.PadId is { } lost) _isolation.Release(lost);
+                _record($"unplugged the virtual controller in slot {slot} again: {adoption.Summary}");
+                throw new PadIsolationException("The controller was unplugged again, because it would reach the user's desktop. " + adoption.Summary);
+            }
+            if (adoption.PadId is { } device) _devices[slot] = device;
+            _record($"virtual controller plugged into slot {slot} as {adoption.PadId ?? "an unidentified device"}, "
+                + (adoption.Isolated ? "inside the seat only" : "machine-wide"));
+            return new JsonObject
+            {
+                ["slot"] = slot, ["attached"] = true, ["device"] = adoption.PadId, ["seatOnly"] = adoption.Isolated,
+                ["verifiedFromDesktop"] = adoption.Verified,
+                ["summary"] = $"A virtual Xbox 360 controller is plugged into slot {slot}. {adoption.Summary}"
+            };
         }
     }
 
@@ -71,7 +124,9 @@ internal sealed class GamepadManager : IDisposable
             if (!_pads.Remove(slot, out var pad))
                 return new JsonObject { ["slot"] = slot, ["attached"] = false, ["note"] = "was not attached" };
 
-            try { pad.ResetReport(); pad.SubmitReport(); pad.Disconnect(); } catch { }
+            Unplug(pad);
+            Forget(slot);
+            _record($"virtual controller in slot {slot} unplugged");
             return new JsonObject { ["slot"] = slot, ["attached"] = false };
         }
     }
@@ -87,15 +142,27 @@ internal sealed class GamepadManager : IDisposable
                 {
                     pad.ResetReport(); pad.SubmitReport(); pad.Disconnect();
                     _pads.Remove(slot);
+                    Forget(slot);
+                    _record($"virtual controller in slot {slot} unplugged");
                 }
                 catch (Exception ex)
                 {
                     if (requireSuccess) failure ??= ex;
-                    else _pads.Remove(slot);
+                    else { _pads.Remove(slot); Forget(slot); }
                 }
             }
             if (failure is not null) throw new InvalidOperationException("Could not detach an owned controller; desktop lease transfer is paused until cleanup succeeds.", failure);
         }
+    }
+
+    private static void Unplug(IXbox360Controller pad)
+    {
+        try { pad.ResetReport(); pad.SubmitReport(); pad.Disconnect(); } catch { }
+    }
+
+    private void Forget(int slot)
+    {
+        if (_devices.Remove(slot, out string? device)) _isolation?.Release(device);
     }
 
     public JsonObject Reset(int slot)
@@ -191,7 +258,7 @@ internal sealed class GamepadManager : IDisposable
         {
             var array = new JsonArray();
             foreach (int slot in _pads.Keys.OrderBy(k => k))
-                array.Add(new JsonObject { ["slot"] = slot, ["type"] = "xbox360" });
+                array.Add(new JsonObject { ["slot"] = slot, ["type"] = "xbox360", ["device"] = _devices.GetValueOrDefault(slot) });
             return array;
         }
     }

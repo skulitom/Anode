@@ -35,7 +35,7 @@ internal static class SeatCapabilities
                 "Capture availability is a point-in-time probe, not a rendering guarantee.",
                 "Secure desktops, UAC and password controls require direct user interaction.",
                 "Files, accounts, application singletons and network ports are shared with the parent session.",
-                "Virtual gamepads are machine-wide. Execution jobs end when the seat host exits."),
+                "Virtual gamepads stay inside the seat only when HidHide is installed; `gamepad state` reports it. Execution jobs end when the seat host exits."),
             ["summary"] = $"Seat {ChildSession.CurrentSessionId()}, Anode {typeof(SeatCapabilities).Assembly.GetName().Version?.ToString(3)}. "
                 + (probeCapture ? $"Capture {(capture["available"]!.GetValue<bool>() ? "available" : "unavailable: " + capture["error"])}. " : "Capture not tested. ")
                 + "Window/control inspection, UI waits and command jobs are supported. App accessibility varies; files and ports are shared."

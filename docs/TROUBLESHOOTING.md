@@ -12,7 +12,8 @@ anode capabilities | Out-Host       # seat capture and known input blockers
 `anode.exe` is a Windows GUI executable: in PowerShell, append `| Out-Host` to `anode` commands so
 the prompt waits for their output and sets `$LASTEXITCODE`. Plain `anode selftest`, without
 `--quick`, also captures your current desktop, runs a Task Scheduler check and attaches a
-machine-wide virtual gamepad; run it only when that is acceptable. `anode doctor --json` and
+machine-wide virtual gamepad (with HidHide, also one it checks your desktop cannot open); run it only
+when that is acceptable. `anode doctor --json` and
 `anode status --json` print the same results as JSON. With nothing running, `status --json` prints
 `"state": "stopped"` and `"daemonRunning": false` and exits 1. Every command and option is in the
 [command reference](USAGE.md#command-reference).
@@ -480,10 +481,35 @@ Windows 11. Everything else in Anode works without it.
 - Some games only read the first XInput slot; `anode gamepad detach` any pad you left in another slot.
 - Check the pad exists at all: Win+R, `joy.cpl`, in the seat.
 
-### My real controller and the virtual one fight
+### A game on my desktop reacts to the agent's controller
 
-A ViGEm pad is machine-wide, so a game on your own screen sees it too. Detach it when the agent is not
-using it (`anode gamepad detach`), or stop the seat, which detaches automatically.
+A ViGEm pad is a machine-wide device, so without help a game on your own screen reads it too. Install
+[HidHide](https://github.com/nefarius/HidHide/releases) from its official releases page and restart when
+its installer asks. From then on the seat keeps every virtual pad plugged in while it runs to itself:
+games, Steam and the Xbox Game Bar on your desktop cannot open it, and you can play while an agent tests
+a game in the seat. `anode doctor` reports it under **Controller isolation**, and `anode gamepad state`
+shows each pad's `owner` and `seatOnly`.
+
+- A pad from a program outside the seat stays shared. While such a program runs (DS4Windows, for
+  example), only Anode's own controllers are kept in the seat, since a new pad could be that program's;
+  `gamepad state` lists it under `otherViGEmPrograms`.
+- A program on HidHide's application list can open hidden devices anywhere; `gamepad state` lists it
+  under `allowedEverywhere`. Remove it from the list in HidHide's configuration if it should not.
+- Without HidHide, detach the controller when the agent is not using it (`anode gamepad detach`), or
+  stop the seat, which detaches automatically.
+
+### "No controller was plugged in, because it would reach the user's desktop"
+
+The attach failed with `not_isolated`: HidHide is installed but cannot keep the controller in the seat,
+so Anode did not leave it plugged in. The message names the reason:
+
+- **switched off**: HidHide is off and also hides devices of yours, so Anode will not switch it on.
+  Switch it on in HidHide's configuration.
+- **inverted**: HidHide's application list is inverted, which lets every program not on it see hidden
+  devices. Turn that off in HidHide's configuration.
+- **busy**: HidHide's configuration window or another program has it open. Close it and attach again.
+- **the desktop could still open it**: HidHide listed the controller but your session could open it,
+  usually because HidHide's restart is still pending. Restart Windows.
 
 ---
 

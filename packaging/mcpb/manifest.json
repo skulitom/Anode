@@ -54,7 +54,7 @@
     { "name": "seat_scroll", "description": "Turn the mouse wheel on the background desktop." },
     { "name": "seat_key", "description": "Press a key or key combination on the background desktop." },
     { "name": "seat_type", "description": "Type text into the focused control on the background desktop." },
-    { "name": "gamepad_attach", "description": "Plug in a virtual Xbox 360 controller, visible machine-wide." },
+    { "name": "gamepad_attach", "description": "Plug in a virtual Xbox 360 controller, kept inside the seat when HidHide is installed." },
     { "name": "gamepad_detach", "description": "Unplug the virtual controller." },
     { "name": "gamepad_set", "description": "Set virtual controller buttons, sticks and triggers." },
     { "name": "gamepad_tap", "description": "Briefly press one virtual controller button or trigger." },

@@ -52,7 +52,7 @@ seat_screenshot {maxWidth: 1000, format: "jpeg"}     -> main menu
 Then, to play it:
 
 ```
-gamepad_attach  {}
+gamepad_attach  {}                             -> seatOnly: true with HidHide installed
 gamepad_tap     {button: "a"}
 gamepad_set     {axes: {lx: 0.7, ly: 0.0}}     hold the stick right
 gamepad_set     {axes: {lx: 0.0, ly: 0.0}}     let go
@@ -63,7 +63,9 @@ seat_lease      {action: "release"}
 
 `gamepad_set` is sticky: it changes only the fields you pass, so holding a stick while tapping a
 button is two calls. Renew the lease during long play; release or expiry also detaches the
-controller and releases held input.
+controller and releases held input. With [HidHide](https://github.com/nefarius/HidHide/releases)
+installed the controller stays inside the seat, so you can play your own games meanwhile; without it
+the attach says `seatOnly: false` and a game on your desktop reads the controller too.
 
 ## 4. Watch it, and stop it
 

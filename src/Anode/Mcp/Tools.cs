@@ -245,7 +245,8 @@ internal static class Tools
 
         new("gamepad_attach", "Anode: plug in a virtual Xbox controller", "gamepad.attach", false, Effect.Action,
             "Plug a virtual Xbox 360 controller into the machine. Games in the seat see it as a real controller. "
-            + "Note that it is a machine-wide device, so it is visible to the user's session too.",
+            + "With HidHide installed, Anode keeps it inside the seat, so games on the user's desktop cannot read it; "
+            + "without HidHide it is machine-wide, and the result says which (seatOnly).",
             Schema(("slot", "integer", "Controller slot, 0 to 3. Default 0.", false))),
 
         new("gamepad_detach", "Anode: unplug the virtual controller", "gamepad.detach", false, Effect.Action,

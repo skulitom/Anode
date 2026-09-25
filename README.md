@@ -38,7 +38,8 @@ flowchart LR
   UI waits, application launches and cancellable command jobs.
 - **Watch or stop it:** `anode show` opens the viewer and `anode hide` closes it. **Ctrl+Alt+Shift+K**
   or `anode kill` signs the seat out and closes every application in it, including unsaved work.
-- **Automate games:** optional virtual Xbox 360 controller support through ViGEmBus.
+- **Automate games:** optional virtual Xbox 360 controller support through ViGEmBus, kept inside the
+  seat with HidHide so you can play your own games meanwhile.
 - **Coordinate several agents:** exclusive desktop leases and command jobs scoped to each agent.
   Agents share one seat and take turns; see [multiple agents](docs/MULTI-AGENT.md).
 
@@ -46,7 +47,7 @@ The seat is a Windows *child session*: a second session for your own account, cr
 built-in loopback Remote Desktop feature. It has its own pointer and focus; adding a virtual
 monitor to your current session does not. The seat runs as your Windows user and shares your
 files, account and network. **This is desktop isolation, not a security sandbox.** Virtual
-gamepads are machine-wide. See [security and isolation](docs/SECURITY.md).
+gamepads stay in the seat only with HidHide installed. See [security and isolation](docs/SECURITY.md).
 
 ## Install
 
@@ -181,8 +182,8 @@ and [llms.txt documentation index](llms.txt).
   browser testing.
 - Capture and input depend on Windows and the application. Use `anode capabilities` to check;
   a connected seat alone does not prove screenshots or input work.
-- Protected video and exclusive fullscreen may not capture. Virtual gamepads can also affect
-  games on your main desktop.
+- Protected video and exclusive fullscreen may not capture. Without [HidHide](https://github.com/nefarius/HidHide/releases),
+  virtual gamepads also reach games on your main desktop.
 
 ## Privacy Policy
 
@@ -212,7 +213,8 @@ or [suggest an improvement](https://github.com/skulitom/Anode/issues/new?templat
 Built on documented Windows [child sessions](https://learn.microsoft.com/en-us/windows/win32/termserv/child-sessions),
 the [Remote Desktop ActiveX control](https://learn.microsoft.com/en-us/windows/win32/termserv/remote-desktop-activex-control)
 and [Task Scheduler](https://learn.microsoft.com/en-us/windows/win32/api/taskschd/nf-taskschd-iregisteredtask-runex).
-Optional gamepad support uses [ViGEmBus](https://github.com/nefarius/ViGEmBus).
+Optional gamepad support uses [ViGEmBus](https://github.com/nefarius/ViGEmBus), and
+[HidHide](https://github.com/nefarius/HidHide) keeps the virtual controllers inside the seat.
 Related projects: [Cathode](https://github.com/skulitom/CathodeDisplay),
 [LibreAutomate](https://github.com/qgindi/LibreAutomate) and [BetterGI](https://github.com/babalae/better-genshin-impact).
 

@@ -68,7 +68,9 @@ through UAC; do not treat a missing setup as a failed build.
   its effects may already have happened. Reconnect before subsequent requests.
 - Keep Stop able to cancel startup and avoid waiting on long input operations.
 - Screenshot click coordinates use the original screen size, even when the
-  returned image is smaller. Gamepads are visible across Windows sessions.
+  returned image is smaller. Gamepads are visible across Windows sessions unless HidHide jails
+  them to the seat (`Core/Gamepad/PadIsolation.cs`); list a pad before it exists, since HidHide
+  checks opens, not open handles.
 
 See `docs/ARCHITECTURE.md`, `docs/PROTOCOL.md`, `docs/SECURITY.md` and
 `docs/CONNECTING-AGENTS.md` for the runtime model and client setup.
@@ -83,8 +85,8 @@ foreground desktop left available.
 Do not invoke foreground computer use, activate the parent viewer, or show it as
 a fallback when seat capture fails. Diagnose that failure through code and logs;
 stop input that requires a fresh screenshot. Show the viewer only when the user
-requests it or agrees to a specific interactive step. Virtual gamepads remain
-machine-wide and require separate consideration before input tests.
+requests it or agrees to a specific interactive step. Virtual gamepads are
+machine-wide without HidHide and require separate consideration before input tests.
 
 Use `windows`/`inspect` or `seat_windows`/`seat_observe` for accessible controls.
 Control actions consume their snapshot; inspect again instead of replaying an

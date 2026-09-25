@@ -110,9 +110,10 @@ the task calls for stopping that whole session, not as routine fixture cleanup.
 Never replay timed-out input; its effects may already have happened. Reconnect and observe.
 Launch Steam games with `steam_launch`, never by starting `steam.exe` or a `steam://` link: the game
 runs in the seat against the user's desktop Steam, which stays there. Use `force` only with the
-user's agreement, since it moves Steam into the seat. Virtual gamepads are machine-wide and can
-affect the user's games: use them only when that scope is appropriate, and detach your controller
-afterward.
+user's agreement, since it moves Steam into the seat. Use `gamepad_attach` for controller input, not a
+ViGEm client of your own. With HidHide installed the controller stays inside the seat (`seatOnly: true`);
+without it the controller is machine-wide and the user's own games read it, so use it only when that
+scope is appropriate. Detach your controller afterward.
 
 More: [desktop tools](https://github.com/skulitom/Anode/blob/main/docs/DESKTOP-TOOLS.md),
 [development testing](https://github.com/skulitom/Anode/blob/main/docs/DEVELOPMENT-TESTING.md),
