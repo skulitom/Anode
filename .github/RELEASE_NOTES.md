@@ -24,44 +24,44 @@ anode capabilities | Out-Host
 the discoverable `anode-desktop` skill. Use `--no-skill` for MCP registration alone.
 Restart the agent afterward. Other MCP clients can launch `anode.exe` with the argument `mcp`.
 
-## What's new in 0.9.0
+## What's new in 0.10.0
 
-**Steam stays on your desktop.** A Steam game launched through Anode (`anode steam <appid>`,
-`steam_launch`) now runs in the seat and uses the Steam client already running on your desktop, which
-stays there. Before, a launch started a Steam client in the seat, and that took Steam over from your
-desktop. When Steam is not running, Anode starts it on your desktop, minimized, and starts the game
-once Steam could serve it. The game's program comes from Steam's own launch configuration; `--exe`
-(MCP: `exe`) names another. Games started this way run without the Steam overlay and Steam Input.
-`--force` launches through a Steam client in the seat, as before.
+**Play your own games while agents test games in the seat.** A virtual controller is a device on
+the machine, so a game on your desktop read the input an agent sent to a game in the seat. With
+[HidHide](https://github.com/nefarius/HidHide/releases) installed, Anode keeps every virtual
+controller plugged in while the seat runs inside the seat: games, Steam and the Xbox Game Bar on your
+desktop cannot open it, and games in the seat use it as before. That includes controllers a program
+in the seat plugs in on its own. While a ViGEm program such as DS4Windows runs on your desktop, only
+Anode's own controllers are kept in the seat, so yours keep working. After plugging a controller in,
+Anode checks from your desktop that it cannot be opened there, and unplugs it again (`not_isolated`)
+rather than let your desktop read it. `gamepad_attach` reports `seatOnly`, `anode gamepad state`
+shows every controller, and `anode doctor` checks for HidHide. Without HidHide, controllers are
+machine-wide as before, and each attach says so.
 
-**Agents can tell who has the desktop.** MCP names each agent after its client and project folder,
-for example "Claude Code in WebShop", instead of giving every session of a client one name. An agent
-asking about a lease it holds is told "You hold the desktop lease", so it no longer mistakes its own
-lease for another agent's. The log records who took, released or let the desktop expire.
-
-**.NET 10.** Anode moves to .NET 10, the current long-term support release, before .NET 8 support
-ends on 10 November 2026. The download still includes the runtime, so no .NET installation is needed.
-
-**A separate dev Anode.** Debug builds run as their own `dev` channel, with separate pipes, logs and a
-viewer labelled "(dev)", so a development build cannot reach or stop the installed Anode. Windows
-allows one seat per session, so only one channel runs a seat; the others say which one has it.
+**The viewer opens fitted to the seat.** The viewer measures its frame and bars and opens with the
+seat at its own size, or the largest that fits your screen, instead of scaling it slightly with white
+strips at its sides. A resized, maximized or full-screen viewer keeps the seat's shape on its dark
+background.
 
 **Upgrading.** Save seat work, run `anode quit` (it closes every program in the seat) and close the
-agent sessions that use Anode, then install 0.9.0 and start Anode again. Older MCP servers work with
-the 0.9.0 daemon and are told when they hold the desktop, but only 0.9.0 MCP servers name agents
-after their project folder. Run `anode configure` to update the installed skill. `steam_launch` no
-longer refuses while Steam runs on your desktop, and `force` now means launching through a Steam
-client in the seat.
+agent sessions that use Anode, then install 0.10.0 and start Anode again. To keep controllers in the
+seat, install HidHide from its [releases](https://github.com/nefarius/HidHide/releases) and restart
+Windows when it asks; `anode doctor` then reports **Controller isolation**. Anode changes only its own
+HidHide entries and switches HidHide on only when nothing else is listed. Run `anode configure` to
+update the installed skill.
 
-**Validation and limits.** The candidate passes all 59 local quick checks, including new checks of
-Steam launch configurations, every launch path, namespace links, agent names and status as the asking
-agent sees it, plus package, installation and distribution checks. Live on a real seat, Liftoff ran
-in the seat against the Steam client on the desktop, which never moved, and two MCP agents in
-different project folders were told apart. On .NET 10, the native desktop suite and the
-pointer-isolation script passed. The browser suite with real input did not run, because a GameInput
-helper held the new seat's foreground. Games wrapped in Steam's DRM stub or needing its overlay are
-untested. See the
-[validation record](https://github.com/skulitom/Anode/blob/main/docs/RELEASE-READINESS.md#live-validation--23-september-2026).
+**Validation and limits.** The candidate passes all 61 local quick checks, including new checks of
+HidHide's lists, jail entries, reserved controller names, your own HidHide entries and settings, ended
+seats, ViGEm programs outside the seat, controller attach against stand-ins and the fitted viewer,
+plus package, installation and distribution checks. Live, with HidHide 1.5.230, Anode's controller
+and one plugged in by a program in the seat were in XInput slot 0 in the seat, while the desktop saw
+no controller and was refused both of its devices; stopping the seat removed its HidHide entries; and
+the viewer opened with the 1280x720 seat filling it. HidHide checks each attempt to open a device, so
+a device name Windows has never used before is hidden once Windows announces it, and a desktop
+program that opens HID devices the moment they arrive could open that one first; XInput is always
+covered. Programs on HidHide's application list can open hidden devices anywhere. The browser suite
+with real input on .NET 10 has still not run. See the
+[validation record](https://github.com/skulitom/Anode/blob/main/docs/RELEASE-READINESS.md#live-validation--25-september-2026).
 
 Requires 64-bit Windows 10/11 Pro, Enterprise or Education, or Windows Server with a Remote Desktop
 host. Windows Home is unsupported. ARM64 is not validated; this package targets x64.

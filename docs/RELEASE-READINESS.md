@@ -1,68 +1,61 @@
-# Release readiness — 24 September 2026
+# Release readiness — 25 September 2026
 
-**Scope: 0.9.0 release validation, not a broad production certification.** The candidate passes its
-local automated build, packaging and installation checks. It changes how Steam games launch, how MCP
-names agents and how status describes the desktop lease, moves the runtime to .NET 10 and adds the
-dev channel; it does not change input delivery, capture or seat isolation. Publication uses the
-existing unsigned release model and remains gated by Windows CI and the Release workflow. The coverage
-limits below remain explicit.
+**Scope: 0.10.0 release validation, not a broad production certification.** The candidate passes its
+local automated build, packaging and installation checks. It keeps virtual controllers inside the seat
+with HidHide and opens the viewer fitted to the seat; it does not change keyboard and mouse input,
+capture or the seat's session isolation. Publication uses the existing unsigned release model and
+remains gated by Windows CI and the Release workflow. The coverage limits below remain explicit.
 
-The user's agents were paused for the live checks, so its seat could be closed and the candidate's
-own seats started. Each new seat needed the user's password, because the account signs in with a PIN.
+The live checks ran on the user's machine after HidHide 1.5.230 was installed and Windows restarted,
+while no agent was using the seat. Each new seat needed the user's password, because the account
+signs in with a PIN.
 
 ## Findings addressed in this review
 
-- Launching a Steam game in the seat started a Steam client there, which took Steam over from the
-  user's desktop, and it did so on every launch. Only the names of the two objects a game uses to find
-  its client are bound to a session. The seat host now links those names in the seat's namespace to
-  the client wherever it runs, and starts the game itself against that client.
-- Steam's own record of the signed-in account appears before a game could use it and survives an
-  unclean exit, so a game started as soon as Steam claimed an account failed to initialize. Launches
-  now ask the client the way a game does before starting one.
-- Every session of one MCP client had the same name, and status described the lease to a placeholder
-  caller, so an agent holding the desktop took its own lease for another agent's. Agents are now named
-  after their client and project folder, and status speaks to the agent asking.
-- .NET 8 support ends on 10 November 2026. Anode now runs on .NET 10, supported until November 2028.
-- A development build shared the installed Anode's pipes and could stop it. Debug builds are now a
-  separate dev channel.
+- A virtual controller is a device on the machine, so a game on the user's desktop read the input an
+  agent sent to Liftoff in the seat: an agent's flight controller steered No Man's Sky. The seat host
+  now jails every device of each seat pad to the seat's session with HidHide, lists the names new pads
+  take before they take them, checks each attach from the user's desktop and unplugs a controller the
+  desktop can still open. See the
+  [investigation record](../bugreports/2026-09-25-virtual-pad-reaches-desktop-games.md).
+- The viewer's opening size was the seat's plus a fixed allowance, so at 100% scaling the seat area
+  was 16 pixels wider than the seat and the Remote Desktop control padded the scaled seat with white
+  strips. The viewer now measures its frame and bars and keeps the control at the seat's shape.
 
-## Live validation — 23 September 2026
+## Live validation — 25 September 2026
 
-Debug and Release builds of the candidate's code ran on Windows 11 Pro build 26200, with the user
-present.
+The installed Release build of the candidate ran on Windows 11 Pro build 26200 with HidHide 1.5.230
+and ViGEmBus 1.17.333.
 
-- **Steam.** With Steam not running, the first launch started Steam in session 1 and Liftoff in the
-  seat, but Liftoff's `SteamAPI_Init` failed. The launch had trusted Steam's record of the account,
-  left over from a client closed with the previous seat, 20 seconds before Steam signed in. A probe in
-  the seat with the same environment then initialized against Steam. With the readiness check, from a
-  new seat after Steam had exited cleanly, `anode steam 410340` returned after 39 seconds. Steam
-  started in session 1 and Liftoff in the seat. Steam listed Liftoff as its game process, and
-  Liftoff's menu showed the user's profile. Steam never left session 1. See the
-  [investigation record](../bugreports/2026-09-23-steam-stays-on-the-desktop.md).
-- **Agent names.** Two MCP sessions, started in two project folders and identifying as Claude Code and
-  Codex, were named after their folders. The first took the desktop and was told it holds it; the
-  second was told which agent does, in status and in the refusal of its click. The seat's log
-  recorded both hand-overs.
-- **.NET 10.** `scripts/test-desktop.ps1` passed its 15 checks. `scripts/test-pointer-isolation.ps1`
-  passed with a visible, view-only viewer: the guard suppressed all 7 seat cursor moves, forwarded
-  none, and the real pointer never jumped. `scripts/test-development.ps1 -VerifyInput` stopped before
-  its browser checks, because a GameInput service helper held the new seat's foreground, and its
-  administrator repair was declined.
+- **Without a seat.** The full self-test's live check plugged in a neutral pad jailed to an unused
+  session: XInput and HID opens from the desktop were refused, and its HidHide entries were removed
+  afterward.
+- **In a seat.** The seat host logged that HidHide was active for its session. `gamepad attach`
+  returned `seatOnly: true` and `verifiedFromDesktop: true`. One probe ran on both sides: in the seat
+  the controller was in XInput slot 0 and both of its devices opened; on the desktop XInput saw no
+  controller and both devices refused the open with access denied. A pad plugged in with `vgamepad`
+  from a seat job, as Haltere's flight controller does, behaved the same and was reported with owner
+  `seat`.
+- **Clean-up.** Stopping the seat made the daemon remove the 100 HidHide entries the seat had kept.
+- **Viewer.** The installed build opened with a 1280x720 seat area filled edge to edge by the Remote
+  Desktop control. The offscreen preview shows the seat centred on the dark background in a window of
+  another shape.
 
 ## Evidence and remaining work
 
 | Area | Evidence | Remaining coverage / follow-up |
 | --- | --- | --- |
-| Build and protocol | All 59 quick checks pass in the 0.9.0 Debug and Release builds, with no build warnings. New checks cover text and binary KeyValues, launch entry choice, every Steam launch path against stand-ins, namespace links between private objects, workspace and client names, status as the asking agent sees it, and the hand-over record. | Confirm Windows CI on the release commit. |
-| Steam | Quick checks above; a read-only run resolved three installed games as Steam does; Liftoff ran live in the seat against the desktop's Steam ([above](#live-validation--23-september-2026)). | Games wrapped in Steam's DRM stub, games that need the overlay or Steam Input, and Steam in offline mode. |
-| Multi-agent behavior | Checks of names, caller-relative status and hand-over records; live with two MCP sessions. The 0.8.0 line and hand-off checks still pass. | Run Claude Code and Codex themselves, not only their MCP servers, through a longer shared session. |
-| Viewer | Unchanged apart from the runtime. Its offscreen preview renders pixel for pixel as on .NET 8, and live seats signed in through the viewer's credential dialog. | Start menu launch from an installation made in the user's own terminal; the connecting screen returning after a disconnect. |
-| Packaging and installation | The 0.9.0 package passes distribution and documentation checks, and disposable installation, update, rollback, shortcut, Installed apps, uninstallation and agent registration checks without modifying real client settings, the Start menu or Installed apps. | Install from a user's own terminal on a clean supported machine; exercise an actual client, not only the fake client CLIs. |
-| Compatibility | The daemon's changes are additive: older MCP servers already send the agent ID that status now answers to, and `steam.launch` accepts their arguments. Mixing versions remains documented. | Exercise a 0.8.0 MCP server against the 0.9.0 daemon; upgrade daemons and agent sessions together, as the release notes say. |
+| Build and protocol | All 61 quick checks pass in the 0.10.0 Debug and Release builds, with no build warnings. New checks cover HidHide's multi-strings, jail entries, reserved controller names with the device names recorded under them, the user's own HidHide entries and settings, ended seats, ViGEm programs outside the seat, controller attach against stand-ins, and the fitted viewer. | Confirm Windows CI on the release commit. |
+| Virtual controllers | Quick checks above; live isolation of Anode's controller and of a seat program's own pad, verified from the desktop by XInput and device opens ([above](#live-validation--25-september-2026)). | A device name Windows has never used, which HidHide can hide only once Windows announces it; games in the seat that read controllers only through GameInput's system service, which runs outside the seat; DualShock 4 pads; HidHide releases after 1.5.230. |
+| Steam | Quick checks; in the 0.9.0 review a read-only run resolved three installed games as Steam does, and Liftoff ran live in the seat against the desktop's Steam ([record](../bugreports/2026-09-23-steam-stays-on-the-desktop.md)). Unchanged in 0.10.0. | Games wrapped in Steam's DRM stub, games that need the overlay or Steam Input, and Steam in offline mode. |
+| Multi-agent behavior | Checks of names, caller-relative status and hand-over records, live with two MCP sessions in the 0.9.0 review. The 0.8.0 line and hand-off checks still pass. | Run Claude Code and Codex themselves, not only their MCP servers, through a longer shared session. |
+| Viewer | Opens fitted to the seat, verified live with a 1280x720 seat at 100% scaling. The hidden viewer check and the offscreen preview cover windows of other shapes. | High-DPI monitors and a seat larger than the screen, live; Start menu launch from an installation made in the user's own terminal; the connecting screen returning after a disconnect. |
+| Packaging and installation | The 0.10.0 package passes distribution and documentation checks, and disposable installation, update, rollback, shortcut, Installed apps, uninstallation and agent registration checks without modifying real client settings, the Start menu or Installed apps. The installer, run with the candidate's package, updated a 0.6.0 installation and registered Claude Code and Codex. | Install from a user's own terminal on a clean supported machine; exercise an actual client, not only the fake client CLIs. |
+| Compatibility | The daemon's changes are additive: `seat.pad-visibility` is new, and `gamepad.attach` and `gamepad.state` add fields. Older MCP servers and CLIs keep working against the 0.10.0 daemon; the seat host keeps controllers in the seat whichever client attaches them. | Exercise a 0.9.0 MCP server against the 0.10.0 daemon; upgrade daemons and agent sessions together, as the release notes say. |
 | Native desktop, browser input and pointer isolation | On .NET 10 the native suite and the pointer-isolation script with a visible, view-only viewer passed live. | The browser suite with real input on .NET 10, which a GameInput helper blocked; the pointer-isolation script's hidden-viewer and control phases (`-IncludeVisible`, `-IncludeControl`). |
-| Runtime servicing | The project targets .NET 10 and pins 10.0.12, the current patch of that long-term support release on 23 September 2026. The quick checks, the Task Scheduler hand-off and screen capture pass on it. | Keep servicing the bundled runtime; .NET 10 is supported until 14 November 2028. |
-| Publisher trust | 0.9.0 continues the unsigned distribution model, disclosed in the installer documentation and release notes. Checksums and build attestations are configured. | Establish signing and verify the download/SmartScreen experience before claiming broad end-user production readiness. |
-| Release identity | The project, agent manifests, installation example, changelog and release notes identify 0.9.0. | Tag the tested commit, publish its CI-built artifacts, then update Scoop and winget with the published checksum. |
+| Runtime servicing | The project targets .NET 10 and pins 10.0.12, still the current patch of that long-term support release on 25 September 2026. The quick checks, the Task Scheduler hand-off and screen capture pass on it. | Keep servicing the bundled runtime; .NET 10 is supported until 14 November 2028. |
+| Publisher trust | 0.10.0 continues the unsigned distribution model, disclosed in the installer documentation and release notes. Checksums and build attestations are configured. | Establish signing and verify the download/SmartScreen experience before claiming broad end-user production readiness. |
+| Release identity | The project, agent manifests, installation example, changelog and release notes identify 0.10.0. | Tag the tested commit, publish its CI-built artifacts, then update Scoop and winget with the published checksum. |
 
 ## How to finish validation
 

@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "anode",
   "displayName": "Anode background Windows desktop",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Background Windows desktop for AI agents: native GUI automation, screenshots and app testing.",
   "author": {
     "name": "skulitom",

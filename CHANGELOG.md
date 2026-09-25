@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.10.0 — 2026-09-25
 
 - **Virtual controllers stay in the seat.** A ViGEm pad is a device on the machine, so a game on your
   desktop read the input an agent sent to a game in the seat: an agent flying Liftoff steered No Man's
