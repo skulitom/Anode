@@ -346,8 +346,6 @@ internal static class KeyCodes
         throw new ArgumentException($"Unknown key '{name}'. Try a letter, a digit, f1-f24, or a name like enter, esc, space, tab, ctrl, alt, shift, win, up, down, left, right.");
     }
 
-    public static IEnumerable<string> Names => Map.Keys.OrderBy(k => k, StringComparer.Ordinal);
-
     private static Dictionary<string, ushort> Build()
     {
         var map = new Dictionary<string, ushort>(StringComparer.OrdinalIgnoreCase)
