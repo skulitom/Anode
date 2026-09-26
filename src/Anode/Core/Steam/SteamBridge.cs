@@ -110,15 +110,7 @@ internal sealed class NamespaceLink : IDisposable
     private const uint CaseInsensitive = 0x40;
     private readonly LinkHandle _handle;
 
-    private NamespaceLink(LinkHandle handle, string name, string target)
-    {
-        _handle = handle;
-        Name = name;
-        Target = target;
-    }
-
-    public string Name { get; }
-    public string Target { get; }
+    private NamespaceLink(LinkHandle handle) => _handle = handle;
 
     /// <summary>Creates <paramref name="name"/>, a full object path, pointing at <paramref name="target"/>, which need not exist yet.</summary>
     public static unsafe NamespaceLink Create(string name, string target)
@@ -142,7 +134,7 @@ internal sealed class NamespaceLink : IDisposable
                 handle.Dispose();
                 throw new Win32Exception(RtlNtStatusToDosError(status), $"Could not link {name} to {target}");
             }
-            return new NamespaceLink(handle, name, target);
+            return new NamespaceLink(handle);
         }
     }
 

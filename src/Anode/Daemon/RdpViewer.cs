@@ -211,17 +211,6 @@ internal sealed class RdpViewer : AxHost
         catch (Exception ex) { Log.Warn($"viewer disconnect failed: {ex.Message}"); }
     }
 
-    public void SetSmartSizing(bool enabled)
-    {
-        if (!IsHandleCreated) return;
-        try
-        {
-            object advanced = Dispatch.Get(Ocx, "AdvancedSettings9")!;
-            Dispatch.Set(advanced, "SmartSizing", enabled);
-        }
-        catch (Exception ex) { Log.Warn($"could not change scaling: {ex.Message}"); }
-    }
-
     private static void TryExtended(IMsRdpExtendedSettings settings, string name, object value)
     {
         try { settings.SetProperty(name, ref value); }

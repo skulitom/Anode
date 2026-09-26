@@ -140,9 +140,6 @@ internal static class Log
 
     public static string? LastWriteError => Volatile.Read(ref _lastWriteError);
 
-    /// <summary>When true, lines also go to stderr. The CLI wants this; the daemon does not.</summary>
-    public static bool Echo { get; set; }
-
     public static void SetRole(string role) => _role = role;
 
     public static void Info(string message) => Write("INFO", message);
@@ -155,11 +152,6 @@ internal static class Log
     private static void Write(string level, string message)
     {
         string line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {level} [{_role}] pid={System.Environment.ProcessId} {message}";
-        if (Echo)
-        {
-            try { Console.Error.WriteLine(line); } catch { /* no console */ }
-        }
-
         try
         {
             lock (Gate)
