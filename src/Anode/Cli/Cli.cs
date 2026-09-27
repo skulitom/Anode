@@ -116,6 +116,7 @@ internal static partial class Cli
                 "run" => RunProgram(rest).GetAwaiter().GetResult(),
                 "steam" => SteamCommand(rest).GetAwaiter().GetResult(),
                 "shot" or "screenshot" => Screenshot(rest).GetAwaiter().GetResult(),
+                "audio" => AudioCommand(rest).GetAwaiter().GetResult(),
                 "click" => Click(rest).GetAwaiter().GetResult(),
                 "move" => Move(rest).GetAwaiter().GetResult(),
                 "scroll" => Scroll(rest).GetAwaiter().GetResult(),
@@ -871,6 +872,15 @@ internal static partial class Cli
             ("anode shot [file] [--width N] [--jpeg]", "save a picture of the seat's screen")),
         Row("Work in the seat", "windows", "query= pid# json", 0, null,
             ("anode windows [--query TEXT] [--pid N] [--json]", "list the seat's windows and their IDs")),
+        Row("Work in the seat", "audio", null, 0,
+            "Requires --audio when starting Anode; that also redirects seat sound to your speakers. Do not restart an occupied seat. "
+            + "listen saves 48 kHz stereo WAV (100-30000 ms, default 5000). play accepts local 16-bit PCM WAV, mono/stereo, "
+            + "8000-96000 Hz, up to 8 MiB and 120 seconds. Playback returns immediately and stops when the lease ends. "
+            + "status needs no lease; listen, play and stop do. No physical microphone or desktop mix is captured. --json returns metadata.",
+            ("anode audio status [--json]", "check Remote Audio and agent playback"),
+            ("anode audio listen <file.wav> [--ms 5000] [--json]", "record browser, game and other seat sounds to a new file"),
+            ("anode audio play <file.wav> [--json]", "play a WAV clip in the seat"),
+            ("anode audio stop [--json]", "stop agent playback; apps keep their own sound")),
         Row("Work in the seat", "inspect", "html= image= max-elements# max-depth# max-text# offscreen json", 1,
             "It prints a snapshotId and element IDs for `anode element`; they expire after 90 seconds. "
             + "--html writes a report and --image the screenshot.",

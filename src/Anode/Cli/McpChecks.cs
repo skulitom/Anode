@@ -56,7 +56,7 @@ internal static class McpChecks
             () => { readinessChecks++; return "setup missing"; }) { ConnectTimeoutMs = 50 };
         var guide = await backend.CallAsync("anode_guide", new JsonObject(), CancellationToken.None);
         Require(guide.Bool("isError") != true && AgentGuide.Text.Length > 100, "embedded guide unavailable before setup");
-        foreach (string diagnostic in new[] { "seat_status", "seat_capabilities", "seat_processes", "steam_status" })
+        foreach (string diagnostic in new[] { "seat_status", "seat_capabilities", "seat_processes", "steam_status", "seat_audio_status" })
         {
             var stopped = await backend.CallAsync(diagnostic, new JsonObject(), CancellationToken.None);
             Require(stopped.Bool("isError") != true && stopped.Obj("structuredContent") is { } state && state.Str("state") == "stopped"
@@ -150,9 +150,9 @@ internal static class McpChecks
         foreach (Match token in texts.SelectMany(text => ToolToken.Matches(text)))
             Require(Tools.TryResolve(token.Value, out _, out _), $"guidance names unknown tool {token.Value}");
 
-        string[] readOnly = { "anode_guide", "seat_status", "seat_windows", "seat_observe", "seat_screenshot", "seat_wait", "seat_capabilities", "seat_processes", "steam_status" };
+        string[] readOnly = { "anode_guide", "seat_status", "seat_windows", "seat_observe", "seat_screenshot", "seat_wait", "seat_capabilities", "seat_processes", "steam_status", "seat_audio_status", "seat_audio_listen" };
         string[] additive = { "seat_start", "seat_hide" };
-        string[] seatContent = { "seat_windows", "seat_observe", "seat_screenshot", "seat_wait" };
+        string[] seatContent = { "seat_windows", "seat_observe", "seat_screenshot", "seat_wait", "seat_audio_listen" };
         var titles = new HashSet<string>();
         foreach (var definition in definitions)
         {

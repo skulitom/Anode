@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Agents can listen to browser/game audio as WAV clips and play bounded PCM WAV files through
+  new audio MCP tools and `anode audio` commands. Audio uses the verified child session's Remote
+  Audio endpoint, requires `--audio` at startup (also audible on the user's speakers), and never
+  falls back to a physical capture device. Agent playback stops when its desktop lease ends.
+- **Audio is not fully tested yet.** Builds, quick self-tests and documentation checks pass,
+  but live playback/recording and browser/game audio have not been verified in a running seat.
+  Live testing was deferred to avoid disturbing the active session.
+
 ## 0.10.0 — 2026-09-25
 
 - **Virtual controllers stay in the seat.** A ViGEm pad is a device on the machine, so a game on your

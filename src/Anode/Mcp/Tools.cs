@@ -60,6 +60,30 @@ internal static class Tools
             + "Working files and network ports are shared with the main desktop. Never replay a start with uncertain outcome.",
             ExecutionSchema()),
 
+        new("seat_audio_status", "Anode: check background session audio", "audio.status", false, Effect.ReadOnly,
+            "Check the seat's isolated Remote Audio output and agent playback state. Never starts or reconfigures a seat. "
+            + "Audio requires launching Anode with --audio, which also sends seat sound to the user's speakers. "
+            + "Do not restart an occupied seat to enable it. Endpoint availability does not prove capture works.", Schema()),
+
+        new("seat_audio_listen", "Anode: listen to browsers and games in the seat", "audio.listen", false, Effect.ReadOnly,
+            "Record the next short interval of the seat's mixed application output, including browsers, games and agent playback. "
+            + "Returns an MCP audio block containing 48 kHz stereo 16-bit PCM WAV plus timing and silence metadata. "
+            + "Requires Remote Audio (--audio at startup) and the desktop lease. Never captures the user's physical audio devices or microphone. "
+            + "Silence is retained for the requested duration; protected content may be silent. Clients must support MCP audio to listen directly.",
+            Schema(("durationMs", "integer", "Duration from 100 to 30000 ms. Default 5000.", false)).Bounded("durationMs", 100, 30000)),
+
+        new("seat_audio_play", "Anode: play a WAV clip in the seat", "audio.play", false, Effect.Action,
+            "Play a 16-bit PCM WAV through the seat's Remote Audio output. Provide exactly one absolute local path or base64 data. "
+            + "Accepts mono/stereo, 8000-96000 Hz, at most 8 MiB and 120 seconds. Returns once playback starts so you can listen or use apps. "
+            + "Requires --audio at startup, also audible through the user's speakers. Only one agent clip at a time; releasing/losing the lease stops it. "
+            + "Use seat_audio_status after an uncertain result; never replay an uncertain start. This plays sound, not microphone input to apps.",
+            Schema(("path", "string", "Absolute local .wav file path; files are shared with the parent session.", false),
+                ("data", "string", "Base64-encoded complete WAV file, instead of path.", false))),
+
+        new("seat_audio_stop", "Anode: stop agent audio playback", "audio.stop", false, Effect.Action,
+            "Stop the audio clip started by seat_audio_play. Requires the desktop lease. Browser and game sound are controlled in those apps. "
+            + "Never changes the user's device volume or stops the seat.", Schema()),
+
         new("seat_job", "Anode: read or cancel a command job", "exec.read", false, Effect.Action,
             "Read the output and exit code of a build, test or server command job that seat_exec started on the background Windows desktop, "
             + "cancel only that job and its descendants, or list your jobs. "
@@ -313,7 +337,7 @@ internal static class Tools
         {
             bool readOnly = tool.Effect == Effect.ReadOnly, action = tool.Effect == Effect.Action;
             // Observations change nothing but return whatever the seat's apps and web pages show.
-            bool openWorld = action || tool.Name is "seat_windows" or "seat_observe" or "seat_screenshot" or "seat_wait";
+            bool openWorld = action || tool.Name is "seat_windows" or "seat_observe" or "seat_screenshot" or "seat_wait" or "seat_audio_listen";
             var definition = new JsonObject
             {
                 ["name"] = tool.Name,
@@ -364,6 +388,7 @@ internal static class Tools
     {
         var tool = All.First(t => t.Name == name);
         if (ValidateValue(arguments, tool.Schema, "arguments") is { } error) return error;
+        if (name == "seat_audio_play") return Core.Audio.AudioClip.ValidateSource(arguments);
         bool Has(string field) => arguments.ContainsKey(field);
         if (name == "seat_lease")
         {

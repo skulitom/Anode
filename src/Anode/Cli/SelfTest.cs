@@ -138,6 +138,10 @@ internal static class SelfTest
         Check(results, "agent startup and Stop", () => AgentChecks.StartupAndStop().GetAwaiter().GetResult());
         Check(results, "UI condition waits", () => DevelopmentChecks.Waits().GetAwaiter().GetResult());
         Check(results, "development validation", DevelopmentChecks.Validation);
+        Check(results, "audio clips", AudioChecks.Clips);
+        Check(results, "audio isolation and validation", AudioChecks.IsolationAndValidation);
+        Check(results, "audio MCP protocol", () => AudioChecks.Protocol().GetAwaiter().GetResult());
+        Check(results, "audio playback lifetime", () => AudioChecks.Lifecycle().GetAwaiter().GetResult());
         Check(results, "hidden viewer startup", DevelopmentChecks.HiddenViewer);
         Check(results, "viewer pointer guard", DiagnosticsChecks.ViewerPointerGuard);
         Check(results, "RDP extended settings", DiagnosticsChecks.RdpSettings);

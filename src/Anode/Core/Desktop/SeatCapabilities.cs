@@ -30,6 +30,7 @@ internal static class SeatCapabilities
             ["session"] = ChildSession.CurrentSessionId(), ["workingDirectory"] = Environment.CurrentDirectory,
             ["screen"] = new JsonObject { ["width"] = size.Width, ["height"] = size.Height }, ["capture"] = capture,
             ["input"] = new JsonObject { ["deliveryVerified"] = false, ["knownBlocker"] = inputWarning is not null, ["warning"] = inputWarning },
+            ["audio"] = Audio.SeatAudio.Availability(),
             ["supported"] = new JsonArray("window discovery", "UI Automation", "control actions", "UI waits", "mouse and keyboard", "command output and jobs"),
             ["limitations"] = new JsonArray("App accessibility varies; custom canvases need screenshots and input.",
                 "Capture availability is a point-in-time probe, not a rendering guarantee.",

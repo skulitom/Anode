@@ -9,6 +9,7 @@ internal static class AgentAccess
     public static bool RequiresLease(string op) => op.StartsWith("input.", StringComparison.Ordinal)
         || op.StartsWith("desktop.", StringComparison.Ordinal) && op != "desktop.capabilities"
         || op.StartsWith("gamepad.", StringComparison.Ordinal) && op != "gamepad.state"
+        || op.StartsWith("audio.", StringComparison.Ordinal) && op != "audio.status"
         || op is "screenshot" or "run" or "steam.launch" or "ps.kill" or "exec.start";
 
     public static bool ValidId(string? value) => value is { Length: > 0 and <= 80 }

@@ -134,6 +134,8 @@ internal sealed class RdpViewer : AxHost
         Dispatch.TrySet(advanced, "RedirectPrinters", false);
         Dispatch.TrySet(advanced, "RedirectPorts", false);
         Dispatch.TrySet(advanced, "RedirectSmartCards", false);
+        // Listening captures the seat's output mix, never the user's microphone.
+        Dispatch.Set(advanced, "AudioCaptureRedirectionMode", false);
 
         object secured = Dispatch.Get(control, "SecuredSettings2")
             ?? throw new InvalidOperationException("The Remote Desktop control did not return SecuredSettings2.");
@@ -142,7 +144,7 @@ internal sealed class RdpViewer : AxHost
         // so Alt+Tab keeps working normally on the user's own desktop.
         Dispatch.TrySet(secured, "KeyboardHookMode", options.CaptureWindowsKeys ? 1 : 2);
         // 0 = play the seat's audio here, 2 = the seat stays silent.
-        Dispatch.TrySet(secured, "AudioRedirectionMode", options.Audio ? 0 : 2);
+        Dispatch.Set(secured, "AudioRedirectionMode", options.Audio ? 0 : 2);
 
         var extended = (IMsRdpExtendedSettings)control;
         object childMode = true;

@@ -198,6 +198,13 @@ codex mcp add anode-dev -- "C:\path\to\artifacts\debug\anode.exe" --channel dev 
 
 ## Coverage and limits
 
+Audio has a separate opt-in smoke test: `scripts/test-audio.ps1 -Anode <new-executable>`.
+It requires an existing lease and an already ready daemon started with `--audio`; it never
+starts or stops a seat. It plays a short audible tone, records the seat's Remote Audio mix,
+checks the tone's frequency, stops its own playback and preserves the WAV evidence. Run it
+only when the seat is free for this test. See [Audio](AUDIO.md). Quick self-tests open no audio
+device and cover PCM encoding, isolation gates, ownership, cleanup and MCP responses instead.
+
 Windows Forms/WPF, a headed Chrome app and noninteractive command tools are covered by these suites.
 Games and custom-rendered applications generally need visual input because their UIA tree may be
 sparse. Electron, WinUI, IDEs, installers and each real application need their own smoke tests;

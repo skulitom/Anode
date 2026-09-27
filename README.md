@@ -34,7 +34,7 @@ flowchart LR
 
 - **Develop and test apps:** run builds and local servers, collect command output, inspect native
   controls, test browser forms and capture screenshots in the background desktop.
-- **Give an agent a desktop:** 32 MCP tools for guidance, screenshots, mouse/keyboard input, accessibility,
+- **Give an agent a desktop:** 36 MCP tools for guidance, screenshots, audio, mouse/keyboard input, accessibility,
   UI waits, application launches and cancellable command jobs.
 - **Watch or stop it:** `anode show` opens the viewer and `anode hide` closes it. **Ctrl+Alt+Shift+K**
   or `anode kill` signs the seat out and closes every application in it, including unsaved work.
@@ -42,6 +42,8 @@ flowchart LR
   seat with HidHide so you can play your own games meanwhile.
 - **Coordinate several agents:** exclusive desktop leases and command jobs scoped to each agent.
   Agents share one seat and take turns; see [multiple agents](docs/MULTI-AGENT.md).
+- **Listen and play sound:** with `--audio`, agents can listen to browsers and games in the seat,
+  and play WAV clips. This also sends seat sound to your speakers. See [audio](docs/AUDIO.md).
 
 The seat is a Windows *child session*: a second session for your own account, created by Windows'
 built-in loopback Remote Desktop feature. It has its own pointer and focus; adding a virtual

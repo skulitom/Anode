@@ -20,7 +20,7 @@ internal static class CliChecks
         "version", "--version", "-v", "doctor", "configure", "guide", "rendering", "selftest", "self-test", "setup", "up",
         "start", "status", "lease", "kill", "stop", "quit", "show", "hide", "control", "run", "steam", "shot", "screenshot",
         "click", "move", "scroll", "key", "type", "ps", "gamepad", "pad", "windows", "inspect", "window", "element",
-        "capabilities", "exec", "job", "jobs", "wait", "mcp"
+        "capabilities", "exec", "job", "jobs", "wait", "audio", "mcp"
     };
 
     private static void Require(bool condition, string detail) { if (!condition) throw new InvalidOperationException(detail); }
