@@ -177,8 +177,10 @@ samples produce a full-duration silent WAV; this does not prove an application p
 
 MCP exposes `seat_audio_status`, `seat_audio_listen`, `seat_audio_play`, and `seat_audio_stop`.
 Listening returns a native `audio` content block plus a text block of metadata, with no duplicate
-base64 or `structuredContent`. The CLI writes a new WAV file. Clients without audio-content
-support can use the CLI and process the file. See [Audio](AUDIO.md) for setup and isolation.
+base64 or `structuredContent`. MCP added audio content in protocol `2025-03-26`, so a client that
+negotiated `2024-11-05` receives the same WAV as an embedded `resource` blob (`audio/wav`) instead.
+The CLI writes a new WAV file. Clients without audio-content support can use the CLI and process
+the file. See [Audio](AUDIO.md) for setup and isolation.
 
 ### Execution jobs
 

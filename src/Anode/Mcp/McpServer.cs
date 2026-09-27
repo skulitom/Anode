@@ -48,6 +48,8 @@ internal sealed class McpServer : IDisposable
     private readonly string? _workspace;
     private string? _agentName;
     private string? _leaseToken;
+    // The client's negotiated MCP version; results use only the content types it defines.
+    private string _protocol = McpSession.LatestProtocol;
     private readonly string _controlPipe;
     private readonly Action _launchDaemon;
     private readonly Func<string?> _blockingSummary;
@@ -77,6 +79,13 @@ internal sealed class McpServer : IDisposable
 
     /// <summary>The name other agents and the viewer see for this agent's lease.</summary>
     internal string? AgentName => _agentName;
+
+    /// <summary>Takes what the client's initialize established: its name and the negotiated protocol version.</summary>
+    internal void Initialized(string? clientName, string protocolVersion)
+    {
+        _protocol = protocolVersion;
+        Identify(clientName);
+    }
 
     /// <summary>
     /// Names this agent after its MCP client and the project folder it runs in, such as
@@ -140,7 +149,7 @@ internal sealed class McpServer : IDisposable
         using var server = new McpServer(agentId: agentId);
         using var stdin = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false));
         using var stdout = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true };
-        try { await new McpSession(server.CallAsync, server.Identify).RunAsync(stdin, stdout).ConfigureAwait(false); }
+        try { await new McpSession(server.CallAsync, server.Initialized).RunAsync(stdin, stdout).ConfigureAwait(false); }
         finally
         {
             // Nothing can resume a generated identity, so its lease would only keep other agents
@@ -253,7 +262,7 @@ internal sealed class McpServer : IDisposable
         if (response.Int("waitingAgents") is int waiting and > 0)
             note = (note is null ? "" : note + " ") + (waiting == 1 ? "Another agent is" : $"{waiting} other agents are")
                 + " waiting for the desktop; release it with seat_lease action=release when you finish.";
-        return WithNote(Present(toolName, result), note);
+        return WithNote(Present(toolName, result, _protocol), note);
     }
 
     private JsonObject Envelope(JsonObject arguments, string? leaseAction)
@@ -314,16 +323,22 @@ internal sealed class McpServer : IDisposable
         return toolResult;
     }
 
-    private static JsonObject Present(string toolName, JsonObject? result)
+    private static JsonObject Present(string toolName, JsonObject? result, string protocol)
     {
         if (toolName == "seat_audio_listen" && result?.Str("data") is { } audio)
         {
             var metadata = (JsonObject)result.DeepClone();
             metadata.Remove("data");
+            string mimeType = result.Str("mimeType") ?? "audio/wav";
+            // MCP added audio content in 2025-03-26 (versions are dates, so ordinal order is release order).
+            // An earlier client would reject the whole result; an embedded resource carries the same WAV in every version.
+            var media = string.CompareOrdinal(protocol, "2025-03-26") >= 0
+                ? new JsonObject { ["type"] = "audio", ["mimeType"] = mimeType, ["data"] = audio }
+                : new JsonObject { ["type"] = "resource", ["resource"] = new JsonObject
+                    { ["uri"] = $"anode://seat/audio/{Guid.NewGuid():N}.wav", ["mimeType"] = mimeType, ["blob"] = audio } };
             // As with images, don't let clients choosing structuredContent discard the media.
             return new JsonObject { ["content"] = new JsonArray(
-                new JsonObject { ["type"] = "audio", ["mimeType"] = result.Str("mimeType") ?? "audio/wav", ["data"] = audio },
-                new JsonObject { ["type"] = "text", ["text"] = metadata.ToJsonString() }) };
+                media, new JsonObject { ["type"] = "text", ["text"] = metadata.ToJsonString() }) };
         }
         if (result?.Str("summary") is { } summary)
         {
