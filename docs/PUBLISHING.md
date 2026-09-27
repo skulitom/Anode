@@ -52,6 +52,10 @@ official registry; allow time for their listings to update.
 
 ## 2. Next release: installable MCPB
 
+In the PowerShell terminal used for these steps, first rerun the download and verification block
+at the start of [section 1](#1-mcp-registry-now-metadata-only-v0100). This verifies the pinned
+publisher and initializes `$publisher` for this terminal. Keep using the same terminal below.
+
 Follow [the release process](../CONTRIBUTING.md#release-process), including assigning `Unreleased`
 changes to the next version. Wait for the Release workflow for `vX.Y.Z` to succeed. That workflow
 publishes only the ZIP, `install.ps1` and `SHA256SUMS` to GitHub Releases. The attested MCPB bundle,
