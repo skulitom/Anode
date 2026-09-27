@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- **Ready for directory submissions.** The README leads with desktop isolation and a three-command
+  install, keeps a hidden demo GIF placeholder, and includes the MCP Registry ownership marker.
+- `scripts/registry-entry.ps1` generates an installable MCPB registry entry with the release URL and
+  bundle SHA-256. The repository's `server.json` stays metadata-only; nothing is published automatically.
+- The Release workflow builds and attests the MCPB bundle and uploads it, its checksum and registry
+  entry as a workflow artifact for owner testing. Public release assets remain the ZIP, installer and
+  `SHA256SUMS`. CI exercises the generator, validates registry metadata with a pinned publisher, and
+  checks the generated entry against the bundle.
+- [The publishing guide](docs/PUBLISHING.md) covers owner-only registry and directory submissions,
+  including the Claude Desktop test required before uploading an MCPB release asset.
+
 ## 0.10.0 — 2026-09-25
 
 - **Virtual controllers stay in the seat.** A ViGEm pad is a device on the machine, so a game on your

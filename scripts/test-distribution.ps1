@@ -4,8 +4,8 @@
     Read-only checks of release artifacts and distribution manifests against src\Anode\Anode.csproj.
 .DESCRIPTION
     Checks the packaged executable's version, metadata and MCP tool list; SHA256SUMS; archive entry
-    names and payload; anode-windows-x64.mcpb when built; and each distribution manifest that exists:
-    packaging/mcpb/manifest.json, server.json, .claude-plugin, .codex-plugin, .agents/plugins,
+    names and payload; anode-windows-x64.mcpb and server.registry.json when built; and each
+    distribution manifest that exists: packaging/mcpb/manifest.json, server.json, .claude-plugin, .codex-plugin, .agents/plugins,
     glama.json, bucket/anode.json and packaging/winget. Runs only 'anode version' and 'anode mcp'
     (initialize and tools/list), and never starts a seat. -Release also requires release notes and a
     CHANGELOG section for the version, and repository links in the MCPB manifest to resolve.
@@ -47,6 +47,28 @@ function Test-SameSet([string[]]$Actual, [string[]]$Expected, [string]$Message) 
     Check ($detail.Count -eq 0) $Message ($detail -join '; ')
 }
 function Compare-Version([string]$Left, [string]$Right) { ([version]$Left).CompareTo([version]$Right) }
+
+# Compare JSON values without depending on object property order; array order and types matter.
+function Test-JsonEqual($Left, $Right) {
+    if ($null -eq $Left -or $null -eq $Right) { return $null -eq $Left -and $null -eq $Right }
+    if ($Left -is [pscustomobject] -and $Right -is [pscustomobject]) {
+        $leftNames = @($Left.PSObject.Properties.Name)
+        $rightNames = @($Right.PSObject.Properties.Name)
+        if ($leftNames.Count -ne $rightNames.Count) { return $false }
+        foreach ($name in $leftNames) {
+            if ($name -cnotin $rightNames -or -not (Test-JsonEqual $Left.$name $Right.$name)) { return $false }
+        }
+        return $true
+    }
+    if ($Left -is [array] -and $Right -is [array]) {
+        if ($Left.Count -ne $Right.Count) { return $false }
+        for ($i = 0; $i -lt $Left.Count; $i++) {
+            if (-not (Test-JsonEqual $Left[$i] $Right[$i])) { return $false }
+        }
+        return $true
+    }
+    return $Left.GetType() -eq $Right.GetType() -and $Left -ceq $Right
+}
 
 # Tool discovery works without machine setup or a seat; stdin EOF ends the server.
 function Get-McpToolNames([string]$Executable) {
@@ -235,9 +257,32 @@ try {
         Check ($server.name -ceq 'io.github.skulitom/anode') 'server.json name is io.github.skulitom/anode'
         Check ($server.version -ceq $version) "server.json version is $version" "found $($server.version)"
         Check ($server.description -ceq $description -and $server.description.Length -le 100) 'server.json description matches the csproj Description (at most 100 characters)'
-        foreach ($entry in @($server.packages | Where-Object { $_ })) {
-            if ($entry.version) { Check ($entry.version -ceq $version) "server.json package version is $version" "found $($entry.version)" }
+        Check ('packages' -notin $server.PSObject.Properties.Name) 'server.json is metadata-only (no packages property)'
+    }
+    $registryPath = Join-Path $ArchiveDirectory 'server.registry.json'
+    if ((Test-Path -LiteralPath $registryPath -PathType Leaf) -and (Test-Path -LiteralPath $bundlePath -PathType Leaf)) {
+        $registry = $null
+        try { $registry = Read-Text $registryPath | ConvertFrom-Json; Write-Host '[ok] server.registry.json parses' }
+        catch { Fail "server.registry.json does not parse: $($_.Exception.Message)" }
+        Check ($registry -is [pscustomobject]) 'server.registry.json is a JSON object'
+        if ($registry -is [pscustomobject]) {
+            $packages = @($registry.packages)
+            Check ($registry.packages -is [array] -and $packages.Count -eq 1) 'server.registry.json has exactly one package'
+            if ($packages.Count -eq 1 -and $packages[0]) {
+                $entry = $packages[0]
+                Test-SameSet @($entry.PSObject.Properties.Name) @('registryType', 'identifier', 'version', 'fileSha256', 'transport') 'server.registry.json package has only MCPB release fields'
+                Check ($entry.registryType -ceq 'mcpb') 'server.registry.json package registryType is mcpb'
+                Check ($entry.identifier -ceq "https://github.com/skulitom/Anode/releases/download/v$version/anode-windows-x64.mcpb") 'server.registry.json package URL matches the release tag'
+                Check ($entry.version -ceq $version) "server.registry.json package version is $version"
+                Check ($entry.fileSha256 -cmatch '^[0-9a-f]{64}$' -and $entry.fileSha256 -ceq (Get-FileSha256 $bundlePath)) 'server.registry.json SHA-256 is lower-case and matches the bundle'
+                Check (Test-JsonEqual $entry.transport ([pscustomobject]@{ type = 'stdio' })) 'server.registry.json transport is stdio'
+                Check ('registryBaseUrl' -notin $entry.PSObject.Properties.Name) 'server.registry.json package has no registryBaseUrl'
+            }
+            $registry.PSObject.Properties.Remove('packages')
+            Check ($null -ne $server -and (Test-JsonEqual $registry $server)) 'server.registry.json equals server.json apart from packages'
         }
+    } else {
+        Write-Host '[skip] server.registry.json or its MCPB bundle was not built (scripts\registry-entry.ps1)'
     }
     $plugin = Read-Manifest '.claude-plugin\plugin.json'
     if ($plugin) {

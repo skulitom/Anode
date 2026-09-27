@@ -45,7 +45,15 @@ jobs:
           git show-ref --verify "refs/tags/$env:RELEASE_TAG"
           if ($LASTEXITCODE -ne 0) { throw 'Release requires an existing tag.' }
       - name: Publish and test
-        run: ./scripts/build.ps1 -QuickTest -Package
+        run: ./scripts/build.ps1 -QuickTest -Package -Mcpb
+      - name: Generate installable registry entry and bundle checksum
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          ./scripts/registry-entry.ps1 -Tag $env:RELEASE_TAG -Bundle artifacts/release/anode-windows-x64.mcpb
+          $hash = (Get-FileHash -LiteralPath artifacts/release/anode-windows-x64.mcpb -Algorithm SHA256).Hash.ToLowerInvariant()
+          [IO.File]::WriteAllText((Join-Path $PWD 'artifacts/release/anode-windows-x64.mcpb.sha256'), "$hash  anode-windows-x64.mcpb`n", [Text.Encoding]::ASCII)
       - name: Test installation and configuration
         run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-install.ps1
       - name: Check distribution
@@ -57,7 +65,18 @@ jobs:
           subject-path: |
             artifacts/release/anode-windows-x64.zip
             artifacts/release/install.ps1
-      # anode-windows-x64.mcpb (build.ps1 -Mcpb) is not published until it passes a live Claude Desktop test.
+            artifacts/release/anode-windows-x64.mcpb
+      - name: Upload MCPB for owner testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: anode-windows-x64-mcpb
+          path: |
+            artifacts/release/anode-windows-x64.mcpb
+            artifacts/release/anode-windows-x64.mcpb.sha256
+            artifacts/release/server.registry.json
+          if-no-files-found: error
+      # The bundle and registry entry go to the anode-windows-x64-mcpb workflow artifact.
+      # Only the owner uploads the bundle after the Claude Desktop test; see docs/PUBLISHING.md.
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
