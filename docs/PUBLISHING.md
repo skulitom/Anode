@@ -29,8 +29,9 @@ if ($LASTEXITCODE -ne 0) { throw 'Could not watch registry publication.' }
 ```
 
 Select the **Publish to MCP Registry** run. Runs are idempotent: an already published version is
-skipped. CI verifies the bundle's attestation came from this repository's Release workflow,
-validates the entry, publishes through OIDC and reads back the version and bundle hash.
+skipped. CI verifies the bundle's attestation came from this repository's Release workflow and
+that its manifest is the release's version, validates the entry, publishes through OIDC and reads
+back the version and bundle hash.
 
 For a release that will not get a bundle, explicitly publish its metadata instead:
 
@@ -44,8 +45,9 @@ version from getting its bundle; an installable entry then requires a new Anode 
 
 Check the run summary for the name, version, entry type and registry URL, and confirm that
 [the registry search endpoint](https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.skulitom/anode)
-contains `io.github.skulitom/anode` at the intended version. PulseMCP and GitHub's MCP registry ingest
-the official registry; allow time for their listings to update.
+contains `io.github.skulitom/anode` at the intended version. PulseMCP and GitHub's MCP registry draw
+on the official registry (GitHub curates new servers by hand first); allow time for their listings
+to update.
 
 ## 2. Next release: installable MCPB
 

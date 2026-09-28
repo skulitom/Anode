@@ -31,6 +31,19 @@ if (-not (Test-Path -LiteralPath $Bundle -PathType Leaf)) {
     throw "Missing MCPB bundle: $Bundle. Build it with scripts\build.ps1 -Package -Mcpb."
 }
 $bundlePath = (Resolve-Path -LiteralPath $Bundle).Path
+# The entry labels the bundle with this version, so refuse a bundle built for another one
+# (for example an older release's attested bundle attached to a newer release by mistake).
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$archive = [IO.Compression.ZipFile]::OpenRead($bundlePath)
+try {
+    $manifestEntry = $archive.GetEntry('manifest.json')
+    if (-not $manifestEntry) { throw "MCPB bundle has no manifest.json: $bundlePath." }
+    $reader = [IO.StreamReader]::new($manifestEntry.Open(), [Text.Encoding]::UTF8)
+    try { $bundleVersion = ($reader.ReadToEnd() | ConvertFrom-Json).version } finally { $reader.Dispose() }
+} finally { $archive.Dispose() }
+if ($bundleVersion -cne $version) {
+    throw "MCPB bundle version '$bundleVersion' must match the project version: $version. Use the bundle built for $Tag."
+}
 $metadataPath = Join-Path $root 'server.json'
 $server = [IO.File]::ReadAllText($metadataPath, [Text.Encoding]::UTF8) | ConvertFrom-Json
 if ('packages' -in $server.PSObject.Properties.Name) { throw 'server.json must remain metadata-only (no packages property).' }
