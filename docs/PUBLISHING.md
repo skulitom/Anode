@@ -1,60 +1,53 @@
 # Publishing Anode
 
-**Only the owner publishes.** This guide is for skulitom to run manually; CI prepares and checks
-artifacts but does not submit Anode to any registry or directory. Run the PowerShell commands from
-the repository root unless a step says otherwise. GitHub steps require `gh` signed in as skulitom
-(`gh auth status`); stop if any command fails.
+The official MCP Registry is published by [publish-registry.yml](../.github/workflows/publish-registry.yml)
+using GitHub OIDC: no secret and no registry sign-in. Smithery, awesome-mcp-servers and the other
+directories remain manual owner steps. The owner also tests and uploads each MCPB bundle before CI
+can list it. Run the PowerShell commands from the repository root unless a step says otherwise.
+Manual GitHub steps require `gh` signed in as skulitom (`gh auth status`); stop if any command fails.
 
 Use this one-line description wherever a directory asks for it:
 
 > Background Windows desktop for AI agents: native GUI automation, screenshots and app testing.
 
-## 1. MCP Registry now: metadata only (v0.10.0)
+## 1. MCP Registry (automatic)
 
-The repository's `server.json` uses schema `2025-12-11` and intentionally has no `packages` property.
-It can be published before an MCPB release asset exists. Download MCP Registry publisher **v1.8.1**
-for Windows x64, verify the archive with `Get-FileHash`, then extract it into `artifacts\tools`
-(ignored by Git, so the executable can't be committed by accident):
+Merging this workflow to `main` lists **0.10.0 as metadata only**, provided the registry has no Anode
+listing and the matching GitHub release exists. The repository's `server.json` uses schema
+`2025-12-11` and intentionally has no `packages` property. A daily run can recover that first
+listing if the merge run failed and the latest release still matches `server.json` on `main`.
 
-```powershell
-$ErrorActionPreference = 'Stop'
-$null = New-Item -ItemType Directory -Path artifacts\tools -Force
-$archive = 'artifacts\tools\mcp-publisher_windows_amd64.tar.gz'
-Invoke-WebRequest -UseBasicParsing https://github.com/modelcontextprotocol/registry/releases/download/v1.8.1/mcp-publisher_windows_amd64.tar.gz -OutFile $archive
-$expected = '399ad0d6e00a50812b563a71d8bfbff5160c085e6b13aac6ec083d98d5ff7c45'
-$actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
-if ($actual -cne $expected) { throw 'MCP Registry publisher SHA-256 mismatch.' }
-tar -xzf $archive -C artifacts\tools mcp-publisher.exe
-if ($LASTEXITCODE -ne 0) { throw 'MCP Registry publisher extraction failed.' }
-$publisher = (Resolve-Path -LiteralPath artifacts\tools\mcp-publisher.exe).Path
-```
-
-Check: the hash must match and `$publisher` must resolve. Only the executable is extracted, so the
-archive's README and license stay out of the way. From the repository root, in the same terminal:
+For later releases, CI publishes the installable MCPB entry once the owner attaches the tested
+`anode-windows-x64.mcpb` to the release ([section 2](#2-next-release-installable-mcpb)). The daily run
+picks up the latest release, or dispatch immediately after uploading (replace `vX.Y.Z`):
 
 ```powershell
-& $publisher validate server.json
-if ($LASTEXITCODE -ne 0) { throw 'Registry metadata validation failed.' }
-& $publisher login github
-if ($LASTEXITCODE -ne 0) { throw 'Registry sign-in failed.' }
-& $publisher publish server.json
-if ($LASTEXITCODE -ne 0) { throw 'Registry publication failed.' }
+gh workflow run publish-registry.yml -R skulitom/Anode -f tag=vX.Y.Z
+if ($LASTEXITCODE -ne 0) { throw 'Could not start registry publication.' }
+gh run watch -R skulitom/Anode
+if ($LASTEXITCODE -ne 0) { throw 'Could not watch registry publication.' }
 ```
 
-Complete the device-code sign-in as **skulitom**. Validation contacts the registry; check that it
-succeeds before signing in and publishing. After publication, check that the response at
+Select the **Publish to MCP Registry** run. Runs are idempotent: an already published version is
+skipped. CI verifies the bundle's attestation came from this repository's Release workflow,
+validates the entry, publishes through OIDC and reads back the version and bundle hash.
+
+For a release that will not get a bundle, explicitly publish its metadata instead:
+
+```powershell
+gh workflow run publish-registry.yml -R skulitom/Anode -f tag=vX.Y.Z -f metadata_only=true
+if ($LASTEXITCODE -ne 0) { throw 'Could not start metadata-only publication.' }
+```
+
+**A published version cannot be changed.** Metadata-only publication permanently prevents that
+version from getting its bundle; an installable entry then requires a new Anode version.
+
+Check the run summary for the name, version, entry type and registry URL, and confirm that
 [the registry search endpoint](https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.skulitom/anode)
-contains `io.github.skulitom/anode` at version `0.10.0`.
-
-**A published version cannot be changed.** Once `0.10.0` is published as metadata only, adding an
-installable package requires a new Anode version. PulseMCP and GitHub's MCP registry ingest the
-official registry; allow time for their listings to update.
+contains `io.github.skulitom/anode` at the intended version. PulseMCP and GitHub's MCP registry ingest
+the official registry; allow time for their listings to update.
 
 ## 2. Next release: installable MCPB
-
-In the PowerShell terminal used for these steps, first rerun the download and verification block
-at the start of [section 1](#1-mcp-registry-now-metadata-only-v0100). This verifies the pinned
-publisher and initializes `$publisher` for this terminal. Keep using the same terminal below.
 
 Follow [the release process](../CONTRIBUTING.md#release-process), including assigning `Unreleased`
 changes to the next version. Wait for the Release workflow for `vX.Y.Z` to succeed. That workflow
@@ -74,7 +67,7 @@ gh run view $runId -R skulitom/Anode
 if ($LASTEXITCODE -ne 0) { throw 'Could not inspect the release run.' }
 gh run download $runId -R skulitom/Anode -n anode-windows-x64-mcpb -D $artifactDirectory
 if ($LASTEXITCODE -ne 0) { throw 'MCPB artifact download failed.' }
-gh attestation verify "$artifactDirectory\anode-windows-x64.mcpb" --repo skulitom/Anode
+gh attestation verify "$artifactDirectory\anode-windows-x64.mcpb" --repo skulitom/Anode --signer-workflow skulitom/Anode/.github/workflows/release.yml
 if ($LASTEXITCODE -ne 0) { throw 'MCPB attestation verification failed.' }
 $bundle = Join-Path $artifactDirectory 'anode-windows-x64.mcpb'
 $entryPath = Join-Path $artifactDirectory 'server.registry.json'
@@ -86,25 +79,25 @@ if ("v$($entry.version)" -cne $tag -or $entry.packages[0].identifier -cne "https
 ```
 
 Check: the run is successful for the intended tag, attestation verification succeeds for
-`skulitom/Anode`, and both checksum comparisons pass. Now run the
+`skulitom/Anode/.github/workflows/release.yml`, and both checksum comparisons pass. Now run the
 [Claude Desktop test](../packaging/mcpb/README.md#claude-desktop-test-release-gate) on **that exact
 downloaded file**, and record the results. Stop here if any test fails.
 
-**Only if the test passes**, upload the tested bundle, validate the generated entry against the now
-existing release URL, then publish the entry:
+**Only if the test passes**, upload the tested bundle and start the registry workflow:
 
 ```powershell
 gh release upload $tag "$artifactDirectory\anode-windows-x64.mcpb" -R skulitom/Anode
 if ($LASTEXITCODE -ne 0) { throw 'MCPB release upload failed.' }
-& $publisher validate "$artifactDirectory\server.registry.json"
-if ($LASTEXITCODE -ne 0) { throw 'Installable registry entry validation failed.' }
-& $publisher publish "$artifactDirectory\server.registry.json"
-if ($LASTEXITCODE -ne 0) { throw 'Installable registry entry publication failed.' }
+gh workflow run publish-registry.yml -R skulitom/Anode -f "tag=$tag"
+if ($LASTEXITCODE -ne 0) { throw 'Could not start registry publication.' }
+gh run watch -R skulitom/Anode
+if ($LASTEXITCODE -ne 0) { throw 'Could not watch registry publication.' }
 gh release view $tag -R skulitom/Anode --json tagName,assets
 if ($LASTEXITCODE -ne 0) { throw 'Could not check release assets.' }
 ```
 
-Check: the release lists `anode-windows-x64.mcpb`, and the
+Check: select the **Publish to MCP Registry** run and confirm it succeeds. Its summary identifies
+the version and entry type. The release must list `anode-windows-x64.mcpb`, and the
 [registry search response](https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.skulitom/anode)
 includes the new version with its MCPB package and matching hash. The uploaded file must be
 **byte-identical to the tested file**, because `server.registry.json` carries its SHA-256. Do not
@@ -197,12 +190,35 @@ wait for the directory's CI and review.
 
 ## What is published where today
 
-Before the owner runs the publishing steps above:
+CI publishes the official registry; the owner handles the other submissions:
 
 | Channel | Current state |
 | --- | --- |
 | Scoop bucket | Served from this repository (`bucket/anode.json`). |
 | Claude Code plugin marketplace | Served from this repository (`.claude-plugin/marketplace.json`). |
-| MCP Registry | Not yet published; metadata-only `server.json` is ready for the owner. |
+| MCP Registry | Published by `publish-registry.yml`: first listing as metadata, then per-release MCPB entries after the tested bundle is attached. |
 | winget | Not yet published; manifests are maintained in this repository. |
 | MCPB | Not yet a release asset; built and attested by Release as a workflow artifact for owner testing. |
+
+## Manual fallback (device sign-in)
+
+Use this only if CI publishing is unavailable. [mcp-publisher.ps1](../scripts/mcp-publisher.ps1)
+downloads and verifies the pinned publisher and returns its path. Set `$entryPath` to `server.json`
+for metadata only, or to the generated `server.registry.json` from section 2 after uploading the
+tested bundle. The same immutable-version rule and Claude Desktop test gate apply.
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$publisher = ./scripts/mcp-publisher.ps1
+$entryPath = 'server.json'
+& $publisher validate $entryPath
+if ($LASTEXITCODE -ne 0) { throw 'Registry entry validation failed.' }
+& $publisher login github
+if ($LASTEXITCODE -ne 0) { throw 'Registry sign-in failed.' }
+& $publisher publish $entryPath
+if ($LASTEXITCODE -ne 0) { throw 'Registry publication failed.' }
+```
+
+Complete the device-code sign-in as **skulitom**. Validation contacts the registry and must succeed
+before sign-in and publication. Check the version and any bundle hash at the
+[registry search endpoint](https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.skulitom/anode).

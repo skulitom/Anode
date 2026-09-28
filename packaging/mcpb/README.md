@@ -6,8 +6,9 @@ it is not a release asset and it is not listed in `SHA256SUMS`. The Release work
 the bundle and uploads it, its checksum and `server.registry.json` as the `anode-windows-x64-mcpb`
 workflow artifact. It becomes a release asset only through the owner's manual step in
 [the publishing guide](../../docs/PUBLISHING.md), after the Claude Desktop test below passes on that
-exact file. Do not rebuild or modify the tested bundle before uploading it: the registry entry carries
-its SHA-256.
+exact file. Once it is uploaded, `publish-registry.yml` publishes the registry entry using GitHub OIDC,
+with no registry sign-in. Do not rebuild or modify the tested bundle before uploading it: the registry
+entry carries its SHA-256.
 
 ## Build
 

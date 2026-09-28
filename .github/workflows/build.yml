@@ -37,19 +37,12 @@ jobs:
           ./scripts/registry-entry.ps1 -Tag "v$version" -Bundle artifacts/release/anode-windows-x64.mcpb
 
       - name: Validate server.json with the MCP Registry publisher
+        shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $null = New-Item -ItemType Directory -Path artifacts/tools -Force
-          $archive = 'artifacts/tools/mcp-publisher_windows_amd64.tar.gz'
-          Invoke-WebRequest -UseBasicParsing https://github.com/modelcontextprotocol/registry/releases/download/v1.8.1/mcp-publisher_windows_amd64.tar.gz -OutFile $archive
-          $expected = '399ad0d6e00a50812b563a71d8bfbff5160c085e6b13aac6ec083d98d5ff7c45'
-          if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -cne $expected) {
-            throw 'MCP Registry publisher SHA-256 mismatch.'
-          }
-          tar -xzf $archive -C artifacts/tools
-          if ($LASTEXITCODE -ne 0) { throw 'MCP Registry publisher extraction failed.' }
+          $publisher = ./scripts/mcp-publisher.ps1
           # Only metadata: the generated MCPB URL does not exist during CI.
-          ./artifacts/tools/mcp-publisher.exe validate server.json
+          & $publisher validate server.json
           if ($LASTEXITCODE -ne 0) { throw 'MCP Registry metadata validation failed.' }
 
       # The quick self-test covers only environment-independent behavior: key-name
