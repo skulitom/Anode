@@ -316,6 +316,15 @@ internal sealed class McpServer : IDisposable
 
     private static JsonObject Present(string toolName, JsonObject? result)
     {
+        if (toolName == "seat_audio_listen" && result?.Str("data") is { } audio)
+        {
+            var metadata = (JsonObject)result.DeepClone();
+            metadata.Remove("data");
+            // As with images, don't let clients choosing structuredContent discard the media.
+            return new JsonObject { ["content"] = new JsonArray(
+                new JsonObject { ["type"] = "audio", ["mimeType"] = result.Str("mimeType") ?? "audio/wav", ["data"] = audio },
+                new JsonObject { ["type"] = "text", ["text"] = metadata.ToJsonString() }) };
+        }
         if (result?.Str("summary") is { } summary)
         {
             var block = new JsonObject { ["type"] = "text", ["text"] = summary };
@@ -379,7 +388,7 @@ internal sealed class McpServer : IDisposable
         if (leaseAction == "release")
             return TextResult(daemonRunning ? "The seat is stopped, so there is no desktop lease to release."
                 : "Anode is not running, so there is no desktop lease to release.");
-        if (leaseAction == "status" || toolName is "seat_status" or "seat_capabilities" or "seat_processes" or "steam_status")
+        if (leaseAction == "status" || toolName is "seat_status" or "seat_capabilities" or "seat_processes" or "steam_status" or "seat_audio_status")
         {
             var status = new JsonObject
             {

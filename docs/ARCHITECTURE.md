@@ -139,6 +139,12 @@ list in [PROTOCOL.md](PROTOCOL.md).
 
 ## Design decisions worth defending
 
+Audio playback and WASAPI loopback capture also run in the verified seat host. They explicitly
+select the session's Remote Audio render endpoint and refuse physical endpoints; physical
+loopback can include other sessions' sound. Playback uses a fixed endpoint with no device
+fallback and ends with the desktop lease. RDP audio remains opt-in (`--audio`) and redirects
+sound to the user's speakers; microphone redirection is explicitly disabled. See [Audio](AUDIO.md).
+
 **One executable for runtime roles.** The seat host is launched by path from the daemon. If they were
 separate binaries, a partial upgrade would pair a new daemon with an old host across a pipe protocol.
 

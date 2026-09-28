@@ -328,7 +328,7 @@ These need the [ViGEm bus driver](TROUBLESHOOTING.md#the-vigem-bus-driver-did-no
 | `--width N --height N` | Seat resolution; default 1280x720. The viewer opens sized to show the seat at that size, or the largest that fits your screen. |
 | `--scale N` | DPI scale percentage for the seat, above 100 and up to 500. |
 | `--no-scaling` | Show the seat at its real size instead of fitting it to the viewer window. Fitted, the seat keeps its shape, with the viewer's dark background beside it when the window has another shape. |
-| `--audio` | Play the seat's sound on this computer (off by default). |
+| `--audio` | Play the seat's sound on this computer and enable [agent listening/playback](AUDIO.md) (off by default). |
 | `--clipboard` | Share your clipboard with the seat (off by default). |
 | `--winkeys` | Send Windows-key shortcuts to the seat, not to you. |
 | `--control` | Start with your input reaching the seat instead of view only. |
@@ -359,7 +359,7 @@ and `steam_launch` are `steam`, `seat_job` is `job` and `jobs`, `gamepad_set` is
 ## For agents: the MCP server
 
 Run `anode configure` to register installed Codex and Claude Code CLIs.
-See [Connecting agents](CONNECTING-AGENTS.md) and the [protocol reference](PROTOCOL.md) for configuration and all 32 tools.
+See [Connecting agents](CONNECTING-AGENTS.md) and the [protocol reference](PROTOCOL.md) for configuration and all 36 tools.
 
 ## How it works
 

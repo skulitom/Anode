@@ -254,7 +254,7 @@ internal static class TransportChecks
             Require(replies[1].Obj("result")?.Obj("serverInfo")?.Str("name") == "anode"
                 && replies[1].Obj("result")?.Obj("capabilities")?.Obj("prompts") is not null, "MCP initialization failed");
             var listed = replies[2].Obj("result")?["tools"] as JsonArray;
-            Require(listed is { Count: 32 } && JsonNode.DeepEquals(replies[2]["result"], replies[3]["result"]), "MCP tool discovery is incomplete or unstable");
+            Require(listed is { Count: 36 } && JsonNode.DeepEquals(replies[2]["result"], replies[3]["result"]), "MCP tool discovery is incomplete or unstable");
             Require(listed!.OfType<JsonObject>().Select(t => t.Str("name")).Distinct().Count() == listed!.Count, "duplicate tool names");
             foreach (string name in new[] { "seat_lease", "seat_windows", "seat_observe", "seat_window", "seat_element", "seat_capabilities", "seat_exec", "seat_job", "seat_wait" })
                 Require(listed!.OfType<JsonObject>().Any(tool => tool.Str("name") == name), $"Missing desktop tool {name}");
@@ -266,7 +266,7 @@ internal static class TransportChecks
             Require(replies[8].Obj("result")?["prompts"] is JsonArray { Count: 2 }
                 && (replies[9].Obj("result")?["messages"]?[0]?["content"] as JsonObject)?.Str("text") == Mcp.AgentGuide.Text,
                 "MCP prompts are missing or differ from the embedded skill");
-            return "initialize, 32 tools, embedded guide, prompts, notifications, ping, malformed JSON and errors over stdio";
+            return "initialize, 36 tools, embedded guide, prompts, notifications, ping, malformed JSON and errors over stdio";
         }
         finally
         {

@@ -9,6 +9,7 @@ using Anode.Core.Session;
 using Anode.Core.Util;
 using Anode.Core.Desktop;
 using Anode.Core.Agents;
+using Anode.Core.Audio;
 
 namespace Anode.Seat;
 
@@ -33,6 +34,7 @@ internal static class SeatHost
     private static readonly Stopwatch Uptime = Stopwatch.StartNew();
     private static readonly DesktopTools Desktop = new();
     private static readonly ExecutionJobs Jobs = new();
+    private static readonly SeatAudio Audio = new();
     private static readonly DesktopLease Lease = new(EndLease, Jobs.CancelOwned, record: Log.Info);
     private static readonly CancellationTokenSource DesktopStopping = new();
     /// <summary>The user's own session, as the parent daemon reported it; Steam belongs there.</summary>
@@ -77,12 +79,13 @@ internal static class SeatHost
         }, null, 1000, 1000);
         Log.Info($"seat host listening on \\\\.\\pipe\\{Env.SeatPipe}");
 
-        AppDomain.CurrentDomain.ProcessExit += (_, _) => { Jobs.Dispose(); Gamepads.Dispose(); _padIsolation?.Dispose(); };
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => { Audio.CancelPlayback(); Jobs.Dispose(); Gamepads.Dispose(); _padIsolation?.Dispose(); };
         Stopping.Wait();
 
         Gamepads.Dispose();
         _padIsolation?.Dispose();
         Jobs.Dispose();
+        Audio.Dispose();
         Log.Info("seat host stopped");
         return 0;
     }
@@ -108,6 +111,7 @@ internal static class SeatHost
 
     private static void EndLease()
     {
+        Audio.StopPlayback();
         Desktop.InvalidateLease();
         InputInjector.ReleaseHeld();
         Gamepads.DetachAll(requireSuccess: true);
@@ -128,7 +132,7 @@ internal static class SeatHost
         // Emergency shutdown remains independent of desktop ownership and the interaction queue.
         if (request.Str("op") == "shutdown")
         {
-            DesktopStopping.Cancel(); Jobs.Dispose();
+            DesktopStopping.Cancel(); Audio.CancelPlayback(); Jobs.Dispose();
             return Task.FromResult(Dispatch("shutdown", request));
         }
         return Lease.HandleAsync(request, HandleOwnedAsync, DesktopStopping.Token);
@@ -137,6 +141,8 @@ internal static class SeatHost
     private static async Task<JsonObject> HandleOwnedAsync(JsonObject request, CancellationToken cancel)
     {
         string op = request.Str("op") ?? string.Empty;
+        if (op == "audio.listen") return JsonLine.Ok(await SeatAudio.ListenAsync(request.Int("durationMs") ?? 5000, cancel).ConfigureAwait(false));
+        if (op == "audio.play") return JsonLine.Ok(await Audio.PlayAsync(AgentAccess.Arguments(request), cancel).ConfigureAwait(false));
         if (op is "exec.start" or "exec.read")
         {
             var args = AgentAccess.Arguments(request);
@@ -156,6 +162,9 @@ internal static class SeatHost
     {
         switch (op)
         {
+            case "audio.status": return JsonLine.Ok(Audio.Status());
+            case "audio.stop": return JsonLine.Ok(Audio.StopPlayback());
+
             case "ping":
             {
                 var size = InputInjector.ScreenSize();

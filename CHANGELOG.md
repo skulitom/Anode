@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Agents can listen to browser/game audio as WAV clips and play bounded PCM WAV files through
+  new audio MCP tools and `anode audio` commands. Audio uses the verified child session's Remote
+  Audio endpoint, requires `--audio` at startup (also audible on the user's speakers), and never
+  falls back to a physical capture device. Agent playback stops when its desktop lease ends.
+- **Audio is not fully tested yet.** Builds, quick self-tests and documentation checks pass,
+  but live playback/recording and browser/game audio have not been verified in a running seat.
+  Live testing was deferred to avoid disturbing the active session.
 - **Ready for directory submissions.** The README leads with desktop isolation and a three-command
   install, keeps a hidden demo GIF placeholder, and includes the MCP Registry ownership marker.
 - `scripts/registry-entry.ps1` generates an installable MCPB registry entry with the release URL and

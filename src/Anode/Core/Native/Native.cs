@@ -12,9 +12,6 @@ internal static class Native
     /// <summary>Value <c>WTSGetChildSessionId</c> writes when no child session exists.</summary>
     public const uint NoChildSession = uint.MaxValue;
 
-    public const int ErrorNotFound = 1168;
-    public const int ErrorAccessDenied = 5;
-
     /// <summary>Passed to WTS APIs to mean "this machine".</summary>
     public static readonly IntPtr CurrentServer = IntPtr.Zero;
 
@@ -35,13 +32,6 @@ internal static class Native
     [DllImport("wtsapi32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool WTSLogoffSession(
-        IntPtr server,
-        uint sessionId,
-        [MarshalAs(UnmanagedType.Bool)] bool wait);
-
-    [DllImport("wtsapi32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static extern bool WTSDisconnectSession(
         IntPtr server,
         uint sessionId,
         [MarshalAs(UnmanagedType.Bool)] bool wait);

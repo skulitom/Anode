@@ -156,6 +156,30 @@ Window action `raise` brings a window forward without requesting keyboard focus.
 against the actual foreground window. A known foreground GameInput helper is reported as an input
 blocker; synthetic input fails explicitly instead of claiming it reached an application.
 
+### Audio
+
+| `op` | Arguments | Result |
+| --- | --- | --- |
+| `audio.status` | none | `{available, captureTested: false, device?, deviceId?, speakerRedirection?, error?, playbackState, playbackError, summary}` |
+| `audio.listen` | `durationMs` (100-30000; default 5000) | `{mimeType: "audio/wav", data: base64, bytes, durationMs, sampleRate: 48000, channels: 2, bitsPerSample: 16, peak, silent, packets, discontinuities, timestampErrors, summary}` |
+| `audio.play` | exactly one of `path` (absolute local `.wav`) or `data` (base64 WAV) | `{state: "playing", durationMs, summary}` when playback has started |
+| `audio.stop` | none | `{state: "stopped", summary}` |
+
+All except `audio.status` require the desktop lease. Invalid arguments are rejected before
+lease acquisition or dispatch. Playback is asynchronous, one agent clip at a time, and ends on
+completion, stop, lease release/expiry or host shutdown. `audio.stop` leaves browser/game sound
+alone. After an uncertain play result, check status rather than replaying it.
+
+Playback accepts 16-bit PCM WAV, mono/stereo, 8-96 kHz, up to 8 MiB and 120 seconds. Listening
+records the next interval of the seat's output mix, preserving silent gaps. No packets or silent
+samples produce a full-duration silent WAV; this does not prove an application produced sound.
+`peak` is a linear full-scale amplitude (0-1). Discontinuities/timestamp errors are reported.
+
+MCP exposes `seat_audio_status`, `seat_audio_listen`, `seat_audio_play`, and `seat_audio_stop`.
+Listening returns a native `audio` content block plus a text block of metadata, with no duplicate
+base64 or `structuredContent`. The CLI writes a new WAV file. Clients without audio-content
+support can use the CLI and process the file. See [Audio](AUDIO.md) for setup and isolation.
+
 ### Execution jobs
 
 | `op` | Arguments | Result |
@@ -296,8 +320,10 @@ except `anode_guide` maps to exactly one `op`, so there is no second implementat
 | `seat_exec` | `exec.start` | `seat_window` | `desktop.window` |
 | `seat_job` | `exec.read` | `seat_element` | `desktop.element` |
 | | | `seat_wait` | `desktop.wait` |
+| `seat_audio_status` | `audio.status` | `seat_audio_listen` | `audio.listen` |
+| `seat_audio_play` | `audio.play` | `seat_audio_stop` | `audio.stop` |
 
-There are 32 tools. MCP assigns an agent ID (or uses `ANODE_AGENT_ID` from its environment),
+There are 36 tools. MCP assigns an agent ID (or uses `ANODE_AGENT_ID` from its environment),
 remembers the token returned by `seat_lease` acquire or renew, and supplies both on desktop calls.
 `anode_guide` returns the embedded operating guide without a daemon, setup or waiting behind long
 tool calls.
@@ -307,7 +333,7 @@ they launch a hidden one through the shared launcher, and they wait for the seat
 `seat_status` never starts a daemon. With none running it returns a successful result containing
 `state: stopped`, `daemonRunning: false`, `agentId`, `ownerAgentId: null` and a `summary` that says
 to acquire a lease; with one running it returns that daemon's status. `seat_capabilities`,
-`seat_processes` and `steam_status` likewise report a stopped seat instead of starting one, and
+`seat_processes`, `steam_status` and `seat_audio_status` likewise report a stopped seat instead of starting one, and
 `seat_show` and `seat_hide` return an error. A lease-requiring tool that finds no daemon forgets
 its token and returns an error asking for a new acquisition; it never relaunches a daemon a person
 quit. The same holds when a person stops the seat but Anode keeps running (the Stop button, the

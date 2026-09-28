@@ -87,7 +87,7 @@ contain private information; reports remain local until you choose to share them
 | Your clipboard | **Isolated by default.** `--clipboard` shares it. |
 | Drives, printers, ports, smart cards | **Not redirected**, by explicit setting. |
 | Windows-key shortcuts | Go to you, not the seat, unless the viewer is full screen or you pass `--winkeys`. |
-| Audio | **Muted by default.** `--audio` plays the seat's sound on your speakers. |
+| Audio | **Muted by default.** `--audio` plays the seat's sound on your speakers and enables [agent audio tools](AUDIO.md). Capture/playback require a verified child session and an active Remote Audio render endpoint; physical devices and microphone capture are refused. |
 
 ## What the seat is **not** isolated from
 

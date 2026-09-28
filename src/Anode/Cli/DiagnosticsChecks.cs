@@ -87,7 +87,16 @@ internal static class DiagnosticsChecks
                     && prompt.GetPromptForCredsOnClient() == enabled && prompt.GetAllowPromptingForCredentials() == enabled,
                     "credential prompting was not restricted to explicit sign-in or credential saving was enabled");
             }
-            return "real COM child-session and credential-prompt settings round-trip; no connection or credential prompt opened";
+            object advanced = Dispatch.Get(control, "AdvancedSettings9")!;
+            object secured = Dispatch.Get(control, "SecuredSettings2")!;
+            Dispatch.Set(advanced, "AudioCaptureRedirectionMode", false);
+            Require(Dispatch.Get(advanced, "AudioCaptureRedirectionMode") is false, "microphone redirection was enabled");
+            foreach (int mode in new[] { 0, 2 })
+            {
+                Dispatch.Set(secured, "AudioRedirectionMode", mode);
+                Require(Convert.ToInt32(Dispatch.Get(secured, "AudioRedirectionMode")) == mode, "audio redirection setting did not round-trip");
+            }
+            return "real COM child-session, audio and credential-prompt settings round-trip; no connection, audio or credential prompt opened";
         }
         finally { Marshal.FinalReleaseComObject(control); }
     }

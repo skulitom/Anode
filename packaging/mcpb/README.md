@@ -46,7 +46,7 @@ Store) build and the standard installer build of Claude Desktop when possible.
 
 1. Install the bundle: double-click `anode-windows-x64.mcpb`, or use Settings > Extensions >
    Advanced settings > Install Extension.
-2. Confirm that Claude Desktop lists all 32 tools and that `anode_guide` answers before any setup.
+2. Confirm that Claude Desktop lists all 36 tools and that `anode_guide` answers before any setup.
 3. Run machine setup once from an administrator terminal with the bundled executable, for example
    `& "<extension folder>\server\anode.exe" setup | Out-Host`, then run `doctor` the same way from a normal
    terminal.
