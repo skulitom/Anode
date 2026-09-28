@@ -37,6 +37,8 @@ IDs stay valid, but observations do not: windows and controls move, so observe a
 
 When Windows applies something other than what was asked, for example a smaller scale, the call fails
 with `errorCode: "display_not_applied"` and its `result` still describes the display the seat now has.
+Anode's viewer keeps that display too: a later Reconnect or sign-in asks for it, not for the request
+that failed.
 
 `seat_display` needs the desktop lease, like input and screenshots. `seat_status` reports the current
 display under `seat.screen`, with its `scale`, and the startup display as `startupDisplay`, without a

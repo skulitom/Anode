@@ -47,7 +47,7 @@ internal sealed class AnodeDaemon : IDisposable
     private DateTime _startedUtc = DateTime.UtcNow;
     /// <summary>The display the seat showed when it first became ready, which a reset and a lease's end restore.</summary>
     private DisplayMode? _startDisplay;
-    /// <summary>The display an agent chose, which every later viewer connection asks for until the seat stops.</summary>
+    /// <summary>The display an agent chose, or the one the seat showed instead, which every later viewer connection asks for until the seat stops.</summary>
     private DisplayMode? _display;
     private bool _changingDisplay;
     private TaskCompletionSource? _displayLogin;
@@ -799,14 +799,16 @@ internal sealed class AnodeDaemon : IDisposable
     /// <summary>
     /// The seat host's display requests: with no size, the startup display; otherwise a change made live
     /// (method live) or by reconnecting the viewer at the new size (method reconnect). The seat host confirms
-    /// the result on the seat's own screen.
+    /// the result on the seat's own screen, and reports the display it found when that is not the one asked for
+    /// (method record).
     /// </summary>
     internal async Task<JsonObject> DisplayAsync(JsonObject request)
     {
         if (!request.ContainsKey("width")) return JsonLine.Ok(new JsonObject { ["startup"] = StartupDisplay().ToJson() });
         int width = request.Int("width") ?? 0, height = request.Int("height") ?? 0, scale = request.Int("scale") ?? 0;
+        if (request.Str("method") == "record") return Remember(new DisplayMode(width, height, scale));
         if (DisplayMode.Problem(width, height, scale) is { } problem) return JsonLine.Fail(problem);
-        if (request.Str("method") is not ("live" or "reconnect")) return JsonLine.Fail("method must be live or reconnect.");
+        if (request.Str("method") is not ("live" or "reconnect")) return JsonLine.Fail("method must be live, reconnect or record.");
         var target = new DisplayMode(width, height, scale);
         bool reconnect = request.Str("method") == "reconnect";
 
@@ -859,6 +861,24 @@ internal sealed class AnodeDaemon : IDisposable
             lock (_lifecycleGate) { _changingDisplay = false; _displayLogin = null; }
             _window?.SetReconnectEnabled(true);
         }
+    }
+
+    /// <summary>
+    /// The display the seat host measured after a change that did not arrive as asked (method record). The viewer
+    /// asks for it on later connections instead of the request, which the seat never showed. It is a measurement,
+    /// such as a startup display at a custom scale, so it needs only to be a display the viewer can ask for.
+    /// </summary>
+    private JsonObject Remember(DisplayMode shown)
+    {
+        if (shown.Width is < 200 or > DisplayMode.MaxSide || shown.Height is < 200 or > DisplayMode.MaxSide || shown.Scale is < 100 or > 500)
+            return JsonLine.Fail($"{shown} is not a display the viewer can ask for.");
+        lock (_lifecycleGate)
+        {
+            if (_stopRequested || !_hostReady) return JsonLine.Fail($"The seat is not ready ({_state}), so there is no display to remember.");
+            _display = shown;
+        }
+        Log.Info($"the seat shows {shown} after a display change that did not arrive as asked; later viewer connections ask for it");
+        return JsonLine.Ok(new JsonObject { ["method"] = "record", ["display"] = shown.ToJson() });
     }
 
     /// <summary>

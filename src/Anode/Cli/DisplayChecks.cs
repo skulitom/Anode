@@ -91,7 +91,7 @@ internal static class DisplayChecks
         /// <summary>What a live request leaves on screen; null ignores it, as Windows does without the display channel.</summary>
         public Func<DisplayMode, DisplayMode>? Live = target => target;
         public Func<DisplayMode, DisplayMode>? Reconnect = target => target;
-        public string? LiveError, ReconnectError, ReconnectCode;
+        public string? LiveError, ReconnectError, ReconnectCode, RecordError;
         public bool Unreachable;
         /// <summary>Applies a live change this long after the request, as Windows does.</summary>
         public int LiveDelayMs;
@@ -116,6 +116,9 @@ internal static class DisplayChecks
             var target = DisplayMode.FromJson(request)!.Value;
             string method = request.Str("method")!;
             lock (Calls) Calls.Add($"{method} {target}");
+            // The seat host telling the daemon what the seat shows; nothing on screen changes.
+            if (method == "record")
+                return Task.FromResult(RecordError is { } refused ? JsonLine.Fail(refused) : JsonLine.Ok(new JsonObject { ["method"] = method, ["display"] = target.ToJson() }));
             if ((method == "live" ? LiveError : ReconnectError) is { } error)
             {
                 var failure = JsonLine.Fail(error);
@@ -169,7 +172,8 @@ internal static class DisplayChecks
         reply = await clamped.Display().SetAsync(Change(1280, 720, 300), CancellationToken.None);
         Require(reply.Bool("ok") == false && reply.Str("errorCode") == "display_not_applied" && DisplayMode.FromJson(reply.Obj("result")) == Hd with { Scale = 250 }
             && reply.Str("error")!.Contains("Windows applied 1280x720 at 250% instead of the requested 1280x720 at 300%")
-            && clamped.Changes().Length == 1, "a display Windows chose differently was reported as applied, or reconnected: " + reply.ToJsonString());
+            && clamped.Changes().SequenceEqual(new[] { "live 1280x720 at 300%", "record 1280x720 at 250%" }),
+            "a display Windows chose differently was reported as applied, reconnected, or not told to the daemon: " + reply.ToJsonString());
 
         // Neither way works: the failure says why and what the seat still shows.
         var stuck = new StandIn(Hd) { Live = null, ReconnectError = "Windows did not sign the viewer back in within 45 seconds.", ReconnectCode = "viewer_detached" };
@@ -177,15 +181,24 @@ internal static class DisplayChecks
         Require(reply.Bool("ok") == false && reply.Str("error")!.Contains("within 45 seconds") && reply.Str("error")!.Contains("It is 1280x720 at 100%")
             && DisplayMode.FromJson(reply.Obj("result")) == Hd && reply.Obj("result")!.Bool("changed") == false, "a failed change was not explained: " + reply.ToJsonString());
         // The viewer is asked back at the display the seat measured before, not left detached.
-        Require(stuck.Changes().SequenceEqual(new[] { "live 1920x1080 at 100%", "reconnect 1920x1080 at 100%", "reconnect 1280x720 at 100%" })
+        Require(stuck.Changes().SequenceEqual(new[] { "live 1920x1080 at 100%", "reconnect 1920x1080 at 100%", "reconnect 1280x720 at 100%", "record 1280x720 at 100%" })
             && reply.Str("error")!.Contains("Windows did not apply it live."),
             "a failed reconnect did not ask for the display the seat had: " + string.Join(", ", stuck.Changes()));
         // A reconnect the daemon refused, as it does for a seat that signed in through the credential dialog, left the viewer alone.
         var kept = new StandIn(Hd) { Live = null, ReconnectError = "Reconnecting the viewer at the new size would need the Windows password" };
         reply = await kept.Display().SetAsync(Change(1920, 1080, 100), CancellationToken.None);
+        // The daemon, which the live request left expecting 1920x1080, learns that the seat still shows 1280x720, so the
+        // viewer's next connection (Reconnect, sign-in) does not bring back the change that failed.
         Require(reply.Bool("ok") == false && reply.Str("error")!.Contains("would need the Windows password")
-            && kept.Changes().SequenceEqual(new[] { "live 1920x1080 at 100%", "reconnect 1920x1080 at 100%" }),
-            "a refused reconnect was followed by another: " + string.Join(", ", kept.Changes()));
+            && kept.Changes().SequenceEqual(new[] { "live 1920x1080 at 100%", "reconnect 1920x1080 at 100%", "record 1280x720 at 100%" }),
+            "a refused reconnect was followed by another, or the daemon kept the failed display: " + string.Join(", ", kept.Changes()));
+        // A daemon that cannot take the note changes nothing for the agent; the seat host logs it.
+        var notes = new List<string>();
+        var deaf = new StandIn(Hd) { Live = null, ReconnectError = "Reconnecting the viewer at the new size would need the Windows password", RecordError = "The seat is not ready" };
+        var unheard = await deaf.Display(notes).SetAsync(Change(1920, 1080, 100), CancellationToken.None);
+        Require(unheard.Bool("ok") == false && unheard.Str("error") == reply.Str("error") && DisplayMode.FromJson(unheard.Obj("result")) == Hd
+            && notes.Any(line => line.StartsWith("could not tell the daemon that the seat shows 1280x720 at 100%", StringComparison.Ordinal)),
+            "a refused note changed the reply or went unlogged: " + unheard.ToJsonString());
 
         // Only the fields given change.
         var patch = new StandIn(new DisplayMode(1920, 1080, 100));
@@ -214,8 +227,8 @@ internal static class DisplayChecks
         var alone = new StandIn(Hd) { Unreachable = true };
         reply = await alone.Display().SetAsync(Change(1920, 1080, 100), CancellationToken.None);
         Require(reply.Bool("ok") == false && reply.Str("error")!.Contains("stays 1280x720 at 100%"), "an unreachable daemon was not reported");
-        return "live changes are awaited; ignored or refused ones reconnect once; partial and failed changes report the actual display; "
-            + "only given fields change; reset and no-ops ask nothing extra";
+        return "live changes are awaited; ignored or refused ones reconnect once; partial and failed changes report the actual display "
+            + "and tell the daemon; only given fields change; reset and no-ops ask nothing extra";
     }
 
     public static async Task<string> Restore()
@@ -281,7 +294,11 @@ internal static class DisplayChecks
                      (new JsonObject { ["width"] = 1920, ["height"] = 1080, ["scale"] = 120, ["method"] = "live" }, "Scaling is one of"),
                      (new JsonObject { ["width"] = 1920, ["height"] = 1080, ["scale"] = 100, ["method"] = "sideways" }, "method must be"),
                      (new JsonObject { ["width"] = 1920, ["height"] = 1080, ["scale"] = 100, ["method"] = "live" }, "not ready"),
-                     (new JsonObject { ["width"] = 1920, ["height"] = 1080, ["scale"] = 100, ["method"] = "reconnect" }, "not ready")
+                     (new JsonObject { ["width"] = 1920, ["height"] = 1080, ["scale"] = 100, ["method"] = "reconnect" }, "not ready"),
+                     // A measured display: a custom scale or an odd width is fine, but only a ready seat has one to remember.
+                     (new JsonObject { ["width"] = 1921, ["height"] = 1080, ["scale"] = 110, ["method"] = "record" }, "not ready"),
+                     (new JsonObject { ["width"] = 1920, ["height"] = 1080, ["scale"] = 600, ["method"] = "record" }, "not a display the viewer can ask for"),
+                     (new JsonObject { ["width"] = 100, ["height"] = 1080, ["scale"] = 100, ["method"] = "record" }, "not a display the viewer can ask for")
                  })
         {
             var reply = await daemon.DisplayAsync(request);
@@ -292,7 +309,7 @@ internal static class DisplayChecks
         using var plain = new AnodeDaemon(new SeatOptions { Width = 100, Height = 50000 });
         Require(DisplayMode.FromJson((await plain.DisplayAsync(new JsonObject())).Obj("result")?.Obj("startup")) == new DisplayMode(640, 8192, 100),
             "an unscaled seat's startup display is not its clamped size at 100%");
-        return "reports the startup display from the options and status; refuses invalid requests, and every change while the seat is not ready";
+        return "reports the startup display from the options and status; refuses invalid requests, and every change or record while the seat is not ready";
     }
 
     [DllImport("user32.dll")]

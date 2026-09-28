@@ -163,6 +163,9 @@ internal sealed class SeatDisplay
             (after, method, failure) = await ApplyAsync(before, target, cancel).ConfigureAwait(false);
         }
         lock (_gate) _changed = after != startup;
+        // The daemon's viewer asks for the requested display again on every later connection. When the seat shows
+        // another one, the daemon learns which, so a Reconnect or sign-in never brings back a change that failed.
+        if (target != before && after != target) await RememberAsync(after).ConfigureAwait(false);
 
         var result = Describe(after, before, startup, target, method, reset, clock.ElapsedMilliseconds);
         if (after == target) return JsonLine.Ok(result);
@@ -207,6 +210,25 @@ internal sealed class SeatDisplay
     }
 
     private static string Why(JsonObject failure) => failure.Str("error") ?? "Anode's daemon did not change the display.";
+
+    /// <summary>
+    /// Tells the daemon the display the seat shows. It runs even when the caller has gone, since the daemon would
+    /// otherwise keep the display it was asked for; the daemon answers at once, so it is briefly bounded instead.
+    /// </summary>
+    private async Task RememberAsync(DisplayMode shown)
+    {
+        var request = shown.ToJson();
+        request["method"] = "record";
+        try
+        {
+            var reply = await _daemon(request, 5_000, CancellationToken.None).ConfigureAwait(false);
+            if (reply.Bool("ok") != true) _record($"could not tell the daemon that the seat shows {shown}: {Why(reply)}");
+        }
+        catch (Exception ex) when (ex is IOException or TimeoutException or OperationCanceledException or InvalidOperationException)
+        {
+            _record($"could not tell the daemon that the seat shows {shown}: {ex.Message}");
+        }
+    }
 
     private async Task<DisplayMode> WatchAsync(DisplayMode target, TimeSpan wait, CancellationToken cancel)
     {
