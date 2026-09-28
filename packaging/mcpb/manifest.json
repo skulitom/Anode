@@ -43,6 +43,7 @@
     { "name": "seat_start", "description": "Start the hidden background Windows desktop (the seat)." },
     { "name": "seat_stop", "description": "Sign the seat out, closing every program in it." },
     { "name": "seat_screenshot", "description": "Capture the background desktop's screen as an image." },
+    { "name": "seat_display", "description": "Change the background desktop's resolution and Windows scaling while its apps keep running." },
     { "name": "seat_audio_status", "description": "Check isolated Remote Audio availability and agent playback state." },
     { "name": "seat_audio_listen", "description": "Listen to browser, game and other application audio in the seat as a WAV clip." },
     { "name": "seat_audio_play", "description": "Play a bounded PCM WAV clip through the seat's Remote Audio output." },

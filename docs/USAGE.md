@@ -37,6 +37,15 @@ ignored artifacts. It tests a headed browser in the seat, HTTP requests, form in
 mobile layout and command output. App-specific accessibility, elevation and singleton behavior
 still need verification. No tool redirects an unrelated foreground computer-use service into Anode.
 
+To see an app at other resolutions and Windows scaling, change the running seat's display. Its apps
+keep running, and the display it started with returns when your lease ends. See
+[Test other displays](DISPLAYS.md).
+
+```powershell
+anode display 1920x1080 --scale 150 --shot wide.png | Out-Host
+anode display reset | Out-Host
+```
+
 ---
 
 ## Setup, once per machine
@@ -273,6 +282,8 @@ Every `lease` action needs an agent ID; `renew` and `release` also need the toke
 | `anode ps [--all]` | Windowed programs in the seat; `--all` lists every process. |
 | `anode ps kill <pid\|name>` | *Lease.* Close one program in the seat. |
 | `anode shot [file] [--width N] [--jpeg]` (alias `screenshot`) | *Lease.* Save a seat screenshot, by default `anode-<time>.png` in the current folder. |
+| `anode display [--json]` | Show the seat's resolution and scaling, and the display it started with. |
+| `anode display <W>x<H> [--scale N] [--shot file] [--json]`, `display --scale N`, `display reset` | *Lease.* Change the seat's resolution, its scaling or both while its apps keep running, or restore the startup display. The width is even, 640-8192, the height 480-8192, and `--scale` one of Windows' steps from 100 to 500. Lasts until your lease ends. See [Test other displays](DISPLAYS.md). |
 | `anode windows [--query text] [--pid N] [--json]` | *Lease.* List seat windows and their IDs. |
 | `anode inspect <windowId> [--html file] [--image file] [--json]` | *Lease.* Read a window's controls. Limits: `--max-elements N` (1-500), `--max-depth N` (0-20), `--max-text N` (0-20000), `--offscreen`. |
 | `anode window <windowId> <action>` | *Lease.* `focus`, `raise`, `restore`, `maximize`, `minimize`, `close`, or `move` with `--x N --y N --width N --height N`. |
@@ -322,11 +333,12 @@ These need the [ViGEm bus driver](TROUBLESHOOTING.md#the-vigem-bus-driver-did-no
 ### Options for `up` and `start`
 
 `start` passes these to a new Anode only; with Anode already running it just brings the seat up.
+Change a running seat's resolution and scaling with `anode display` instead.
 
 | Option | Effect |
 | --- | --- |
 | `--width N --height N` | Seat resolution; default 1280x720. The viewer opens sized to show the seat at that size, or the largest that fits your screen. |
-| `--scale N` | DPI scale percentage for the seat, above 100 and up to 500. |
+| `--scale N` | Windows scaling for the seat in percent, up to 500, such as 150. Apps start at this scale, which matters for those that read it only at startup. |
 | `--no-scaling` | Show the seat at its real size instead of fitting it to the viewer window. Fitted, the seat keeps its shape, with the viewer's dark background beside it when the window has another shape. |
 | `--audio` | Play the seat's sound on this computer and enable [agent listening/playback](AUDIO.md) (off by default). |
 | `--clipboard` | Share your clipboard with the seat (off by default). |
@@ -359,7 +371,7 @@ and `steam_launch` are `steam`, `seat_job` is `job` and `jobs`, `gamepad_set` is
 ## For agents: the MCP server
 
 Run `anode configure` to register installed Codex and Claude Code CLIs.
-See [Connecting agents](CONNECTING-AGENTS.md) and the [protocol reference](PROTOCOL.md) for configuration and all 36 tools.
+See [Connecting agents](CONNECTING-AGENTS.md) and the [protocol reference](PROTOCOL.md) for configuration and all 37 tools.
 
 ## How it works
 

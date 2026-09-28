@@ -219,9 +219,10 @@ internal sealed class McpServer : IDisposable
             payload = Envelope(arguments, leaseAction);
         }
 
-        int timeout = toolName is "steam_launch" or "seat_start" ? 180_000 : 60_000;
-        // The daemon gives the seat 60 seconds unless told otherwise; Steam may first have to start on the desktop.
-        if (toolName == "steam_launch") payload["timeoutMs"] = timeout - 5_000;
+        int timeout = toolName is "steam_launch" or "seat_start" or "seat_display" ? 180_000 : 60_000;
+        // The daemon gives the seat 60 seconds unless told otherwise; Steam may first have to start on the desktop,
+        // and a display change Windows does not make live reconnects the viewer.
+        if (toolName is "steam_launch" or "seat_display") payload["timeoutMs"] = timeout - 5_000;
         var response = leaseAction == "acquire"
             ? await AcquireInLineAsync(client, payload, arguments.Int("waitSeconds") ?? DefaultWaitSeconds, cancel).ConfigureAwait(false)
             : await client.RequestAsync(op, payload, timeout, cancel).ConfigureAwait(false);

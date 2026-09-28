@@ -72,7 +72,8 @@ claude mcp get anode
 ```
 
 Inside a session, `/mcp` shows the server and its tools. The prompts `/mcp__anode__desktop_test`
-and `/mcp__anode__desktop_guide` start a guided desktop test or show the full guide.
+and `/mcp__anode__desktop_guide` start a guided desktop test or show the full guide, and
+`/mcp__anode__display_test` tests an app across screen resolutions and scalings.
 
 Current Claude Code supports `"timeout": 420000` on the Anode server entry in
 `~/.claude.json` (milliseconds), which `anode configure` writes. Older clients can start the
@@ -286,6 +287,9 @@ installed; otherwise they are machine-wide.
 - Use `seat_screenshot` with `maxWidth: 1000` and `format: "jpeg"` while waiting on something, and
   full size only when you need detail. Click coordinates always use the capture size, not the
   scaled size.
+- Use `seat_display` to test an app at another resolution or Windows scaling; the seat's apps keep
+  running. Start the app under test again after changing the scaling, observe again before acting,
+  and pass `reset: true` when done; releasing the lease also restores the startup display.
 - Launch Steam games with `steam_launch`: the game runs in the seat and uses the Steam client on
   the user's desktop, which stays there. Use `force`, which takes Steam over from the desktop, only
   when the user agrees and the game will not start otherwise.

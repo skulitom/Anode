@@ -116,6 +116,7 @@ internal static partial class Cli
                 "run" => RunProgram(rest).GetAwaiter().GetResult(),
                 "steam" => SteamCommand(rest).GetAwaiter().GetResult(),
                 "shot" or "screenshot" => Screenshot(rest).GetAwaiter().GetResult(),
+                "display" => DisplayCommand(rest).GetAwaiter().GetResult(),
                 "audio" => AudioCommand(rest).GetAwaiter().GetResult(),
                 "click" => Click(rest).GetAwaiter().GetResult(),
                 "move" => Move(rest).GetAwaiter().GetResult(),
@@ -361,6 +362,9 @@ internal static partial class Cli
                     Console.Error.WriteLine("Anode is already running. Open its viewer from the tray icon or with `anode show`, then click Sign in in the header.");
                     return 2;
                 }
+                if (options.Value("width") is not null || options.Value("height") is not null || options.Value("scale") is not null)
+                    Console.Error.WriteLine("Anode is already running, so --width, --height and --scale do not apply. Change the running seat's display "
+                        + "with `anode display WIDTHxHEIGHT [--scale N]` while holding the desktop lease.");
                 return Report(await RequestAsync(already, "seat.start", timeoutMs: 180_000));
             }
         }
@@ -440,10 +444,10 @@ internal static partial class Cli
                 ? $"your pointer  guarded; {guard["suppressed"]} seat pointer move(s) kept off your desktop"
                 : "your pointer  NOT guarded: a program in the seat that moves its cursor can move yours. See the log.");
 
-        if (result.Obj("seat") is { } seat)
+        if (Core.Display.DisplayMode.FromJson(result.Obj("seat")?.Obj("screen")) is { } screen)
         {
-            var screen = seat.Obj("screen");
-            Console.WriteLine($"seat screen   {screen?.Int("width")}x{screen?.Int("height")}");
+            var startup = Core.Display.DisplayMode.FromJson(result.Obj("startupDisplay"));
+            Console.WriteLine($"seat screen   {screen}" + (startup is { } first && first != screen ? $" (started at {first})" : ""));
         }
         if (result.Obj("steam") is { } steam)
             Console.WriteLine($"steam         {steam.Str("summary")}");
@@ -870,6 +874,16 @@ internal static partial class Cli
             "The default file is anode-<date>-<time>.png (.jpg with --jpeg) in the current folder. Click and move "
             + "coordinates use the seat's full size even when --width shrinks the image.",
             ("anode shot [file] [--width N] [--jpeg]", "save a picture of the seat's screen")),
+        Row("Work in the seat", "display", "scale# shot= json", 1,
+            "Showing the display needs no lease; changing it does. The seat's apps keep running: Windows changes the display as when "
+            + "a monitor changes, or Anode reconnects its viewer at the new size. The width is even, 640-8192, and the height 480-8192; "
+            + "--scale is 100, 125, 150, 175, 200, 225, 250, 300, 350, 400, 450 or 500. The change lasts until your lease ends, which "
+            + "restores the display the seat started with, as reset does. --shot saves a full-size screenshot of the new display. "
+            + "Restart an app to see how it starts at a new scale.",
+            ("anode display [--json]", "show the seat's resolution and scaling, and the display it started with"),
+            ("anode display <W>x<H> [--scale N] [--shot FILE] [--json]", "change the seat's resolution, and its scaling if given"),
+            ("anode display --scale N", "change only the scaling"),
+            ("anode display reset", "restore the display the seat started with")),
         Row("Work in the seat", "windows", "query= pid# json", 0, null,
             ("anode windows [--query TEXT] [--pid N] [--json]", "list the seat's windows and their IDs")),
         Row("Work in the seat", "audio", null, 0,
@@ -956,8 +970,8 @@ internal static partial class Cli
     private static readonly (string Option, string Text)[] SeatOptionHelp =
     {
         ("--hidden", "keep the viewer closed"),
-        ("--width N --height N", "seat resolution (default 1280x720)"),
-        ("--scale N", "DPI scale percentage for the seat"),
+        ("--width N --height N", "seat resolution, default 1280x720; `anode display` changes it later"),
+        ("--scale N", "Windows scaling percentage for the seat, such as 150"),
         ("--no-scaling", "show the seat at its own size instead of fitting it to the viewer"),
         ("--audio", "play the seat's sound on this computer (off by default)"),
         ("--clipboard", "share your clipboard with the seat (off by default)"),
@@ -1190,7 +1204,24 @@ internal static partial class Cli
             case "gamepad":
                 CheckGamepad(words, options);
                 break;
+            case "display":
+                CheckDisplay(words, options);
+                break;
         }
+    }
+
+    private static void CheckDisplay(List<string> words, Args options)
+    {
+        bool reset = words.Count == 1 && words[0].Equals("reset", StringComparison.OrdinalIgnoreCase);
+        int width = 0, height = 0;
+        if (words.Count == 1 && !reset && !Core.Display.DisplayMode.TryParseSize(words[0], out width, out height))
+            throw new UsageException($"display takes a size such as 1920x1080, or reset, not '{words[0]}'.");
+        int? scale = options.Value("scale") is null ? null : options.Int("scale");
+        if (reset && scale is not null) throw new UsageException("reset restores the startup display; it takes no --scale.");
+        if (words.Count == 0 && scale is null && options.Value("shot") is not null)
+            throw new UsageException("--shot saves the display a change leaves; give a size, --scale or reset.");
+        if ((width > 0 || scale is not null) && Core.Display.DisplayMode.Problem(width > 0 ? width : 1280, width > 0 ? height : 720, scale ?? 100) is { } problem)
+            throw new UsageException(problem);
     }
 
     private static void CheckGamepad(List<string> words, Args options)

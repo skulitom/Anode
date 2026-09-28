@@ -183,6 +183,25 @@ internal static class Tools
                 ("quality", "integer", "JPEG quality, 1 to 100. Default 80.", false))
                 .OneOf("format", "png", "jpeg")),
 
+        new("seat_display", "Anode: change the seat's screen resolution and scaling", "display.set", false, Effect.Action,
+            "Test an app at other screen resolutions and Windows scaling on Anode's background desktop (the seat) without restarting it: "
+            + "small laptops, 4K monitors, portrait screens, 100-500% scaling. Windows changes the seat's display as when a monitor changes, "
+            + "and the seat's apps keep running. Only the fields you pass change: width with height (an even width), scale, or both. "
+            + "Returns the display Windows applied, which screenshots and click coordinates use from then on, so observe again before acting. "
+            + "Apps that read scaling only at startup keep their old layout, stretched by Windows, until restarted: launch the app under test after changing scale. "
+            + "The change lasts while you hold the lease; releasing or losing it restores the seat's startup display, as does reset=true. "
+            + "screenshot=true adds a picture of the new display. Common sizes: 1366x768, 1920x1080, 2560x1440, 3840x2160, portrait 1080x1920; "
+            + "common scales 125, 150 and 200. seat_status reports the current display and the startup one. A change takes a few seconds.",
+            Schema(("width", "integer", "New width in physical pixels, even, 640-8192. Requires height.", false),
+                ("height", "integer", "New height in physical pixels, 480-8192. Requires width.", false),
+                ("scale", "integer", "Windows scaling in percent: 100, 125, 150, 175, 200, 225, 250, 300, 350, 400, 450 or 500.", false),
+                ("reset", "boolean", "Restore the display the seat started with. Takes no width, height or scale.", false),
+                ("screenshot", "boolean", "Also return a screenshot of the new display. Default false.", false),
+                ("maxWidth", "integer", "Screenshot width limit. Default 1280; coordinates stay seat pixels.", false))
+                .Bounded("width", Core.Display.DisplayMode.MinWidth, Core.Display.DisplayMode.MaxSide)
+                .Bounded("height", Core.Display.DisplayMode.MinHeight, Core.Display.DisplayMode.MaxSide)
+                .OneOf("scale", Core.Display.DisplayMode.Scales)),
+
         new("seat_run", "Anode: launch an app on the background Windows desktop", "run", false, Effect.Action,
             "Launch a Windows app, browser, document or shortcut on Anode's background desktop (the seat) for GUI automation or headed tests. "
             + "Applications may reuse an existing instance in another session; confirm the window with seat_windows. "
@@ -430,6 +449,15 @@ internal static class Tools
                 return "Provide either x and y or dx and dy.";
         }
         if (name == "seat_kill_process" && Has("pid") == Has("name")) return "Provide exactly one of pid or name.";
+        if (name == "seat_display")
+        {
+            bool reset = arguments.Bool("reset") == true;
+            if (Has("width") != Has("height")) return "Provide both width and height.";
+            if (reset && (Has("width") || Has("scale"))) return "reset restores the startup display; it takes no width, height or scale.";
+            if (!reset && !Has("width") && !Has("scale")) return "Provide width and height, scale, or reset=true. seat_status reports the current display.";
+            if (arguments.Int("width") is int width && width % 2 != 0) return $"The width must be even, such as 1366 or 1920; Remote Desktop cannot show a display {width} pixels wide.";
+            if (Has("maxWidth") && arguments.Bool("screenshot") != true) return "arguments.maxWidth applies only with screenshot=true.";
+        }
         if (name == "steam_launch" && arguments.Str("exe") is { } exe
             && (exe.Length is 0 or > 1024 || exe.Contains('\0') || exe.IndexOfAny(Path.GetInvalidPathChars()) >= 0))
             return "exe must name a program with 1-1024 characters.";
@@ -539,6 +567,13 @@ internal static class Tools
 
     /// <summary>Advertises a closed set of values; <see cref="ValidateValue"/> enforces it.</summary>
     private static JsonObject OneOf(this JsonObject schema, string field, params string[] values)
+    {
+        schema["properties"]![field]!["enum"] = new JsonArray(values.Select(value => (JsonNode)value).ToArray());
+        return schema;
+    }
+
+    /// <summary>Advertises a closed set of integers; <see cref="ValidateValue"/> enforces it.</summary>
+    private static JsonObject OneOf(this JsonObject schema, string field, int[] values)
     {
         schema["properties"]![field]!["enum"] = new JsonArray(values.Select(value => (JsonNode)value).ToArray());
         return schema;

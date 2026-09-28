@@ -10,7 +10,7 @@ internal static class AgentAccess
         || op.StartsWith("desktop.", StringComparison.Ordinal) && op != "desktop.capabilities"
         || op.StartsWith("gamepad.", StringComparison.Ordinal) && op != "gamepad.state"
         || op.StartsWith("audio.", StringComparison.Ordinal) && op != "audio.status"
-        || op is "screenshot" or "run" or "steam.launch" or "ps.kill" or "exec.start";
+        || op is "screenshot" or "run" or "steam.launch" or "ps.kill" or "exec.start" or "display.set";
 
     public static bool ValidId(string? value) => value is { Length: > 0 and <= 80 }
         && value.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.');

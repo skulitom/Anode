@@ -20,7 +20,7 @@ internal static class CliChecks
         "version", "--version", "-v", "doctor", "configure", "guide", "rendering", "selftest", "self-test", "setup", "up",
         "start", "status", "lease", "kill", "stop", "quit", "show", "hide", "control", "run", "steam", "shot", "screenshot",
         "click", "move", "scroll", "key", "type", "ps", "gamepad", "pad", "windows", "inspect", "window", "element",
-        "capabilities", "exec", "job", "jobs", "wait", "audio", "mcp"
+        "capabilities", "exec", "job", "jobs", "wait", "audio", "display", "mcp"
     };
 
     private static void Require(bool condition, string detail) { if (!condition) throw new InvalidOperationException(detail); }
@@ -100,6 +100,9 @@ internal static class CliChecks
             new[] { "windows", "--query", "--help", "--json" }, new[] { "inspect", "--json", "w_1", "--max-depth", "20", "--offscreen" },
             new[] { "window", "w_1", "move", "--x", "-10", "--y=0", "--width", "800", "--height", "600" },
             new[] { "element", "s", "e", "set_value", "--value", "--help" }, new[] { "shot", "out.png", "--width", "1000", "--jpeg" },
+            new[] { "display" }, new[] { "display", "--json" }, new[] { "display", "1920x1080" }, new[] { "display", "reset", "--json" },
+            new[] { "display", "1080X1920", "--scale", "150", "--shot", "out.png" }, new[] { "display", "--scale=125" },
+            new[] { "display", "reset", "--shot", "back.png" }, new[] { "display", "640x480" }, new[] { "display", "8192x8192", "--scale", "500" },
             new[] { "exec", "--whatever" }, new[] { "nosuch", "--anything" }
         };
         foreach (var line in accepted)
@@ -124,7 +127,11 @@ internal static class CliChecks
             new[] { "gamepad", "stick", "left", "x", "0" }, new[] { "gamepad", "stick", "up", "0", "0" }, new[] { "gamepad", "stick", "left", "2", "0" },
             new[] { "gamepad", "tap" }, new[] { "gamepad", "attach", "--slot", "9" }, new[] { "gamepad", "attach", "--ms", "80" },
             new[] { "inspect", "w", "--max-depth" }, new[] { "inspect", "w", "extra" }, new[] { "windows", "--pid", "abc" },
-            new[] { "doctor", "--verbose" }, new[] { "status", "--jsn" }, new[] { "version", "--json" }, new[] { "shot", "a.png", "b.png" }
+            new[] { "doctor", "--verbose" }, new[] { "status", "--jsn" }, new[] { "version", "--json" }, new[] { "shot", "a.png", "b.png" },
+            new[] { "display", "1921x1080" }, new[] { "display", "1920" }, new[] { "display", "600x400" }, new[] { "display", "wide" },
+            new[] { "display", "reset", "--scale", "150" }, new[] { "display", "--scale", "130" }, new[] { "display", "1920x1080", "extra" },
+            new[] { "display", "--shot", "a.png" }, new[] { "display", "1920x1080", "--scale", "big" }, new[] { "display", "8194x1080" },
+            new[] { "display", "-1920x1080" }
         };
         foreach (var line in rejected)
         {

@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+- **Agents can test other displays.** The new `seat_display` tool and `anode display` command change
+  the running seat's resolution and Windows scaling while its apps keep running: 640x480 to 8192x8192,
+  portrait included, at 100-500%. Anode asks Windows for the change live through Remote Desktop's
+  display-control channel and measures the seat's screen until it shows it; when Windows does not
+  change it live, Anode reconnects its viewer at the new size, which keeps the session and its apps.
+  Results report the display Windows actually applied. Changing the display used to mean quitting
+  Anode, which closed every app in the seat, and MCP agents could not do it at all. A seat that signed
+  in through the Windows credential dialog is only changed live: reconnecting would need the password,
+  and Anode never opens that dialog for an agent.
+- A display change lasts while its agent holds the desktop lease; release or expiry restores the
+  display the seat started with before the next agent acts. `reset` restores it at once.
+- The `display_test` MCP prompt runs an app through a set of displays, from 1024x768 to 4K at 200% and
+  portrait, and asks for a report of what breaks at each.
+- Screenshots, input and control bounds now use physical pixels at every scaling. The seat host and
+  its inspection worker were not DPI aware, so in a seat started with `--scale` above 100 Windows gave
+  them a smaller, DPI-scaled screen, and screenshots were not at the display's real resolution.
+- `anode status`, `seat_status`, `seat_capabilities` and the seat host's `ping` report the display's
+  scaling, and status reports `startupDisplay`. `anode start` with display options says to use
+  `anode display` when Anode is already running, instead of ignoring them silently. `--scale 100`
+  now asks for 100% instead of leaving the scale to Remote Desktop's default.
+- **Display changes are not tested live yet.** Builds and quick self-tests pass, and the self-test
+  confirms on the real Remote Desktop control that the display-change call and scaling setting exist,
+  but no running seat's display has been changed yet, because the seat was busy. Run
+  `scripts/test-display.ps1` when the seat is free.
+
 - Agents can listen to browser/game audio as WAV clips and play bounded PCM WAV files through
   new audio MCP tools and `anode audio` commands. Audio uses the verified child session's Remote
   Audio endpoint, requires `--audio` at startup (also audible on the user's speakers), and never

@@ -40,10 +40,12 @@ Tool names, descriptive titles and task-oriented descriptions help clients find 
 search. Search for **Anode background Windows desktop**, **native UI automation**, or
 **headed app testing**.
 
-The server also offers two MCP prompts, which clients show as slash commands. `desktop_test`
+The server also offers three MCP prompts, which clients show as slash commands. `desktop_test`
 asks the agent to test the app or task the user names, following the workflow below.
-`desktop_guide` returns the full guide. Claude Code's `/` menu lists them as
-`/anode:desktop_test (MCP)` and `/anode:desktop_guide (MCP)`, and typing
+`desktop_guide` returns the full guide. `display_test` asks the agent to run the app the user names
+through a set of screen resolutions and Windows scalings with `seat_display` and report what breaks
+at each; see [Test other displays](DISPLAYS.md). Claude Code's `/` menu lists them as
+`/anode:desktop_test (MCP)`, `/anode:desktop_guide (MCP)` and `/anode:display_test (MCP)`, and typing
 `/mcp__anode__desktop_test` also runs one; VS Code uses `/mcp.anode.desktop_test` and
 `/mcp.anode.desktop_guide`. The names follow the server name in the client's configuration.
 
@@ -76,7 +78,7 @@ Read-only tools observe and never start a seat. Some still need your lease: `sea
 `seat_observe`, `seat_screenshot` and `seat_wait`. `seat_start` and `seat_hide` at most start a
 hidden seat or hide the viewer. The conservative group changes the shared desktop, files, jobs or
 machine: input, launches, command jobs, window and element actions, process termination, Steam
-launches, the virtual gamepad, `seat_lease` (release can cancel jobs), `seat_stop`, and
+launches, the virtual gamepad, display changes, `seat_lease` (release can cancel jobs), `seat_stop`, and
 `seat_show`, which puts the viewer on the user's screen. Annotations describe effects; they are
 not an approval override or a guarantee that timed-out actions are safe to replay. See the
 [MCP tool specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools).

@@ -11,6 +11,8 @@ internal static class DesktopWorker
 {
     public static int Run()
     {
+        // Window and control bounds in the seat's physical pixels, the space its screenshots and input use at every scale.
+        Display.SeatDisplay.UsePhysicalPixels();
         using var output = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true };
         try
         {

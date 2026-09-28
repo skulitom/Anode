@@ -10,6 +10,7 @@ using Anode.Core.Util;
 using Anode.Core.Desktop;
 using Anode.Core.Agents;
 using Anode.Core.Audio;
+using Anode.Core.Display;
 
 namespace Anode.Seat;
 
@@ -35,6 +36,7 @@ internal static class SeatHost
     private static readonly DesktopTools Desktop = new();
     private static readonly ExecutionJobs Jobs = new();
     private static readonly SeatAudio Audio = new();
+    private static readonly SeatDisplay Display = new(AskDaemonAsync, record: Log.Info);
     private static readonly DesktopLease Lease = new(EndLease, Jobs.CancelOwned, record: Log.Info);
     private static readonly CancellationTokenSource DesktopStopping = new();
     /// <summary>The user's own session, as the parent daemon reported it; Steam belongs there.</summary>
@@ -45,6 +47,8 @@ internal static class SeatHost
         Log.SetRole("seat");
         uint session = ChildSession.CurrentSessionId();
         Log.Info($"seat host starting in session {session} (pid {System.Environment.ProcessId})");
+        // Screenshots and input use the seat's physical pixels at every scale, as the desktop worker's bounds do.
+        if (!SeatDisplay.UsePhysicalPixels()) Log.Warn("could not make the seat host DPI aware; above 100% scaling, screenshots and input use DPI-scaled coordinates");
 
         // Refuse to run in the parent session. If the Task Scheduler hand-off ever
         // misfires, injecting input here would type onto the user's screen, which is
@@ -90,6 +94,14 @@ internal static class SeatHost
         return 0;
     }
 
+    /// <summary>The daemon's display operation: the startup display, or a change it makes through its viewer.</summary>
+    private static async Task<JsonObject> AskDaemonAsync(JsonObject request, int timeoutMs, CancellationToken cancel)
+    {
+        using var daemon = await JsonPipeClient.TryConnectAsync(Env.ControlPipe, 2000, cancel).ConfigureAwait(false);
+        return daemon is null ? JsonLine.Fail("Anode's daemon did not answer.")
+            : await daemon.RequestAsync("seat.display", request, timeoutMs, cancel).ConfigureAwait(false);
+    }
+
     /// <summary>Asks the daemon, which runs in the user's session, whether that session can open these pad devices.</summary>
     private static JsonObject? AskDesktop(IReadOnlyList<string> devices)
     {
@@ -115,6 +127,7 @@ internal static class SeatHost
         Desktop.InvalidateLease();
         InputInjector.ReleaseHeld();
         Gamepads.DetachAll(requireSuccess: true);
+        Display.EndLease();
     }
 
     internal static bool MatchesSeat(uint session, JsonObject? identity)
@@ -141,6 +154,9 @@ internal static class SeatHost
     private static async Task<JsonObject> HandleOwnedAsync(JsonObject request, CancellationToken cancel)
     {
         string op = request.Str("op") ?? string.Empty;
+        // The display a previous lease changed is put back before the next owner looks or acts.
+        if (AgentAccess.RequiresLease(op) && await Display.RestoredAsync(cancel).ConfigureAwait(false) is { } restoring) return restoring;
+        if (op == "display.set") return await ChangeDisplayAsync(request, cancel).ConfigureAwait(false);
         if (op == "audio.listen") return JsonLine.Ok(await SeatAudio.ListenAsync(request.Int("durationMs") ?? 5000, cancel).ConfigureAwait(false));
         if (op == "audio.play") return JsonLine.Ok(await Audio.PlayAsync(AgentAccess.Arguments(request), cancel).ConfigureAwait(false));
         if (op is "exec.start" or "exec.read")
@@ -158,6 +174,31 @@ internal static class SeatHost
         return desktop ? await Desktop.HandleAsync(op, request, cancel).ConfigureAwait(false) : Dispatch(op, request);
     }
 
+    private static async Task<JsonObject> ChangeDisplayAsync(JsonObject request, CancellationToken cancel)
+    {
+        var args = AgentAccess.Arguments(request);
+        // Every window and control may move or resize; window IDs stay valid.
+        Desktop.InvalidateObservations();
+        var reply = await Display.SetAsync(args, cancel).ConfigureAwait(false);
+        if (reply.Bool("ok") != true || args.Bool("screenshot") != true || reply.Obj("result") is not { } result) return reply;
+        // Apps redraw and Explorer lays the taskbar out again after a display change.
+        await Task.Delay(750, cancel).ConfigureAwait(false);
+        try
+        {
+            var shot = ScreenCapture.Capture(args.Int("maxWidth") ?? 1280, "png");
+            result["screenshot"] = new JsonObject
+            {
+                ["data"] = Convert.ToBase64String(shot.Bytes), ["mimeType"] = shot.MimeType,
+                ["width"] = shot.Width, ["height"] = shot.Height, ["sourceWidth"] = shot.SourceWidth, ["sourceHeight"] = shot.SourceHeight
+            };
+        }
+        catch (Exception ex)
+        {
+            result["screenshotError"] = "Seat capture unavailable: " + ex.Message + " The display change stands; use seat_observe for accessible controls.";
+        }
+        return reply;
+    }
+
     private static JsonObject Dispatch(string op, JsonObject r)
     {
         switch (op)
@@ -167,7 +208,7 @@ internal static class SeatHost
 
             case "ping":
             {
-                var size = InputInjector.ScreenSize();
+                var display = SeatDisplay.Measure();
                 var cursor = InputInjector.CursorPosition();
                 return JsonLine.Ok(new JsonObject
                 {
@@ -175,7 +216,7 @@ internal static class SeatHost
                     ["pid"] = System.Environment.ProcessId,
                     ["user"] = System.Environment.UserName,
                     ["uptimeSeconds"] = Math.Round(Uptime.Elapsed.TotalSeconds, 1),
-                    ["screen"] = new JsonObject { ["width"] = size.Width, ["height"] = size.Height },
+                    ["screen"] = display.ToJson(),
                     ["cursor"] = new JsonObject { ["x"] = cursor.X, ["y"] = cursor.Y }
                 });
             }

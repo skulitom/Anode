@@ -34,8 +34,8 @@ flowchart LR
 
 - **Develop and test apps:** run builds and local servers, collect command output, inspect native
   controls, test browser forms and capture screenshots in the background desktop.
-- **Give an agent a desktop:** 36 MCP tools for guidance, screenshots, audio, mouse/keyboard input, accessibility,
-  UI waits, application launches and cancellable command jobs.
+- **Give an agent a desktop:** 37 MCP tools for guidance, screenshots, audio, mouse/keyboard input, accessibility,
+  UI waits, display changes, application launches and cancellable command jobs.
 - **Watch or stop it:** `anode show` opens the viewer and `anode hide` closes it. **Ctrl+Alt+Shift+K**
   or `anode kill` signs the seat out and closes every application in it, including unsaved work.
 - **Automate games:** optional virtual Xbox 360 controller support through ViGEmBus, kept inside the
@@ -44,6 +44,9 @@ flowchart LR
   Agents share one seat and take turns; see [multiple agents](docs/MULTI-AGENT.md).
 - **Listen and play sound:** with `--audio`, agents can listen to browsers and games in the seat,
   and play WAV clips. This also sends seat sound to your speakers. See [audio](docs/AUDIO.md).
+- **Test other displays:** agents change the seat's resolution and Windows scaling while its apps
+  keep running, from 1024x768 to 4K and portrait at 100-500%, then get the startup display back when
+  they finish. See [test other displays](docs/DISPLAYS.md).
 
 The seat is a Windows *child session*: a second session for your own account, created by Windows'
 built-in loopback Remote Desktop feature. It has its own pointer and focus; adding a virtual
@@ -167,6 +170,7 @@ and [llms.txt documentation index](llms.txt).
 | Run apps, control the viewer or use a gamepad | [Usage guide](docs/USAGE.md) |
 | Look up a CLI command or option | [Command reference](docs/USAGE.md#command-reference) |
 | Test native apps and browsers | [Development and testing](docs/DEVELOPMENT-TESTING.md) |
+| Test apps at other resolutions and scaling | [Test other displays](docs/DISPLAYS.md) |
 | See worked examples | [Claude Code + Steam](https://github.com/skulitom/Anode/blob/main/examples/claude-code/README.md), [headed Playwright fixture used by the development test](https://github.com/skulitom/Anode/blob/main/examples/development/browser-check.cjs) |
 | Inspect windows and accessible controls | [Desktop tools](docs/DESKTOP-TOOLS.md) |
 | Understand permissions and isolation | [Security](docs/SECURITY.md) |

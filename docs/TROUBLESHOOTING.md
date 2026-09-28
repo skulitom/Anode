@@ -403,6 +403,29 @@ the services and main desktop. It is not an automatic service change, and the he
 may return. From a source checkout, retest with `scripts/test-development.ps1 -VerifyInput`
 to prove delivery.
 
+### A display change fails or looks wrong
+
+- **`display_not_applied`.** Windows applied a display other than the one asked for, most often a
+  smaller scaling at a small resolution. The error's `result` is what the seat shows now, and
+  screenshots and input already use it. Ask for high scaling on a larger resolution.
+- **"The viewer could not reconnect".** Windows did not change the display live, and reconnecting the
+  viewer at the new size failed. The seat and its apps keep running, and Anode reconnects the viewer at
+  the display it had. If `anode status` then says `detached`, open the viewer with `anode show` and
+  press **Reconnect**.
+- **"would need the Windows password".** Windows did not change the display live, and this seat signed
+  in through the credential dialog, so reconnecting the viewer at the new size would ask for your
+  password in the middle of an agent's task. Anode left the viewer connected instead. When the seat's
+  apps can close, `anode quit`, then `anode start --sign-in --width N --height N --scale N` starts a
+  seat at the display you need.
+- **An app is blurry or laid out for the old display.** It reads scaling only at startup, and Windows
+  stretches it after a change, as on a real PC. Close it and start it again.
+- **`display_restoring`.** The previous agent's lease changed the display and ended; Anode is putting
+  back the startup display before anyone acts. Try again in a few seconds.
+- **The display went back on its own.** Display changes last until the lease that made them ends, by
+  release or expiry. Acquire the lease again and set the display again.
+
+See [Test other displays](DISPLAYS.md).
+
 ---
 
 ## Performance
@@ -425,9 +448,10 @@ A child session renders through the Remote Desktop graphics pipeline, not out of
 good enough for most games at moderate settings and it is not good enough for competitive twitch play.
 That is a property of the approach, not a bug to be fixed.
 
-Lower the seat resolution below the default 1280x720, which helps more than anything else. Seat
-options apply only when Anode starts, so quit it first; `anode quit` closes every program in the
-seat, so save work there:
+Lower the seat resolution below the default 1280x720, which helps more than anything else. While
+you hold the desktop lease, `anode display 1024x576` lowers it in the running seat until the lease
+ends. To start every seat that way, quit Anode first; `anode quit` closes every program in the seat,
+so save work there:
 
 ```powershell
 anode quit | Out-Host

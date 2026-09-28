@@ -118,7 +118,7 @@ internal static class McpChecks
             input.Send(Request(4, "prompts/list"));
             var listed = await output.Next();
             Require(listed.Int("id") == 4 && (listed.Obj("result")?["prompts"] as JsonArray)?.OfType<JsonObject>().Select(p => p.Str("name"))
-                .SequenceEqual(new[] { "desktop_test", "desktop_guide" }) == true, "prompts were not listed while a tool was busy");
+                .SequenceEqual(new[] { "desktop_test", "desktop_guide", "display_test" }) == true, "prompts were not listed while a tool was busy");
             input.Send(Request(5, "prompts/get", new JsonObject { ["name"] = "desktop_test" }));
             var message = (await output.Next()).Obj("result")?["messages"]?[0] as JsonObject;
             Require(message?.Str("role") == "user" && message.Obj("content")?.Str("text") is { } workflow
@@ -240,6 +240,7 @@ internal static class McpChecks
             "seat_run" => new JsonObject { ["path"] = "notepad.exe" },
             "seat_key" => new JsonObject { ["keys"] = "enter" },
             "seat_type" => new JsonObject { ["text"] = "a" },
+            "seat_display" => new JsonObject { ["width"] = 1280, ["height"] = 720 },
             "steam_launch" => new JsonObject { ["appId"] = 1 },
             "gamepad_tap" => new JsonObject { ["button"] = "a" },
             _ => new JsonObject()
@@ -247,6 +248,7 @@ internal static class McpChecks
         args[field] = value;
         string? choice = value is JsonValue text && text.TryGetValue<string>(out var s) ? s : null;
         if (tool == "seat_job" && field == "action" && choice == "list") args = new JsonObject { ["action"] = "list" };
+        if (tool == "seat_display" && field == "maxWidth") args["screenshot"] = true;
         if (tool == "seat_window" && field == "action" && choice != "move")
             foreach (string key in new[] { "x", "y", "width", "height" }) args.Remove(key);
         if (tool == "seat_element" && field == "action")
