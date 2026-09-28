@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Drawing;
 using System.Text.Json.Nodes;
 using System.Windows.Automation;
 using Anode.Core.Bridge;
