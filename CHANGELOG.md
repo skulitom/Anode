@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- **Android apps in the seat.** `android_emulator` (`anode android start|adb|shot|stop`) boots an AVD on
+  an emulator inside the seat, on a free port, and returns its serial once it has booted. It starts
+  read-only, so tests leave the AVD as it was and can run while the same AVD is open on the desktop.
+  `adb` runs for that serial only and refuses commands for adb's server or other devices, and
+  `screenshot` returns the device's own pixels. Every Android action checks that its emulator's
+  process runs in the seat, so the user's own emulators and phones, which share the adb server, stay
+  out of reach. `gpu` picks auto, host or software rendering, naming software as the installed
+  emulator does. `android_status` (`anode android`) lists the SDK, AVDs, running emulators and Android
+  Studio without starting anything, and the `android_test` prompt walks a release test.
+- **Android Studio in the seat.** `android_studio` (`anode android studio`) opens it on a profile of its
+  own, with its setup wizard skipped. Android Studio hands a second start on the same settings to the
+  instance already running, in any session, so on the user's settings it opened projects on the user's
+  desktop; `run` now refuses its launchers. Remains of an uninstalled Studio are skipped.
+- **Signed-in web consoles.** `seat_browser` (`anode browser <url>`) opens Chrome or Edge in the seat on
+  a persistent seat profile, `%LOCALAPPDATA%\AnodeChrome` or `AnodeEdge`. `anode browser --sign-in`
+  opens that profile on the user's own desktop to sign in once, and refuses a terminal inside a
+  packaged app, which would keep the sign-in where the seat cannot see it. `run` refuses Chrome and
+  Edge on their usual profile, and links they would open, while they run outside the seat, where they
+  keep that profile locked. Anyone holding the lease can use the sites signed in there.
+- **Android and the seat browser are not tested live yet.** Builds and quick self-tests pass; the
+  checks read this machine's SDK, AVDs and Studio install, and drive the new code with stand-ins for
+  every process, but no emulator, Studio or browser has been started in a live seat, because the seat
+  was busy. Run `scripts/test-android.ps1` when the seat is free.
 - **Agents can test other displays.** The new `seat_display` tool and `anode display` command change
   the running seat's resolution and Windows scaling while its apps keep running: 640x480 to 8192x8192,
   portrait included, at 100-500%. Anode asks Windows for the change live through Remote Desktop's

@@ -20,7 +20,7 @@ internal static class CliChecks
         "version", "--version", "-v", "doctor", "configure", "guide", "rendering", "selftest", "self-test", "setup", "up",
         "start", "status", "lease", "kill", "stop", "quit", "show", "hide", "control", "run", "steam", "shot", "screenshot",
         "click", "move", "scroll", "key", "type", "ps", "gamepad", "pad", "windows", "inspect", "window", "element",
-        "capabilities", "exec", "job", "jobs", "wait", "audio", "display", "mcp"
+        "capabilities", "exec", "job", "jobs", "wait", "audio", "display", "browser", "android", "mcp"
     };
 
     private static void Require(bool condition, string detail) { if (!condition) throw new InvalidOperationException(detail); }
@@ -103,6 +103,12 @@ internal static class CliChecks
             new[] { "display" }, new[] { "display", "--json" }, new[] { "display", "1920x1080" }, new[] { "display", "reset", "--json" },
             new[] { "display", "1080X1920", "--scale", "150", "--shot", "out.png" }, new[] { "display", "--scale=125" },
             new[] { "display", "reset", "--shot", "back.png" }, new[] { "display", "640x480" }, new[] { "display", "8192x8192", "--scale", "500" },
+            new[] { "browser" }, new[] { "browser", "https://play.google.com/console" }, new[] { "browser", "--edge", "--json" },
+            new[] { "android" }, new[] { "android", "status", "--json" }, new[] { "android", "start", "Pixel_9_Pro" },
+            new[] { "android", "start", "Pixel_9_Pro", "--gpu", "software", "--writable", "--cold", "--audio", "--wait", "0", "--json" },
+            new[] { "android", "stop", "emulator-5554" }, new[] { "android", "shot", "emulator-5554", "out.png", "--width", "540", "--jpeg" },
+            new[] { "android", "screenshot", "emulator-5554" }, new[] { "android", "adb", "emulator-5554", "--", "shell", "input", "tap", "1", "2" },
+            new[] { "android", "adb", "emulator-5554", "--timeout", "150", "--", "install", "-r", "app.apk" }, new[] { "android", "studio" },
             new[] { "exec", "--whatever" }, new[] { "nosuch", "--anything" }
         };
         foreach (var line in accepted)
@@ -131,7 +137,11 @@ internal static class CliChecks
             new[] { "display", "1921x1080" }, new[] { "display", "1920" }, new[] { "display", "600x400" }, new[] { "display", "wide" },
             new[] { "display", "reset", "--scale", "150" }, new[] { "display", "--scale", "130" }, new[] { "display", "1920x1080", "extra" },
             new[] { "display", "--shot", "a.png" }, new[] { "display", "1920x1080", "--scale", "big" }, new[] { "display", "8194x1080" },
-            new[] { "display", "-1920x1080" }
+            new[] { "display", "-1920x1080" }, new[] { "browser", "file:///C:/x" }, new[] { "browser", "a", "b" }, new[] { "browser", "--firefox" },
+            new[] { "android", "boot" }, new[] { "android", "start" }, new[] { "android", "start", "bad name" }, new[] { "android", "start", "A", "--gpu", "vulkan" },
+            new[] { "android", "stop", "R58M12345" }, new[] { "android", "adb", "emulator-5554" }, new[] { "android", "adb", "emulator-5554", "--", "kill-server" },
+            new[] { "android", "adb", "emulator-5554", "--", "-e", "shell" }, new[] { "android", "stop", "emulator-5554", "--", "x" },
+            new[] { "android", "start", "A", "--wait", "200" }, new[] { "android", "status", "extra" }, new[] { "android", "studio", "C:\\no\\such\\project" }
         };
         foreach (var line in rejected)
         {

@@ -40,12 +40,14 @@ Tool names, descriptive titles and task-oriented descriptions help clients find 
 search. Search for **Anode background Windows desktop**, **native UI automation**, or
 **headed app testing**.
 
-The server also offers three MCP prompts, which clients show as slash commands. `desktop_test`
+The server also offers four MCP prompts, which clients show as slash commands. `desktop_test`
 asks the agent to test the app or task the user names, following the workflow below.
 `desktop_guide` returns the full guide. `display_test` asks the agent to run the app the user names
 through a set of screen resolutions and Windows scalings with `seat_display` and report what breaks
-at each; see [Test other displays](DISPLAYS.md). Claude Code's `/` menu lists them as
-`/anode:desktop_test (MCP)`, `/anode:desktop_guide (MCP)` and `/anode:display_test (MCP)`, and typing
+at each; see [Test other displays](DISPLAYS.md). `android_test` tests an Android app on an emulator
+in the seat; see [Android apps and web consoles](ANDROID.md). Claude Code's `/` menu lists them as
+`/anode:desktop_test (MCP)`, `/anode:desktop_guide (MCP)`, `/anode:display_test (MCP)` and
+`/anode:android_test (MCP)`, and typing
 `/mcp__anode__desktop_test` also runs one; VS Code uses `/mcp.anode.desktop_test` and
 `/mcp.anode.desktop_guide`. The names follow the server name in the client's configuration.
 
@@ -69,8 +71,8 @@ Annotations help clients decide which calls need an approval prompt:
 
 | Group | Hints | Tools |
 | --- | --- | --- |
-| Read-only | `readOnlyHint: true`, `openWorldHint: false` | `anode_guide`, `seat_status`, `seat_capabilities`, `seat_processes`, `steam_status` |
-| Read-only, seat content | `readOnlyHint: true`, `openWorldHint: true` (returns untrusted app and web content) | `seat_windows`, `seat_observe`, `seat_screenshot`, `seat_wait` |
+| Read-only | `readOnlyHint: true`, `openWorldHint: false` | `anode_guide`, `seat_status`, `seat_capabilities`, `seat_processes`, `steam_status`, `seat_audio_status`, `android_status` |
+| Read-only, seat content | `readOnlyHint: true`, `openWorldHint: true` (returns untrusted app and web content) | `seat_windows`, `seat_observe`, `seat_screenshot`, `seat_wait`, `seat_audio_listen` |
 | Additive | `readOnlyHint: false`, `destructiveHint: false`, `idempotentHint: true`, `openWorldHint: false` | `seat_start`, `seat_hide` |
 | Conservative | `destructiveHint: true`, `idempotentHint: false`, `openWorldHint: true` | every other tool |
 
@@ -78,7 +80,7 @@ Read-only tools observe and never start a seat. Some still need your lease: `sea
 `seat_observe`, `seat_screenshot` and `seat_wait`. `seat_start` and `seat_hide` at most start a
 hidden seat or hide the viewer. The conservative group changes the shared desktop, files, jobs or
 machine: input, launches, command jobs, window and element actions, process termination, Steam
-launches, the virtual gamepad, display changes, `seat_lease` (release can cancel jobs), `seat_stop`, and
+launches, the virtual gamepad, display changes, Android emulators and Studio, the seat browser, `seat_lease` (release can cancel jobs), `seat_stop`, and
 `seat_show`, which puts the viewer on the user's screen. Annotations describe effects; they are
 not an approval override or a guarantee that timed-out actions are safe to replay. See the
 [MCP tool specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools).

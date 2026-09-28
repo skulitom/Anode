@@ -39,7 +39,8 @@ still need verification. No tool redirects an unrelated foreground computer-use 
 
 To see an app at other resolutions and Windows scaling, change the running seat's display. Its apps
 keep running, and the display it started with returns when your lease ends. See
-[Test other displays](DISPLAYS.md).
+[Test other displays](DISPLAYS.md). Android apps run on an emulator in the seat, and web consoles in
+a browser profile you sign in to once for agents; see [Android apps and web consoles](ANDROID.md).
 
 ```powershell
 anode display 1920x1080 --scale 150 --shot wide.png | Out-Host
@@ -284,6 +285,8 @@ Every `lease` action needs an agent ID; `renew` and `release` also need the toke
 | `anode shot [file] [--width N] [--jpeg]` (alias `screenshot`) | *Lease.* Save a seat screenshot, by default `anode-<time>.png` in the current folder. |
 | `anode display [--json]` | Show the seat's resolution and scaling, and the display it started with. |
 | `anode display <W>x<H> [--scale N] [--shot file] [--json]`, `display --scale N`, `display reset` | *Lease.* Change the seat's resolution, its scaling or both while its apps keep running, or restore the startup display. The width is even, 640-8192, the height 480-8192, and `--scale` one of Windows' steps from 100 to 500. Lasts until your lease ends. See [Test other displays](DISPLAYS.md). |
+| `anode browser [url] [--edge] [--json]` | *Lease.* Open a page in Chrome, or Edge, in the seat on Anode's seat profile, apart from your own browser. |
+| `anode browser --sign-in [url] [--edge]` | Open the seat's browser profile on your own desktop, from your own terminal, to sign in to sites agents should use; close it afterwards. |
 | `anode windows [--query text] [--pid N] [--json]` | *Lease.* List seat windows and their IDs. |
 | `anode inspect <windowId> [--html file] [--image file] [--json]` | *Lease.* Read a window's controls. Limits: `--max-elements N` (1-500), `--max-depth N` (0-20), `--max-text N` (0-20000), `--offscreen`. |
 | `anode window <windowId> <action>` | *Lease.* `focus`, `raise`, `restore`, `maximize`, `minimize`, `close`, or `move` with `--x N --y N --width N --height N`. |
@@ -312,6 +315,17 @@ These need the [ViGEm bus driver](TROUBLESHOOTING.md#the-vigem-bus-driver-did-no
 | `anode gamepad tap <button> [--ms 80]` | *Lease.* Press a button or trigger briefly. |
 | `anode gamepad hold <button>`, `release <button>` | *Lease.* Hold or release a button. |
 | `anode gamepad stick <left\|right> <x> <y>` | *Lease.* Set a stick, each axis from -1 to 1. |
+
+### Android apps
+
+| Command | What it does |
+| --- | --- |
+| `anode android [status] [--json]` | The Android SDK, AVDs, running emulators (in the seat or not) and Android Studio. Starts nothing. |
+| `anode android start <avd> [--gpu auto\|host\|software] [--writable] [--cold] [--audio] [--wait S] [--json]` | *Lease.* Boot an AVD in the seat, read-only unless `--writable`, and print its serial. `--wait` is 0-150 seconds (default 120). |
+| `anode android adb <serial> [--timeout S] [--json] -- <adb arguments>` | *Lease.* Run adb for an emulator in the seat; commands for adb's server or other devices are refused. Returns adb's exit code. |
+| `anode android shot <serial> [file] [--width N] [--jpeg]` | *Lease.* Save the emulator's screen at the device's resolution. |
+| `anode android stop <serial>` | *Lease.* Shut an emulator in the seat down. |
+| `anode android studio [project]` | *Lease.* Open Android Studio in the seat on its own profile. |
 
 ### Develop and test
 
@@ -364,14 +378,16 @@ Most MCP tools match a CLI command: `seat_windows` is `windows` and `gamepad_tap
 `gamepad tap`. The others: `seat_observe` is `inspect`, `seat_screenshot` is `shot`,
 `seat_processes` is `ps`, `seat_kill_process` is `ps kill`, `seat_stop` is `kill`, `steam_status`
 and `steam_launch` are `steam`, `seat_job` is `job` and `jobs`, `gamepad_set` is `gamepad hold`,
-`release` and `stick`, and `anode_guide` is `guide`. `seat_drag` has no CLI command.
+`release` and `stick`, `anode_guide` is `guide`, `android_status` is `android`, `android_emulator` is
+`android start`, `stop`, `shot` and `adb`, and `android_studio` is `android studio`. `seat_drag` has no
+CLI command.
 
 ---
 
 ## For agents: the MCP server
 
 Run `anode configure` to register installed Codex and Claude Code CLIs.
-See [Connecting agents](CONNECTING-AGENTS.md) and the [protocol reference](PROTOCOL.md) for configuration and all 37 tools.
+See [Connecting agents](CONNECTING-AGENTS.md) and the [protocol reference](PROTOCOL.md) for configuration and all 41 tools.
 
 ## How it works
 

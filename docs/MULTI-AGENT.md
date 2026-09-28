@@ -92,7 +92,8 @@ not a live lease. The CLI never takes a lease implicitly.
 - Release/expiry invalidate all window and control references, release keyboard/mouse input
   held by Anode, detach this host's virtual controllers and restore the startup display if the
   agent changed it; the next agent's first desktop action waits for that. Idle expiry is checked
-  every second.
+  every second. Android emulators keep running, since a lease can expire between two steps of a test;
+  stop yours when you finish.
   Always acquire fresh references after reacquisition. Virtual controllers stay inside the seat
   only when HidHide is installed.
 - Job listing, reading and cancellation are restricted to the recorded agent ID. Release with

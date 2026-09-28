@@ -27,7 +27,8 @@ the MCP server keeps the token; while another agent works it waits in line, `wai
 than its lifetime (default 120 s, range 10-600 s). Close owned windows and jobs, and release when
 finished so the next agent gets the desktop. Only `seat_lease`
 acquire and `seat_start` start a seat. The MCP prompt `desktop_test` walks through this workflow;
-`display_test` runs an app through several screen resolutions and scalings with `seat_display`.
+`display_test` runs an app through several screen resolutions and scalings with `seat_display`;
+`android_test` tests an Android app on an emulator in the seat.
 
 ## Agent entry points
 
@@ -42,6 +43,7 @@ acquire and `seat_start` start a seat. The MCP prompt `desktop_test` walks throu
 - [Desktop controls](https://raw.githubusercontent.com/skulitom/Anode/main/docs/DESKTOP-TOOLS.md): observe, act and verify.
 - [Development testing](https://raw.githubusercontent.com/skulitom/Anode/main/docs/DEVELOPMENT-TESTING.md): native/browser tests and jobs.
 - [Test other displays](https://raw.githubusercontent.com/skulitom/Anode/main/docs/DISPLAYS.md): change the seat's resolution and Windows scaling while its apps run.
+- [Android apps and web consoles](https://raw.githubusercontent.com/skulitom/Anode/main/docs/ANDROID.md): emulators, adb and Android Studio in the seat, and a browser profile signed in for agents.
 - [Troubleshooting](https://raw.githubusercontent.com/skulitom/Anode/main/docs/TROUBLESHOOTING.md): readiness, capture and input blockers.
 - [Security](https://raw.githubusercontent.com/skulitom/Anode/main/docs/SECURITY.md): shared state, machine settings and stopping.
 - [Multiple agents and desktop leases](https://raw.githubusercontent.com/skulitom/Anode/main/docs/MULTI-AGENT.md): taking turns, waiting in line, agent identities, ownership and restart recovery.

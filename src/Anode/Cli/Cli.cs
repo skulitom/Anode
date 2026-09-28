@@ -117,6 +117,8 @@ internal static partial class Cli
                 "steam" => SteamCommand(rest).GetAwaiter().GetResult(),
                 "shot" or "screenshot" => Screenshot(rest).GetAwaiter().GetResult(),
                 "display" => DisplayCommand(rest).GetAwaiter().GetResult(),
+                "browser" => BrowserCommand(rest).GetAwaiter().GetResult(),
+                "android" => AndroidCommand(rest).GetAwaiter().GetResult(),
                 "audio" => AudioCommand(rest).GetAwaiter().GetResult(),
                 "click" => Click(rest).GetAwaiter().GetResult(),
                 "move" => Move(rest).GetAwaiter().GetResult(),
@@ -884,6 +886,13 @@ internal static partial class Cli
             ("anode display <W>x<H> [--scale N] [--shot FILE] [--json]", "change the seat's resolution, and its scaling if given"),
             ("anode display --scale N", "change only the scaling"),
             ("anode display reset", "restore the display the seat started with")),
+        Row("Work in the seat", "browser", "edge json sign-in", 1,
+            "Chrome, or Edge with --edge, runs in the seat on Anode's seat profile (%LOCALAPPDATA%\\AnodeChrome or AnodeEdge), "
+            + "apart from your own browser, whose profile it keeps locked. Opening a page needs the lease. The profile persists, so sign "
+            + "in to the sites agents need once: --sign-in opens the profile here on your desktop, from your own terminal (not one inside "
+            + "an app), and needs no lease. Close that window afterwards so the seat can use the profile.",
+            ("anode browser [url] [--edge] [--json]", "open a page in the seat's own browser profile"),
+            ("anode browser --sign-in [url] [--edge]", "open the seat's profile on your desktop to sign in for agents")),
         Row("Work in the seat", "windows", "query= pid# json", 0, null,
             ("anode windows [--query TEXT] [--pid N] [--json]", "list the seat's windows and their IDs")),
         Row("Work in the seat", "audio", null, 0,
@@ -958,6 +967,20 @@ internal static partial class Cli
             ("", "Selectors combine; give at least one. --state is exists (default), missing, enabled or disabled; missing "
                 + "cannot use --text. --wait is 0-30000 ms (default 10000). Exits 3 when unmatched.")),
 
+        Row("Android apps (needs the Android SDK)", "android", null, 0,
+            "status needs no lease; the rest do. start boots an AVD in the seat and prints its serial; it is read-only unless "
+            + "--writable, so the AVD keeps nothing and can run while it is open on your desktop. --gpu is auto, host or software, "
+            + "--cold skips the quick-boot snapshot and --wait is 0-150 seconds (default 120). adb gives everything after -- to adb "
+            + "for that serial and returns its exit code; commands for adb's server or other devices are refused. Only emulators "
+            + "in the seat are stopped, captured or driven. studio opens Android Studio in the seat on its own profile.",
+            ("anode android [status] [--json]", "the Android SDK, AVDs, running emulators and Android Studio"),
+            ("anode android start <avd> [--gpu MODE] [--writable] [--cold] [--audio] [--wait S] [--json]", "boot an emulator in the seat"),
+            ("anode android adb <serial> [--timeout S] [--json] -- <adb arguments>", "run adb for an emulator in the seat"),
+            ("anode android shot <serial> [file] [--width N] [--jpeg]", "save an emulator's screen at its own resolution"),
+            ("anode android stop <serial>", "shut an emulator in the seat down"),
+            ("anode android studio [project]", "open Android Studio in the seat on its own profile"),
+            ("", @"Example: anode android adb emulator-5554 -- install -r C:\work\app-release.apk")),
+
         Row("For agents", "guide", null, 0,
             "The same guide the MCP server's anode_guide tool returns.",
             ("anode guide [--json]", "when to use Anode and how to choose its tools; needs no setup")),
@@ -1002,7 +1025,8 @@ internal static partial class Cli
         Wrap(text, "    ", "Most tools match a command: seat_exec is exec and gamepad_tap is gamepad tap. The others: "
             + "seat_observe = inspect, seat_screenshot = shot, seat_processes = ps, seat_kill_process = ps kill, "
             + "seat_stop = kill, steam_launch = steam, steam_status = steam status, seat_job = job and jobs, "
-            + "gamepad_set = gamepad hold|release|stick, anode_guide = guide. seat_drag is MCP-only.", "    ");
+            + "gamepad_set = gamepad hold|release|stick, anode_guide = guide, android_status = android, android_emulator = "
+            + "android start|stop|shot|adb, android_studio = android studio. seat_drag is MCP-only.", "    ");
         text.Append("\n  Stopping a seat that has frozen\n");
         Wrap(text, "    ", "Press Ctrl+Alt+Shift+K anywhere, use the tray icon, or run `anode kill`. All three sign the "
             + "child session out, which force-closes everything in it.", "    ");
@@ -1162,7 +1186,8 @@ internal static partial class Cli
         string name = row.Names[0];
         if (row.Options is null)
         {
-            // Free text and commands with their own parsers need only a count here.
+            // Free text and commands with their own parsers need only a count here; android parses its own.
+            if (name == "android") AndroidRequest(args);
             if (name is "run" or "type" && args.Length == 0)
                 throw new UsageException(name == "run" ? "run requires a program." : "type requires text.");
             if (name == "key" && args.Length != 1)
@@ -1206,6 +1231,9 @@ internal static partial class Cli
                 break;
             case "display":
                 CheckDisplay(words, options);
+                break;
+            case "browser":
+                BrowserRequest(args);
                 break;
         }
     }
@@ -1316,6 +1344,7 @@ internal static partial class Cli
         {
             "observe" => "inspect", "processes" => "ps", "kill_process" => "ps kill", "anode_guide" => "guide",
             "steam_launch" => "steam", "steam_status" => "steam status", "gamepad_set" => "gamepad hold|release|stick",
+            "android_status" => "android", "android_emulator" => "android start", "android_studio" => "android studio",
             "gamepad_attach" or "gamepad_detach" or "gamepad_reset" or "gamepad_tap" => "gamepad " + bare[8..],
             _ => null
         };

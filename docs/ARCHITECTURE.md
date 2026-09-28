@@ -201,6 +201,13 @@ again. Input and inspection serialize through one host gate, while status and St
 remain independent. MCP returns readable summaries, structured data and optional
 images. The CLI can also produce a standalone HTML report. See [Desktop tools](DESKTOP-TOOLS.md).
 
+**Single-instance apps get a seat of their own.** Browsers lock their profile folder, and Android
+Studio hands a second start on the same settings to the instance already running, in whichever session
+that is. Started in the seat on the user's own profile, they fail or act on the user's desktop. So the
+seat has its own: a persistent browser profile and an Android Studio profile under LOCALAPPDATA, and
+`run` refuses the usual ones. Emulators start their AVD read-only for the same reason, and every
+Android action checks that its emulator's process runs in the seat, because adb's server is shared.
+
 **Steam stays where it runs.** Steam keeps one client per Windows user, and a client started in the
 seat takes over from the one on the desktop. A game, however, needs only to find its client, which
 it does through two named objects that Windows keeps per session. The seat host links a name of its

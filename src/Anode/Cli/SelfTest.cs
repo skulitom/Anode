@@ -144,6 +144,13 @@ internal static class SelfTest
         Check(results, "display restored after a lease", () => DisplayChecks.Restore().GetAwaiter().GetResult());
         Check(results, "display requests to the daemon", () => DisplayChecks.Daemon().GetAwaiter().GetResult());
         Check(results, "display measurement", DisplayChecks.Measurement);
+        Check(results, "Android SDK and AVDs", AndroidChecks.Sdk);
+        Check(results, "Android emulators", () => AndroidChecks.Emulators().GetAwaiter().GetResult());
+        Check(results, "Android validation", AndroidChecks.Validation);
+        Check(results, "seat launch guards", AndroidChecks.Guards);
+        Check(results, "Android Studio profile", AndroidChecks.Studio);
+        Check(results, "seat browser profile", AndroidChecks.Browser);
+        Check(results, "Android on this machine", AndroidChecks.ThisMachine);
         Check(results, "audio clips", AudioChecks.Clips);
         Check(results, "audio isolation and validation", AudioChecks.IsolationAndValidation);
         Check(results, "audio MCP protocol", () => AudioChecks.Protocol().GetAwaiter().GetResult());

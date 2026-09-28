@@ -300,12 +300,31 @@ or with `anode ps kill steam`, then start it on your desktop again.
 
 ### A browser will not start in the seat
 
-Chrome, Edge and Firefox refuse a second instance on the same profile directory. Give the seat its
-own:
+Chrome, Edge and Firefox refuse a second instance on the same profile directory, so the browser on
+your desktop keeps a browser in the seat off your usual profile. `anode run` refuses Chrome and Edge on
+it while they run outside the seat. Use the seat's own profile, which persists between seats:
 
 ```powershell
-anode run "C:\Program Files\Google\Chrome\Application\chrome.exe" --user-data-dir=C:\Users\you\AppData\Local\AnodeChrome
+anode browser https://example.com
+anode browser --sign-in https://play.google.com/console   # from your own terminal: sign in for agents
 ```
+
+Agents use `seat_browser`. For Firefox, pass `-no-remote -profile` with a folder of the seat's own.
+If `anode browser --sign-in` says the terminal runs inside a packaged app, run it from Windows
+Terminal or PowerShell opened from the Start menu. See [Android apps and web consoles](ANDROID.md).
+
+### An Android emulator will not start or stays black
+
+- **Its screen stays black, or it exits at once.** Start it again with `--gpu software` (agents:
+  `gpu: "software"`); the seat's graphics may not suit the emulator's default renderer.
+- **It says the AVD is already running.** A writable start (`--writable`) cannot share an AVD; start it
+  read-only, the default, or close the other emulator.
+- **It says no hypervisor is available.** The emulator needs the Windows Hypervisor Platform or the
+  Android Emulator hypervisor driver, as on your desktop; install one with Android Studio's SDK Manager.
+- **"runs outside the seat".** That serial belongs to an emulator on your desktop or elsewhere, which
+  Anode never drives. Start one in the seat and use its serial.
+- **It did not finish booting in time.** A cold boot can take minutes. Check `anode android` until the
+  seat's emulator says `booted`; its output is in the log file `android start` names.
 
 ### My own documents opened in the seat
 

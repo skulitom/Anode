@@ -31,7 +31,13 @@ internal static class ScreenCapture
                     + "No foreground capture or viewer activation was attempted. Use seat_observe with includeScreenshot=false for accessible controls; do not guess screen coordinates.", ex);
             }
         }
+        return Encode(raw, maxWidth, format, jpegQuality);
+    }
 
+    /// <summary>A picture scaled down to maxWidth, if wider, and encoded; source sizes are the picture's own.</summary>
+    public static Shot Encode(Bitmap raw, int? maxWidth, string format, int jpegQuality)
+    {
+        var source = new Size(raw.Width, raw.Height);
         Bitmap output = raw;
         bool scaled = false;
         if (maxWidth is int limit && limit > 0 && source.Width > limit)

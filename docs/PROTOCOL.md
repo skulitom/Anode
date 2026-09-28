@@ -275,10 +275,42 @@ the conversation uses handles Steam duplicates into the game, which works across
 same user. The links last as long as the seat host.
 
 `run` also refuses direct `steam.exe`/`steam` commands and `steam://` URLs when Steam is running
-outside the seat, because they would start a second client that takes Steam over. This check does
+outside the seat, because they would start a second client that takes Steam over. It refuses Chrome
+and Edge without `--user-data-dir`, and http(s) links when one of them is the default browser, while
+that browser runs outside the seat, whose profile lock would stop it; use `browser.open`. It always
+refuses Android Studio's launchers (`studio64.exe`, `studio.exe`, `studio.bat`), which would share the
+user's settings with any Studio on the desktop; use `android.studio`. This check does
 not inspect shortcuts or wrapper scripts. Other applications may also reuse an existing instance in another
 session; a `run` response confirms where the launch originated, not where every resulting window
 will appear.
+
+### Android and browsers
+
+| `op` | Arguments | Result |
+| --- | --- | --- |
+| `android.status` | none | `{sdk, emulatorVersion, adb, adbServerRunning, avds: [{name, displayName, api, image, abi, screen, playStore}], emulators: [{serial, avd, pid, session, inSeat, startedBy, booted?}], studio: [{path, version}], summary}` |
+| `android.emulator` | `action` `start` with `avd`, `gpu`, `readOnly`, `coldBoot`, `audio`, `waitSeconds`; `stop` with `serial`; `screenshot` with `serial`, `maxWidth`, `format`; `adb` with `serial`, `args`, `timeoutSeconds` | start `{serial, avd, pid, consolePort, booted, waitedSeconds, readOnly, gpu, log, summary}`; stop `{serial, stopped, method, summary}`; screenshot `{serial, screenshot: {data, mimeType, width, height, sourceWidth, sourceHeight}, summary}`; adb `{serial, exitCode, timedOut, stdout, stderr, summary}` |
+| `android.studio` | `project` (absolute folder) | `{path, version, pid, profile, project, firstStart, summary}` |
+| `browser.open` | `url` (http, https or `about:blank`), `browser` (`chrome` or `edge`) | `{browser, path, profile, url, pid, newProfile, summary}` |
+
+`android.status` needs no lease and never starts adb's server; the others need the lease. Running
+emulators come from the files emulators keep in `%LOCALAPPDATA%\Temp\avd\running\pid_<pid>.ini`, and
+each is in the seat when its process runs in the seat's session. `stop`, `screenshot` and `adb` accept
+only `emulator-NNNN` serials of emulators in the seat; `adb` refuses options before the command and
+commands that act on adb's server or other devices. `start` takes the first even console port from
+5554 to 5682 whose adb port is free, starts adb's server, then runs
+`emulator -avd NAME -port PORT -no-boot-anim` with `-read-only` unless `readOnly` is false,
+`-no-snapshot-load` for `coldBoot`, `-gpu host` or the emulator's software mode, and `-no-audio` unless
+`audio`. It waits for `sys.boot_completed` for up to `waitSeconds` (0-150, default 120) within the
+request's deadline, and keeps the emulator's output in `android\<serial>.log` in Anode's state folder.
+Clients allow `android.emulator` about three minutes.
+
+`android.studio` starts the newest Android Studio with `STUDIO_PROPERTIES` pointing at
+`%LOCALAPPDATA%\AnodeAndroidStudio\studio.properties`, which moves its config, system, plugin and log
+folders there and sets `disable.android.first.run`, and with `ANDROID_HOME` set to the SDK when it is
+unset. `browser.open` starts Chrome or Edge with `--user-data-dir` set to `%LOCALAPPDATA%\AnodeChrome`
+or `AnodeEdge`, `--no-first-run`, `--no-default-browser-check` and `--new-window`. See
+[Android apps and web consoles](ANDROID.md).
 
 ### Gamepad
 
@@ -346,9 +378,11 @@ except `anode_guide` maps to exactly one `op`, so there is no second implementat
 | | | `seat_wait` | `desktop.wait` |
 | `seat_audio_status` | `audio.status` | `seat_audio_listen` | `audio.listen` |
 | `seat_audio_play` | `audio.play` | `seat_audio_stop` | `audio.stop` |
-| `seat_display` | `display.set` | | |
+| `seat_display` | `display.set` | `seat_browser` | `browser.open` |
+| `android_status` | `android.status` | `android_emulator` | `android.emulator` |
+| `android_studio` | `android.studio` | | |
 
-There are 37 tools. MCP assigns an agent ID (or uses `ANODE_AGENT_ID` from its environment),
+There are 41 tools. MCP assigns an agent ID (or uses `ANODE_AGENT_ID` from its environment),
 remembers the token returned by `seat_lease` acquire or renew, and supplies both on desktop calls.
 `anode_guide` returns the embedded operating guide without a daemon, setup or waiting behind long
 tool calls.
@@ -358,7 +392,7 @@ they launch a hidden one through the shared launcher, and they wait for the seat
 `seat_status` never starts a daemon. With none running it returns a successful result containing
 `state: stopped`, `daemonRunning: false`, `agentId`, `ownerAgentId: null` and a `summary` that says
 to acquire a lease; with one running it returns that daemon's status. `seat_capabilities`,
-`seat_processes`, `steam_status` and `seat_audio_status` likewise report a stopped seat instead of starting one, and
+`seat_processes`, `steam_status`, `seat_audio_status` and `android_status` likewise report a stopped seat instead of starting one, and
 `seat_show` and `seat_hide` return an error. A lease-requiring tool that finds no daemon forgets
 its token and returns an error asking for a new acquisition; it never relaunches a daemon a person
 quit. The same holds when a person stops the seat but Anode keeps running (the Stop button, the
@@ -375,9 +409,10 @@ block plus capture-size text. Errors from the daemon or seat host return `isErro
 failure object, including any `errorCode`, in `structuredContent`.
 
 Annotations follow each tool's effect. `anode_guide`, `seat_status`, `seat_windows`, `seat_observe`,
-`seat_screenshot`, `seat_wait`, `seat_capabilities`, `seat_processes` and `steam_status` are
-read-only (`readOnlyHint: true`). `seat_windows`, `seat_observe`, `seat_screenshot` and `seat_wait`
-return whatever the seat's apps and web pages show, so they set `openWorldHint: true` to mark that
+`seat_screenshot`, `seat_wait`, `seat_capabilities`, `seat_processes`, `steam_status`,
+`seat_audio_status`, `seat_audio_listen` and `android_status` are read-only (`readOnlyHint: true`).
+`seat_windows`, `seat_observe`, `seat_screenshot`, `seat_wait` and `seat_audio_listen` return whatever
+the seat's apps and web pages show, so they set `openWorldHint: true` to mark that
 content as untrusted; the other read-only tools set it false. `seat_start` and `seat_hide` are additive
 (`destructiveHint: false`, `idempotentHint: true`, `openWorldHint: false`). Every other tool keeps
 conservative hints (`destructiveHint: true`, `idempotentHint: false`, `openWorldHint: true`),
@@ -386,10 +421,12 @@ tool's title. Annotations describe effects; they are not approval overrides, and
 timed-out action safe to replay. Titles and initialization instructions provide task-selection
 guidance. See [For agents](FOR-AGENTS.md).
 
-The server also offers three prompts, answered locally like `anode_guide`. None takes arguments.
+The server also offers four prompts, answered locally like `anode_guide`. None takes arguments.
 `desktop_test` returns the lease workflow for the app or task the user names, `desktop_guide` returns
-the full guide, and `display_test` walks the app the user names through a set of resolutions and
-scalings with `seat_display` and asks for a report of what breaks at each. In Claude Code, `/mcp__anode__desktop_test` runs one (its `/` menu lists it
+the full guide, `display_test` walks the app the user names through a set of resolutions and
+scalings with `seat_display` and asks for a report of what breaks at each, and `android_test` tests
+an Android app on an emulator in the seat: every screen, dark mode, font size, process death and
+logcat. In Claude Code, `/mcp__anode__desktop_test` runs one (its `/` menu lists it
 as `/anode:desktop_test`); in VS Code, `/mcp.anode.desktop_test`. The names follow the server name
 in the client's configuration. An unknown prompt name returns JSON-RPC error `-32602`.
 

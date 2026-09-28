@@ -205,6 +205,11 @@ checks the tone's frequency, stops its own playback and preserves the WAV eviden
 only when the seat is free for this test. See [Audio](AUDIO.md). Quick self-tests open no audio
 device and cover PCM encoding, isolation gates, ownership, cleanup and MCP responses instead.
 
+Android has one: `scripts/test-android.ps1 -Avd <name> -Anode <new-executable>`. With an existing
+lease and a ready seat, it starts the AVD read-only in the seat, checks through adb that it booted and
+that a screenshot has the device's size, stops it and checks it has gone. It loads the machine while
+the emulator runs, so run it only while the seat is free. See [Android apps and web consoles](ANDROID.md).
+
 Display changes have one too: `scripts/test-display.ps1 -Anode <new-executable>`. It requires an
 existing lease and a ready seat at its startup display, and never starts or stops a seat or opens its
 viewer. It walks the seat through four displays, from 1024x768 to portrait and 150% scaling, checks
