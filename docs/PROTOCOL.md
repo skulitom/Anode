@@ -297,7 +297,9 @@ will appear.
 emulators come from the files emulators keep in `%LOCALAPPDATA%\Temp\avd\running\pid_<pid>.ini`, and
 each is in the seat when its process runs in the seat's session. `stop`, `screenshot` and `adb` accept
 only `emulator-NNNN` serials of emulators in the seat; `adb` refuses options before the command and
-commands that act on adb's server or other devices. `start` takes the first even console port from
+commands that act on adb's server or other devices, including after a `wait-for-*` prefix, and a
+`forward` that would remove or take over another device's host end (checked with `adb forward --list`
+first). `start` takes the first even console port from
 5554 to 5682 whose adb port is free, starts adb's server, then runs
 `emulator -avd NAME -port PORT -no-boot-anim` with `-read-only` unless `readOnly` is false,
 `-no-snapshot-load` for `coldBoot`, `-gpu host` or the emulator's software mode, and `-no-audio` unless

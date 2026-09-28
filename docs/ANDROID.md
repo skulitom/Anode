@@ -65,9 +65,13 @@ Every session on the machine shares one adb server, so adb can reach your own em
 on USB as easily as the seat's. Anode's Android tools act only on emulators whose processes run in
 the seat: a serial outside the seat, or one that is not an emulator, is refused, and so are adb
 commands that act on the server or other devices (`kill-server`, `start-server`, `devices`,
-`connect`, `disconnect`, `pair`, `reconnect` and options before the command, such as `-s`). This
-covers Anode's tools, not an agent's own shell: an agent that runs adb itself must pass the seat's
-serial with `-s`.
+`track-devices`, `connect`, `disconnect`, `pair`, `reconnect`, `raw`, which sends any adb service,
+and options before the command, such as `-s`), also after a `wait-for-device` prefix, which adb
+runs the next command after. Host port forwards live in the shared server too, keyed by their host
+end alone, so `forward --list` and `forward --remove-all` are refused, and `forward --remove LOCAL`
+or `forward LOCAL REMOTE` is refused when `LOCAL` forwards to another device; `--no-rebind` and
+`tcp:0` never take one over. This covers Anode's tools, not an agent's own shell: an agent that runs
+adb itself must pass the seat's serial with `-s`.
 
 When no adb server is running, `start` starts one, and it then runs in the seat. Stopping the seat
 ends it; adb starts a new one the next time anything, such as Android Studio on your desktop, needs

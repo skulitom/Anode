@@ -234,8 +234,38 @@ internal static class AndroidChecks
         var adb = await seat.AdbAsync(new JsonObject { ["serial"] = "emulator-5556", ["args"] = new JsonArray("shell", "input", "tap", "540", "1200") }, none);
         Require(adb.Bool("ok") == true && machine.Commands.Last() == "-s emulator-5556 shell input tap 540 1200" && adb.Obj("result")?.Str("stdout") == "done\n",
             "adb did not run for the seat's serial: " + adb.ToJsonString());
-        foreach (var args in new[] { new[] { "kill-server" }, new[] { "-s", "emulator-5554", "shell" }, new[] { "devices" }, new[] { "connect", "10.0.0.2" }, Array.Empty<string>() })
+        foreach (var args in new[] { new[] { "kill-server" }, new[] { "-s", "emulator-5554", "shell" }, new[] { "devices" }, new[] { "connect", "10.0.0.2" }, Array.Empty<string>(),
+                     // adb runs the command after a wait-for prefix; raw sends any service; these reach every device.
+                     new[] { "wait-for-device", "kill-server" }, new[] { "wait-for-device", "disconnect" }, new[] { "wait-for-recovery", "-s", "R58M12345", "shell" },
+                     new[] { "raw", "host:kill" }, new[] { "track-devices" }, new[] { "forward", "--remove-all" }, new[] { "forward", "--list" },
+                     new[] { "wait-for-device", "forward", "--remove-all" } })
             Require(SeatEmulators.AdbProblem(args) is not null, $"adb {string.Join(' ', args)} was allowed");
+        foreach (var args in new[] { new[] { "wait-for-device" }, new[] { "wait-for-device", "shell", "getprop", "sys.boot_completed" }, new[] { "shell", "echo", "kill-server" },
+                     new[] { "forward", "tcp:0", "tcp:8080" }, new[] { "forward", "--remove", "tcp:8080" }, new[] { "reverse", "--remove-all" } })
+            Require(SeatEmulators.AdbProblem(args) is null, $"adb {string.Join(' ', args)} was refused: {SeatEmulators.AdbProblem(args)}");
+
+        // A forward's host end is one name in the shared adb server: another device's is never removed or taken over.
+        machine.Adb = args => args.SequenceEqual(new[] { "forward", "--list" })
+            ? StandIn.Result("emulator-5554 tcp:9222 localabstract:chrome_devtools_remote\nemulator-5556 tcp:8080 tcp:8080\n") : null;
+        foreach (var args in new[] { new JsonArray("forward", "--remove", "tcp:9222"), new JsonArray("forward", "tcp:9222", "tcp:9222"),
+                     new JsonArray("wait-for-device", "forward", "tcp:9222", "localabstract:app") })
+        {
+            var taken = await seat.AdbAsync(new JsonObject { ["serial"] = "emulator-5556", ["args"] = args }, none);
+            Require(taken.Bool("ok") == false && taken.Str("error")!.Contains("forwards to another device") && machine.Commands.Last() == "forward --list",
+                $"adb {args.ToJsonString()} was run over another device's forward: {taken.ToJsonString()}");
+        }
+        foreach (var args in new[] { new JsonArray("forward", "--remove", "tcp:8080"), new JsonArray("forward", "tcp:7000", "tcp:7000"),
+                     new JsonArray("forward", "--no-rebind", "tcp:9222", "tcp:9222") })
+        {
+            var own = await seat.AdbAsync(new JsonObject { ["serial"] = "emulator-5556", ["args"] = args }, none);
+            Require(own.Bool("ok") == true && machine.Commands.Last() == "-s emulator-5556 " + string.Join(' ', args.Select(a => a!.GetValue<string>())),
+                $"adb {args.ToJsonString()} was refused for the seat's own or a free forward: {own.ToJsonString()}");
+        }
+        machine.Adb = args => args.SequenceEqual(new[] { "forward", "--list" }) ? new CommandResult(1, Array.Empty<byte>(), "error: protocol fault", false) : null;
+        var unverified = await seat.AdbAsync(new JsonObject { ["serial"] = "emulator-5556", ["args"] = new JsonArray("forward", "--remove", "tcp:8080") }, none);
+        Require(unverified.Bool("ok") == false && unverified.Str("error")!.Contains("could not list the forwards") && machine.Commands.Last() == "forward --list",
+            "a forward was removed although its owner could not be checked: " + unverified.ToJsonString());
+        machine.Adb = null;
 
         // A screenshot is the device's own PNG, scaled and re-encoded like a seat screenshot.
         using (var picture = new Bitmap(1280, 2856))
@@ -273,7 +303,7 @@ internal static class AndroidChecks
             .StartAsync(Start("Pixel_9_Pro", new JsonObject { ["waitSeconds"] = 30, ["coldBoot"] = true, ["audio"] = true }), none);
         Require(waiting.Bool("ok") == true && waiting.Obj("result")?.Bool("booted") == false && slow.Now is >= 30_000 and < 34_000
             && slow.StartedArgs == "-avd Pixel_9_Pro -port 5554 -no-boot-anim -read-only -no-snapshot-load", "a slow boot was not bounded by waitSeconds: " + slow.StartedArgs);
-        return "free ports, read-only starts, boot waits, seat-only stop/screenshot/adb, refused server commands and failed starts, all with stand-ins";
+        return "free ports, read-only starts, boot waits, seat-only stop/screenshot/adb, refused server commands and other devices' forwards, and failed starts, all with stand-ins";
     }
 
     public static string Validation()
@@ -286,6 +316,7 @@ internal static class AndroidChecks
             ("android_emulator", new() { ["action"] = "stop", ["serial"] = "emulator-5554" }),
             ("android_emulator", new() { ["action"] = "screenshot", ["serial"] = "emulator-5682", ["maxWidth"] = 540, ["format"] = "jpeg" }),
             ("android_emulator", new() { ["action"] = "adb", ["serial"] = "emulator-5556", ["args"] = new JsonArray("install", "-r", @"C:\work\app.apk"), ["timeoutSeconds"] = 150 }),
+            ("android_emulator", new() { ["action"] = "adb", ["serial"] = "emulator-5556", ["args"] = new JsonArray("wait-for-device", "shell", "getprop", "sys.boot_completed") }),
             ("android_studio", new()), ("android_studio", new() { ["project"] = fixture.Root }),
             ("seat_browser", new()), ("seat_browser", new() { ["url"] = "https://play.google.com/console", ["browser"] = "edge" }),
             ("seat_browser", new() { ["url"] = "about:blank" })
@@ -301,6 +332,9 @@ internal static class AndroidChecks
             ("android_emulator", new() { ["action"] = "adb", ["serial"] = "emulator-5554" }),
             ("android_emulator", new() { ["action"] = "adb", ["serial"] = "emulator-5554", ["args"] = new JsonArray("kill-server") }),
             ("android_emulator", new() { ["action"] = "adb", ["serial"] = "emulator-5554", ["args"] = new JsonArray("-e", "shell") }),
+            ("android_emulator", new() { ["action"] = "adb", ["serial"] = "emulator-5554", ["args"] = new JsonArray("wait-for-device", "kill-server") }),
+            ("android_emulator", new() { ["action"] = "adb", ["serial"] = "emulator-5554", ["args"] = new JsonArray("raw", "host:kill") }),
+            ("android_emulator", new() { ["action"] = "adb", ["serial"] = "emulator-5554", ["args"] = new JsonArray("forward", "--remove-all") }),
             ("android_emulator", new() { ["action"] = "screenshot", ["serial"] = "emulator-5554", ["args"] = new JsonArray("x") }),
             ("android_emulator", new() { ["action"] = "start", ["avd"] = "A", ["gpu"] = "vulkan" }),
             ("android_studio", new() { ["project"] = "relative\\path" }), ("android_studio", new() { ["project"] = Path.Combine(fixture.Root, "missing") }),
