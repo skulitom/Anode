@@ -123,8 +123,6 @@ internal static class Steam
     }
 
     /// <summary>Where Steam runs and what a launch through Anode will do about it.</summary>
-    public static string Describe(uint seatSession, uint? desktopSession = null) => Describe(seatSession, desktopSession, ActiveClient());
-
     internal static string Describe(uint seatSession, uint? desktopSession, SteamClient? client)
     {
         if (client is not { } steam)

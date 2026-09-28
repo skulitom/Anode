@@ -73,18 +73,6 @@ internal static class JsonLine
         catch { return int.TryParse(n.ToString(), out int v) ? v : null; }
     }
 
-    public static double? Num(this JsonObject o, string key)
-    {
-        if (!o.TryGetPropertyValue(key, out var n) || n is null) return null;
-        try { return n.GetValue<double>(); }
-        catch
-        {
-            return double.TryParse(n.ToString(),
-                System.Globalization.NumberStyles.Float,
-                System.Globalization.CultureInfo.InvariantCulture, out double v) ? v : null;
-        }
-    }
-
     public static bool? Bool(this JsonObject o, string key)
     {
         if (!o.TryGetPropertyValue(key, out var n) || n is null) return null;
