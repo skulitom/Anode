@@ -24,44 +24,52 @@ anode capabilities | Out-Host
 the discoverable `anode-desktop` skill. Use `--no-skill` for MCP registration alone.
 Restart the agent afterward. Other MCP clients can launch `anode.exe` with the argument `mcp`.
 
-## What's new in 0.10.0
+## What's new in 0.11.0
 
-**Play your own games while agents test games in the seat.** A virtual controller is a device on
-the machine, so a game on your desktop read the input an agent sent to a game in the seat. With
-[HidHide](https://github.com/nefarius/HidHide/releases) installed, Anode keeps every virtual
-controller plugged in while the seat runs inside the seat: games, Steam and the Xbox Game Bar on your
-desktop cannot open it, and games in the seat use it as before. That includes controllers a program
-in the seat plugs in on its own. While a ViGEm program such as DS4Windows runs on your desktop, only
-Anode's own controllers are kept in the seat, so yours keep working. After plugging a controller in,
-Anode checks from your desktop that it cannot be opened there, and unplugs it again (`not_isolated`)
-rather than let your desktop read it. `gamepad_attach` reports `seatOnly`, `anode gamepad state`
-shows every controller, and `anode doctor` checks for HidHide. Without HidHide, controllers are
-machine-wide as before, and each attach says so.
+**Test Android apps in the seat.** `android_emulator` (`anode android start`) boots an AVD on an
+emulator inside the seat, so its window never opens on your screen, and returns its serial once it
+has booted. Agents install and drive apps with adb for that serial, take the device's own
+screenshots and stop it when done. Emulators start read-only: what a test does is dropped when the
+emulator stops, and the AVD can run in the seat while you have it open on your desktop. Every Android
+action checks that its emulator runs in the seat, so your own emulators and phones, which share the
+adb server, stay out of reach. `android_status` (`anode android`) lists the SDK, AVDs, running
+emulators and Android Studio without starting anything, and the `android_test` prompt walks a release
+test.
 
-**The viewer opens fitted to the seat.** The viewer measures its frame and bars and opens with the
-seat at its own size, or the largest that fits your screen, instead of scaling it slightly with white
-strips at its sides. A resized, maximized or full-screen viewer keeps the seat's shape on its dark
-background.
+**Android Studio and signed-in web consoles.** `android_studio` opens Android Studio in the seat on a
+profile of its own, with its setup wizard skipped, so it never hands projects to a Studio on your
+desktop. `seat_browser` opens Chrome or Edge in the seat on a persistent seat profile. Sign in once
+from your own terminal with `anode browser --sign-in https://play.google.com/console`, and agents find
+the sites signed in. Anyone holding the desktop lease can use those sites as you, so sign in only to
+what agents should act on.
+
+**Test other displays.** `seat_display` (`anode display`) changes the running seat's resolution and
+Windows scaling, from 640x480 to 8192x8192 at 100-500%, portrait included, while its apps keep
+running. A change lasts while the agent holds the desktop lease; the display the seat started with
+comes back when the lease ends. The `display_test` prompt runs an app through a set of displays and
+asks what breaks at each. Screenshots, input and control bounds now use physical pixels at every
+scaling.
+
+**Agent audio.** Agents can listen to the seat's audio as WAV clips and play WAV files in it, in a
+seat started with `--audio`, which is also audible on your speakers.
 
 **Upgrading.** Save seat work, run `anode quit` (it closes every program in the seat) and close the
-agent sessions that use Anode, then install 0.10.0 and start Anode again. To keep controllers in the
-seat, install HidHide from its [releases](https://github.com/nefarius/HidHide/releases) and restart
-Windows when it asks; `anode doctor` then reports **Controller isolation**. Anode changes only its own
-HidHide entries and switches HidHide on only when nothing else is listed. Run `anode configure` to
-update the installed skill.
+agent sessions that use Anode, then install 0.11.0 and start Anode again. Restart agent sessions to
+get the new tools, and run `anode configure` to update the installed skill.
 
-**Validation and limits.** The candidate passes all 61 local quick checks, including new checks of
-HidHide's lists, jail entries, reserved controller names, your own HidHide entries and settings, ended
-seats, ViGEm programs outside the seat, controller attach against stand-ins and the fitted viewer,
-plus package, installation and distribution checks. Live, with HidHide 1.5.230, Anode's controller
-and one plugged in by a program in the seat were in XInput slot 0 in the seat, while the desktop saw
-no controller and was refused both of its devices; stopping the seat removed its HidHide entries; and
-the viewer opened with the 1280x720 seat filling it. HidHide checks each attempt to open a device, so
-a device name Windows has never used before is hidden once Windows announces it, and a desktop
-program that opens HID devices the moment they arrive could open that one first; XInput is always
-covered. Programs on HidHide's application list can open hidden devices anywhere. The browser suite
-with real input on .NET 10 has still not run. See the
-[validation record](https://github.com/skulitom/Anode/blob/main/docs/RELEASE-READINESS.md#live-validation--25-september-2026).
+**Validation and limits.** The candidate passes all 78 local quick checks, which drive the emulator,
+Studio and browser code with stand-ins for every process, plus package, installation and distribution
+checks. Live, on Windows 11 Pro build 26200 with emulator 36.2.12, a Pixel 9 Pro AVD booted in the
+seat in 12.2 s on the graphics card, adb reported its 1280x2856 screen, a screenshot came back at that
+size and it shut down cleanly; Android Studio opened at its Welcome screen on its own profile; Chrome
+opened on the seat profile, and `run` refused Chrome and links while Chrome ran on the desktop; and
+every display change, up to 2560x1440 at 125%, 1920x1080 at 150% and 1080x1920 portrait, applied live
+in 156-173 ms. Audio has not been tested live, and the display change's reconnect fallback has not run
+live. Known issues, with fixes awaiting review: `android_emulator`'s adb guard lets some server
+commands through, such as one after a `wait-for-device` prefix; `seat_audio_listen` fails for MCP
+clients on protocol 2024-11-05; and a display change Windows did not apply can come back when the
+viewer reconnects. See the
+[validation record](https://github.com/skulitom/Anode/blob/main/docs/RELEASE-READINESS.md#live-validation--28-29-september-2026).
 
 Requires 64-bit Windows 10/11 Pro, Enterprise or Education, or Windows Server with a Remote Desktop
 host. Windows Home is unsupported. ARM64 is not validated; this package targets x64.

@@ -5,10 +5,11 @@ asked for. Agents can change its resolution and Windows scaling while it runs, t
 behaves on a small laptop, a 4K monitor or a portrait screen, without restarting the seat or closing
 anything in it.
 
-**Not verified live yet:** builds and quick self-tests pass, and the self-test confirms on the real
-Remote Desktop control that the display-change call and the scaling setting exist. Changing a running
-seat's display has not been tried in a live seat, because the seat was busy with other work. The
-opt-in test below still needs to run when a seat is free.
+**Verified live** in 0.11.0 on Windows 11 Pro build 26200, in a seat that signed in through the
+Windows credential dialog: Windows applied every change of `scripts/test-display.ps1` (below) live,
+in 156-173 ms, with the seat's apps running, screenshots came back at each display's own size, and
+`reset` restored the startup display. The reconnect fallback has not run live, because nothing needed
+it.
 
 ## Agent tool
 
