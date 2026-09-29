@@ -12,7 +12,7 @@ Use this one-line description wherever a directory asks for it:
 
 ## 1. MCP Registry (automatic)
 
-Merging this workflow to `main` lists **0.10.0 as metadata only**, provided the registry has no Anode
+Merging this workflow to `main` lists **0.11.0 as metadata only**, provided the registry has no Anode
 listing and the matching GitHub release exists. The repository's `server.json` uses schema
 `2025-12-11` and intentionally has no `packages` property. A daily run can recover that first
 listing if the merge run failed and the latest release still matches `server.json` on `main`.

@@ -219,9 +219,10 @@ internal sealed class McpServer : IDisposable
             payload = Envelope(arguments, leaseAction);
         }
 
-        int timeout = toolName is "steam_launch" or "seat_start" ? 180_000 : 60_000;
-        // The daemon gives the seat 60 seconds unless told otherwise; Steam may first have to start on the desktop.
-        if (toolName == "steam_launch") payload["timeoutMs"] = timeout - 5_000;
+        int timeout = toolName is "steam_launch" or "seat_start" or "seat_display" or "android_emulator" ? 180_000 : 60_000;
+        // The daemon gives the seat 60 seconds unless told otherwise; Steam may first have to start on the desktop,
+        // a display change Windows does not make live reconnects the viewer, and an emulator takes minutes to boot.
+        if (toolName is "steam_launch" or "seat_display" or "android_emulator") payload["timeoutMs"] = timeout - 5_000;
         var response = leaseAction == "acquire"
             ? await AcquireInLineAsync(client, payload, arguments.Int("waitSeconds") ?? DefaultWaitSeconds, cancel).ConfigureAwait(false)
             : await client.RequestAsync(op, payload, timeout, cancel).ConfigureAwait(false);
@@ -388,7 +389,7 @@ internal sealed class McpServer : IDisposable
         if (leaseAction == "release")
             return TextResult(daemonRunning ? "The seat is stopped, so there is no desktop lease to release."
                 : "Anode is not running, so there is no desktop lease to release.");
-        if (leaseAction == "status" || toolName is "seat_status" or "seat_capabilities" or "seat_processes" or "steam_status" or "seat_audio_status")
+        if (leaseAction == "status" || toolName is "seat_status" or "seat_capabilities" or "seat_processes" or "steam_status" or "seat_audio_status" or "android_status")
         {
             var status = new JsonObject
             {

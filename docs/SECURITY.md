@@ -106,6 +106,13 @@ Read this list before you point an agent at it.
   links two names in the seat's own object namespace to that client's handshake objects; nothing
   outside the seat resolves differently, and the links end with the seat host. When Steam is not
   running, Anode starts it on your desktop, minimized.
+- **Sites you sign in to in the seat browser.** `seat_browser` and `anode browser` keep a Chrome or
+  Edge profile for the seat (`%LOCALAPPDATA%\AnodeChrome`, `AnodeEdge`) that persists between seats.
+  Any agent that holds the desktop lease can use the sites signed in there, as you, until you sign out
+  or delete the folder. Sign in only to what agents should act on.
+- **adb and Android devices.** One adb server serves every session. Anode's Android tools act only on
+  emulators running in the seat, but a program in the seat, or an agent's own shell, can run adb
+  against any device, including a phone on USB.
 - **Other sessions' data at rest.** Separate sessions, one disk.
 - **The virtual gamepad, without HidHide.** A ViGEm pad is a device on the **machine**, not in a
   session. By itself every session can open it, exactly like a controller plugged into USB, so a game

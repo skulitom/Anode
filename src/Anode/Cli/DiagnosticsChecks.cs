@@ -96,9 +96,35 @@ internal static class DiagnosticsChecks
                 Dispatch.Set(secured, "AudioRedirectionMode", mode);
                 Require(Convert.ToInt32(Dispatch.Get(secured, "AudioRedirectionMode")) == mode, "audio redirection setting did not round-trip");
             }
-            return "real COM child-session, audio and credential-prompt settings round-trip; no connection, audio or credential prompt opened";
+            // A display change is late bound: the name must resolve on this Windows build. It is looked up, never called.
+            var names = (IDispatchNames)control;
+            var none = Guid.Empty;
+            int[] ids = new int[1];
+            Require(names.GetIDsOfNames(ref none, new[] { "UpdateSessionDisplaySettings" }, 1, 0, ids) == 0,
+                "the Remote Desktop control has no UpdateSessionDisplaySettings, so the seat's display cannot change live");
+            foreach (uint scale in new uint[] { 150, 100 })
+            {
+                object value = scale;
+                settings.SetProperty("DesktopScaleFactor", ref value);
+                Require(Convert.ToUInt32(settings.GetProperty("DesktopScaleFactor")) == scale, "the seat's scaling did not round-trip");
+            }
+            return "real COM child-session, audio, scaling and credential-prompt settings round-trip and the live display change resolves; "
+                + "no connection, audio or credential prompt opened";
         }
         finally { Marshal.FinalReleaseComObject(control); }
+    }
+
+    /// <summary>IDispatch up to GetIDsOfNames, enough to look a member up by name without invoking it.</summary>
+    [ComImport]
+    [Guid("00020400-0000-0000-C000-000000000046")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IDispatchNames
+    {
+        void GetTypeInfoCount(out uint count);
+        void GetTypeInfo(uint index, uint locale, out IntPtr info);
+        [PreserveSig]
+        int GetIDsOfNames(ref Guid none, [MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPWStr)] string[] names,
+            uint count, uint locale, [Out, MarshalAs(UnmanagedType.LPArray)] int[] ids);
     }
 
     public static async Task<string> ViewerSignIn()

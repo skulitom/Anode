@@ -205,6 +205,20 @@ checks the tone's frequency, stops its own playback and preserves the WAV eviden
 only when the seat is free for this test. See [Audio](AUDIO.md). Quick self-tests open no audio
 device and cover PCM encoding, isolation gates, ownership, cleanup and MCP responses instead.
 
+Android has one: `scripts/test-android.ps1 -Avd <name> -Anode <new-executable>`. With an existing
+lease and a ready seat, it starts the AVD read-only in the seat, checks through adb that it booted and
+that a screenshot has the device's size, stops it and checks it has gone. It loads the machine while
+the emulator runs, so run it only while the seat is free. See [Android apps and web consoles](ANDROID.md).
+
+Display changes have one too: `scripts/test-display.ps1 -Anode <new-executable>`. It requires an
+existing lease and a ready seat at its startup display, and never starts or stops a seat or opens its
+viewer. It walks the seat through four displays, from 1024x768 to portrait and 150% scaling, checks
+that each result, full-size screenshot and status agree, then resets and checks that the startup
+display is back, keeping the screenshots. Apps in the seat see every change, so run it only while the
+seat is free. See [Test other displays](DISPLAYS.md). Quick self-tests change no display: they drive
+the seat host's display logic with a stand-in daemon and screen, and look the live display-change call
+up on the real Remote Desktop control without calling it.
+
 Windows Forms/WPF, a headed Chrome app and noninteractive command tools are covered by these suites.
 Games and custom-rendered applications generally need visual input because their UIA tree may be
 sparse. Electron, WinUI, IDEs, installers and each real application need their own smoke tests;

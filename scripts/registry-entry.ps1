@@ -7,13 +7,13 @@
     the bundle's SHA-256. -Tag must match the project version with a leading v.
     The bundle must exist locally; this script does not contact GitHub or the registry.
 .PARAMETER Tag
-    Release tag, for example v0.10.0.
+    Release tag, for example v0.11.0.
 .PARAMETER Bundle
     Path to the built anode-windows-x64.mcpb file.
 .PARAMETER OutFile
     Destination JSON file. Defaults to artifacts\release\server.registry.json in the repository.
 .EXAMPLE
-    powershell -NoProfile -ExecutionPolicy Bypass -File scripts\registry-entry.ps1 -Tag v0.10.0 -Bundle artifacts\pkg-release\anode-windows-x64.mcpb -OutFile artifacts\pkg-release\server.registry.json
+    powershell -NoProfile -ExecutionPolicy Bypass -File scripts\registry-entry.ps1 -Tag v0.11.0 -Bundle artifacts\pkg-release\anode-windows-x64.mcpb -OutFile artifacts\pkg-release\server.registry.json
 #>
 param(
     [Parameter(Mandatory = $true)][string]$Tag,

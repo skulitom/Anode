@@ -2,6 +2,7 @@ using System.Text.Json.Nodes;
 using System.Diagnostics;
 using System.Windows.Forms;
 using Anode.Core.Bridge;
+using Anode.Core.Display;
 using Anode.Core.Launch;
 using Anode.Core.Session;
 using Anode.Core.Util;
@@ -32,6 +33,7 @@ internal sealed class AnodeDaemon : IDisposable
     private readonly Func<Task> _startHost;
     private readonly Func<bool, uint?> _logoff;
     private readonly Action _disconnectViewer;
+    private readonly Func<DisplayMode, bool, CancellationToken, Task> _changeDisplay;
 
     private SeatWindow? _window;
     private JsonPipeServer? _control;
@@ -43,9 +45,16 @@ internal sealed class AnodeDaemon : IDisposable
     private string _state = "starting";
     private string _lastError = string.Empty;
     private DateTime _startedUtc = DateTime.UtcNow;
+    /// <summary>The display the seat showed when it first became ready, which a reset and a lease's end restore.</summary>
+    private DisplayMode? _startDisplay;
+    /// <summary>The display an agent chose, which every later viewer connection asks for until the seat stops.</summary>
+    private DisplayMode? _display;
+    private bool _changingDisplay;
+    private TaskCompletionSource? _displayLogin;
 
     internal AnodeDaemon(SeatOptions options, Func<uint?>? findChild = null, Func<string?>? blockingSummary = null,
-        Func<Task>? startHost = null, Func<bool, uint?>? logoff = null, Action? disconnectViewer = null)
+        Func<Task>? startHost = null, Func<bool, uint?>? logoff = null, Action? disconnectViewer = null,
+        Func<DisplayMode, bool, CancellationToken, Task>? changeDisplay = null)
     {
         _options = options;
         _promptForCredentials = options.PromptForCredentials;
@@ -54,6 +63,7 @@ internal sealed class AnodeDaemon : IDisposable
         _startHost = startHost ?? BringUpSeatAsync;
         _logoff = logoff ?? ChildSession.Logoff;
         _disconnectViewer = disconnectViewer ?? (() => _window?.BeginInvoke(new Action(() => _window.Viewer.Disconnect())));
+        _changeDisplay = changeDisplay ?? ChangeViewerDisplayAsync;
     }
 
     public static int Run(SeatOptions options)
@@ -150,7 +160,9 @@ internal sealed class AnodeDaemon : IDisposable
             if (_promptForCredentials) _window!.ClearNoActivate();
             DateTime started = DateTime.UtcNow;
             int attempt = Interlocked.Increment(ref _connectionAttempt);
-            _window!.Viewer.ConnectToChildSession(_options with { PromptForCredentials = _promptForCredentials });
+            var options = ConnectOptions(_display) with { PromptForCredentials = _promptForCredentials };
+            _window!.SetSeatSize(options.Width, options.Height);
+            _window.Viewer.ConnectToChildSession(options);
             // During an explicit prompt Windows may retry after a failed credential
             // attempt. Its intermediate event-log failures are not terminal yet.
             if (!_promptForCredentials)
@@ -192,7 +204,8 @@ internal sealed class AnodeDaemon : IDisposable
     {
         lock (_lifecycleGate)
         {
-            if (_reconnecting) return;
+            // A reconnect for a new display keeps the seat ready; its login completes the change.
+            if (_reconnecting || _changingDisplay) return;
             if (_stopRequested || _bringUpCancellation.IsCancellationRequested)
             {
                 _window?.Viewer.Disconnect();
@@ -207,6 +220,12 @@ internal sealed class AnodeDaemon : IDisposable
     {
         lock (_lifecycleGate)
         {
+            if (_changingDisplay)
+            {
+                // The seat host never went away, so there is no host to start.
+                _displayLogin?.TrySetResult();
+                return;
+            }
             if (_stopRequested || _reconnecting || _bringUpCancellation.IsCancellationRequested) return;
         }
         // Connected only confirms the RDP transport. A reserved child-session ID
@@ -225,6 +244,14 @@ internal sealed class AnodeDaemon : IDisposable
             Log.Info($"Windows sign-in notification {code}; waiting for completed login");
             return;
         }
+        lock (_lifecycleGate)
+        {
+            if (_changingDisplay)
+            {
+                _displayLogin?.TrySetException(new InvalidOperationException($"Windows did not sign the viewer back in (error {code})."));
+                return;
+            }
+        }
         if (_promptForCredentials && code is 0 or 1 or 2 or unchecked((int)0xC000006D) or unchecked((int)0xC0000224))
         {
             Log.Warn($"Windows requested another sign-in attempt (code {code})");
@@ -242,6 +269,13 @@ internal sealed class AnodeDaemon : IDisposable
         {
             // Disconnect is also raised for our deliberate Stop/Reconnect actions.
             if (_stopRequested || _reconnecting) return;
+            // And for a reconnect at a new display, which reports a failed connection itself. The viewer's own
+            // disconnect can be reported after the new connection has begun; only an ended connection fails it.
+            if (_changingDisplay)
+            {
+                if (_window?.Viewer.ConnectionState is null or 0) _displayLogin?.TrySetException(new InvalidOperationException(why));
+                return;
+            }
             uint? stillThere = _findChild();
             bool starting = _state is "starting" or "connecting" or "signing-in" or "starting-agent";
             bool failed = _state is "error" or "logon-error";
@@ -271,6 +305,7 @@ internal sealed class AnodeDaemon : IDisposable
     {
         lock (_lifecycleGate)
         {
+            _displayLogin?.TrySetException(new InvalidOperationException(message));
             if (_stopRequested || _reconnecting) return;
             _bringUpCancellation.Cancel();
             _hostReady = false;
@@ -349,10 +384,10 @@ internal sealed class AnodeDaemon : IDisposable
                 }
                 _hostReady = true;
                 _window?.SetSeatInfo(_sessionId, true);
-                var result = pong.Obj("result");
-                var screen = result?.Obj("screen");
-                SetState("ready",
-                    $"Seat ready in session {id} at {screen?.Int("width")}x{screen?.Int("height")}. Programs you start here stay out of your way.");
+                var screen = DisplayMode.FromJson(pong.Obj("result")?.Obj("screen"));
+                // Measured rather than taken from the options: this is what a reset restores.
+                _startDisplay ??= screen;
+                SetState("ready", $"Seat ready in session {id} at {screen?.ToString() ?? "an unknown size"}. Programs you start here stay out of your way.");
             }
             Log.Info($"seat ready: session {id}");
         }
@@ -391,7 +426,7 @@ internal sealed class AnodeDaemon : IDisposable
         int stopVersion;
         lock (_lifecycleGate)
         {
-            if (_reconnecting || _state == "stopping") return;
+            if (_reconnecting || _changingDisplay || _state == "stopping") return;
             stopVersion = _stopVersion;
             _reconnecting = true;
             // Let an old host startup release the seat gate before retrying.
@@ -493,6 +528,9 @@ internal sealed class AnodeDaemon : IDisposable
             _hostReady = false;
             uint? was = _sessionId ?? logged;
             _sessionId = null;
+            // A new seat starts at the display Anode was started with.
+            _display = null;
+            _startDisplay = null;
             _window?.SetSeatInfo(null, false);
             SetState("stopped", was is null
                 ? "There was no seat to stop."
@@ -643,6 +681,10 @@ internal sealed class AnodeDaemon : IDisposable
                     ["parentSession"] = ChildSession.CurrentSessionId()
                 });
 
+            case "seat.display":
+                // Asked by the seat host, which holds the desktop lease for the agent changing the display.
+                return await DisplayAsync(request).ConfigureAwait(false);
+
             case "seat.pad-visibility":
                 // Asked by the seat host after it plugs in a controller: can this, the user's session, open it?
                 return JsonLine.Ok(Core.Gamepad.PadIsolation.DesktopView(
@@ -743,6 +785,151 @@ internal sealed class AnodeDaemon : IDisposable
         return response;
     }
 
+    // ----------------------------------------------------------------- display
+
+    /// <summary>The display a seat starts with: as measured once it is ready, or as Anode was asked for.</summary>
+    private DisplayMode StartupDisplay() => _startDisplay ?? new DisplayMode(
+        Math.Clamp(_options.Width, DisplayMode.MinWidth, DisplayMode.MaxSide), Math.Clamp(_options.Height, DisplayMode.MinHeight, DisplayMode.MaxSide),
+        _options.ScaleFactor is int scale ? Math.Clamp(scale, 100, 500) : 100);
+
+    private SeatOptions ConnectOptions(DisplayMode? display) => display is { } chosen
+        ? _options with { Width = chosen.Width, Height = chosen.Height, ScaleFactor = chosen.Scale }
+        : _options;
+
+    /// <summary>
+    /// The seat host's display requests: with no size, the startup display; otherwise a change made live
+    /// (method live) or by reconnecting the viewer at the new size (method reconnect). The seat host confirms
+    /// the result on the seat's own screen.
+    /// </summary>
+    internal async Task<JsonObject> DisplayAsync(JsonObject request)
+    {
+        if (!request.ContainsKey("width")) return JsonLine.Ok(new JsonObject { ["startup"] = StartupDisplay().ToJson() });
+        int width = request.Int("width") ?? 0, height = request.Int("height") ?? 0, scale = request.Int("scale") ?? 0;
+        if (DisplayMode.Problem(width, height, scale) is { } problem) return JsonLine.Fail(problem);
+        if (request.Str("method") is not ("live" or "reconnect")) return JsonLine.Fail("method must be live or reconnect.");
+        var target = new DisplayMode(width, height, scale);
+        bool reconnect = request.Str("method") == "reconnect";
+
+        CancellationToken cancel;
+        lock (_lifecycleGate)
+        {
+            if (_stopRequested || !_hostReady) return JsonLine.Fail($"The seat is not ready ({_state}), so its display cannot change.");
+            if (_reconnecting || _changingDisplay) return JsonLine.Fail("The viewer is already reconnecting. Change the display once it is back.");
+            // Windows could not sign this seat in by itself, so a new connection would need the password again: from a
+            // dialog on the user's desktop, in the middle of an agent's task. Never disconnect a viewer that cannot come back.
+            if (reconnect && _promptForCredentials)
+                return JsonLine.Fail("Reconnecting the viewer at the new size would need the Windows password, because this seat signed in "
+                    + "through the credential dialog, so the viewer was left connected. To test this display, start a seat at it: "
+                    + $"anode quit (which closes the seat's apps), then anode start --sign-in --width {width} --height {height} --scale {scale}.");
+            _changingDisplay = true;
+            cancel = _bringUpCancellation.Token;
+        }
+        _window?.SetReconnectEnabled(false);
+        _window?.SetStatus($"Changing the seat's display to {target}...");
+        try
+        {
+            await _changeDisplay(target, reconnect, cancel).ConfigureAwait(false);
+            bool recovered;
+            lock (_lifecycleGate)
+            {
+                // Stop resets the display for the next seat; a change finishing alongside it must not undo that.
+                if (!_stopRequested) _display = target;
+                recovered = _state == "detached" && reconnect;
+            }
+            Log.Info($"asked for seat display {target} {(reconnect ? "by reconnecting the viewer" : "live")}");
+            string message = $"Seat ready in session {_sessionId}. An agent asked for its display to be {target}. Programs you start here stay out of your way.";
+            if (recovered) SetState("ready", message);
+            else _window?.SetStatus(message);
+            return JsonLine.Ok(new JsonObject { ["method"] = reconnect ? "reconnect" : "live", ["display"] = target.ToJson() });
+        }
+        catch (OperationCanceledException) when (cancel.IsCancellationRequested)
+        {
+            return JsonLine.Fail("The seat was stopped while its display was changing.");
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"could not change the seat display to {target} ({(reconnect ? "reconnect" : "live")}): {ex.Message}");
+            var failure = JsonLine.Fail(ex.Message);
+            // The seat host then asks for the viewer back at the display the seat had.
+            if (ex is ViewerDetachedException) failure["errorCode"] = "viewer_detached";
+            return failure;
+        }
+        finally
+        {
+            lock (_lifecycleGate) { _changingDisplay = false; _displayLogin = null; }
+            _window?.SetReconnectEnabled(true);
+        }
+    }
+
+    /// <summary>
+    /// Changes the display through the viewer. Live, the Remote Desktop control asks Windows for it as a monitor
+    /// change. Otherwise the viewer disconnects and connects again at the new size, which keeps the session, its
+    /// apps and the seat host's pipe. When that connection fails the seat host, which measured the display the seat
+    /// had, asks for a reconnect at it; until one succeeds the viewer is reported detached.
+    /// </summary>
+    private async Task ChangeViewerDisplayAsync(DisplayMode target, bool reconnect, CancellationToken cancel)
+    {
+        var window = _window ?? throw new InvalidOperationException("Anode has no viewer to change the display through.");
+        if (!reconnect)
+        {
+            await OnViewerAsync(() => window.Viewer.UpdateDisplay(target)).ConfigureAwait(false);
+            return;
+        }
+        try
+        {
+            await ConnectViewerAsync(window, target, cancel).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (!cancel.IsCancellationRequested)
+        {
+            string message = $"The viewer could not reconnect at {target}. {ex.Message}";
+            if (await OnViewerAsync(() => window.Viewer.ConnectionState).ConfigureAwait(false) == 1) throw new InvalidOperationException(message, ex);
+            SetState("detached", $"The viewer could not reconnect after a display change ({ex.Message}). The seat is still running; "
+                + "press Reconnect in the viewer (open it with `anode show` or the tray icon) to watch it again.");
+            throw new ViewerDetachedException(message, ex);
+        }
+    }
+
+    /// <summary>A reconnect for a display change that failed and left the viewer without a connection.</summary>
+    private sealed class ViewerDetachedException(string message, Exception inner) : InvalidOperationException(message, inner);
+
+    private async Task ConnectViewerAsync(SeatWindow window, DisplayMode display, CancellationToken cancel)
+    {
+        lock (_lifecycleGate) _displayLogin = null;
+        await OnViewerAsync(() => window.Viewer.Disconnect()).ConfigureAwait(false);
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        while (await OnViewerAsync(() => window.Viewer.ConnectionState).ConfigureAwait(false) > 0)
+        {
+            if (DateTime.UtcNow >= deadline) throw new TimeoutException("The viewer did not disconnect.");
+            await Task.Delay(50, cancel).ConfigureAwait(false);
+        }
+        var login = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (_lifecycleGate) _displayLogin = login;
+        // An agent's display change never opens a credential dialog on the user's desktop.
+        var options = ConnectOptions(display) with { PromptForCredentials = false };
+        await OnViewerAsync(() =>
+        {
+            window.SetSeatSize(options.Width, options.Height);
+            window.Viewer.ConnectToChildSession(options);
+        }).ConfigureAwait(false);
+        try { await login.Task.WaitAsync(TimeSpan.FromSeconds(45), cancel).ConfigureAwait(false); }
+        catch (TimeoutException) { throw new TimeoutException("Windows did not sign the viewer back in within 45 seconds."); }
+    }
+
+    /// <summary>Runs on the viewer's thread, which owns the Remote Desktop control.</summary>
+    private Task OnViewerAsync(Action action) => OnViewerAsync(() => { action(); return true; });
+
+    private Task<T> OnViewerAsync<T>(Func<T> action)
+    {
+        var window = _window ?? throw new InvalidOperationException("Anode has no viewer.");
+        var done = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+        window.BeginInvoke(new Action(() =>
+        {
+            try { done.SetResult(action()); }
+            catch (Exception ex) { done.SetException(ex); }
+        }));
+        return done.Task;
+    }
+
     internal async Task<JsonObject> StatusAsync(string? agentId = null)
     {
         var status = new JsonObject
@@ -759,6 +946,7 @@ internal sealed class AnodeDaemon : IDisposable
             ["pointerGuard"] = PointerGuard.Status(),
             ["backgroundRenderingConfigured"] = BackgroundRendering.Current() == 2,
             ["parentSession"] = ChildSession.CurrentSessionId(),
+            ["startupDisplay"] = StartupDisplay().ToJson(),
             ["uptimeSeconds"] = Math.Round((DateTime.UtcNow - _startedUtc).TotalSeconds, 1),
             ["lastError"] = string.IsNullOrEmpty(_lastError) ? null : _lastError,
             ["logPath"] = Env.LogPath,

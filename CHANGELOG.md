@@ -2,13 +2,6 @@
 
 ## Unreleased
 
-- Agents can listen to browser/game audio as WAV clips and play bounded PCM WAV files through
-  new audio MCP tools and `anode audio` commands. Audio uses the verified child session's Remote
-  Audio endpoint, requires `--audio` at startup (also audible on the user's speakers), and never
-  falls back to a physical capture device. Agent playback stops when its desktop lease ends.
-- **Audio is not fully tested yet.** Builds, quick self-tests and documentation checks pass,
-  but live playback/recording and browser/game audio have not been verified in a running seat.
-  Live testing was deferred to avoid disturbing the active session.
 - **Ready for directory submissions.** The README leads with desktop isolation and a three-command
   install, keeps a hidden demo GIF placeholder, and includes the MCP Registry ownership marker.
 - `publish-registry.yml` publishes to the official MCP Registry using GitHub OIDC, with no secret
@@ -19,6 +12,71 @@
   entry as a workflow artifact for owner testing. Public release assets remain the ZIP, installer and
   `SHA256SUMS`. CI exercises the generator, validates registry metadata with a pinned publisher, and
   checks the generated entry against the bundle.
+
+## 0.11.0 — 2026-09-29
+
+- **Android apps in the seat.** `android_emulator` (`anode android start|adb|shot|stop`) boots an AVD on
+  an emulator inside the seat, on a free port, and returns its serial once it has booted. It starts
+  read-only, so tests leave the AVD as it was and can run while the same AVD is open on the desktop.
+  `adb` runs for that serial only and refuses commands for adb's server or other devices, and
+  `screenshot` returns the device's own pixels. Every Android action checks that its emulator's
+  process runs in the seat, so the user's own emulators and phones, which share the adb server, stay
+  out of reach. `gpu` picks auto, host or software rendering, naming software as the installed
+  emulator does. `android_status` (`anode android`) lists the SDK, AVDs, running emulators and Android
+  Studio without starting anything, and the `android_test` prompt walks a release test.
+- **Android Studio in the seat.** `android_studio` (`anode android studio`) opens it on a profile of its
+  own, with its setup wizard skipped. Android Studio hands a second start on the same settings to the
+  instance already running, in any session, so on the user's settings it opened projects on the user's
+  desktop; `run` now refuses its launchers. Remains of an uninstalled Studio are skipped.
+- **Signed-in web consoles.** `seat_browser` (`anode browser <url>`) opens Chrome or Edge in the seat on
+  a persistent seat profile, `%LOCALAPPDATA%\AnodeChrome` or `AnodeEdge`. `anode browser --sign-in`
+  opens that profile on the user's own desktop to sign in once, and refuses a terminal inside a
+  packaged app, which would keep the sign-in where the seat cannot see it. `run` refuses Chrome and
+  Edge on their usual profile, and links they would open, while they run outside the seat, where they
+  keep that profile locked. Anyone holding the lease can use the sites signed in there.
+- **Tested live** on Windows 11 Pro build 26200 with emulator 36.2.12: `Pixel_9_Pro` (API 36, Google
+  Play) booted in the seat from its quick-boot snapshot in 12.2 s on the graphics card, adb reported
+  its 1280x2856 screen, a screenshot came back at that size, `adb kill-server` was refused, and it shut
+  down on `emu kill`. Android Studio opened at its Welcome screen on its own profile, with no setup
+  wizard, and Chrome opened a page in the seat on the seat profile, while `run` refused Chrome and a
+  link as long as Chrome ran on the desktop.
+- [Android](docs/ANDROID.md#when-an-emulator-does-not-finish-booting) explains an emulator that never
+  finishes booting: a quick-boot snapshot that resumes with adb offline, and an AVD that restarts
+  during every boot because of a fault in its own disk image, which the kernel log the emulator keeps
+  names.
+- **Agents can test other displays.** The new `seat_display` tool and `anode display` command change
+  the running seat's resolution and Windows scaling while its apps keep running: 640x480 to 8192x8192,
+  portrait included, at 100-500%. Anode asks Windows for the change live through Remote Desktop's
+  display-control channel and measures the seat's screen until it shows it; when Windows does not
+  change it live, Anode reconnects its viewer at the new size, which keeps the session and its apps.
+  Results report the display Windows actually applied. Changing the display used to mean quitting
+  Anode, which closed every app in the seat, and MCP agents could not do it at all. A seat that signed
+  in through the Windows credential dialog is only changed live: reconnecting would need the password,
+  and Anode never opens that dialog for an agent.
+- A display change lasts while its agent holds the desktop lease; release or expiry restores the
+  display the seat started with before the next agent acts. `reset` restores it at once.
+- The `display_test` MCP prompt runs an app through a set of displays, from 1024x768 to 4K at 200% and
+  portrait, and asks for a report of what breaks at each.
+- Screenshots, input and control bounds now use physical pixels at every scaling. The seat host and
+  its inspection worker were not DPI aware, so in a seat started with `--scale` above 100 Windows gave
+  them a smaller, DPI-scaled screen, and screenshots were not at the display's real resolution.
+- `anode status`, `seat_status`, `seat_capabilities` and the seat host's `ping` report the display's
+  scaling, and status reports `startupDisplay`. `anode start` with display options says to use
+  `anode display` when Anode is already running, instead of ignoring them silently. `--scale 100`
+  now asks for 100% instead of leaving the scale to Remote Desktop's default.
+- **Tested live** in a seat that signed in through the Windows credential dialog: Windows applied
+  every change live, in 156-173 ms, through 1024x768, 1920x1080 at 150%, 1080x1920 portrait and
+  2560x1440 at 125%, with screenshots at each display's own size, and `reset` restored 1280x720 at
+  100%. The desktop suite passed at 1920x1080 and 150%, with the pointer at physical coordinates. The
+  reconnect fallback has not run live, because nothing needed it.
+
+- Agents can listen to browser/game audio as WAV clips and play bounded PCM WAV files through
+  new audio MCP tools and `anode audio` commands. Audio uses the verified child session's Remote
+  Audio endpoint, requires `--audio` at startup (also audible on the user's speakers), and never
+  falls back to a physical capture device. Agent playback stops when its desktop lease ends.
+- **Audio is not tested live yet.** Builds, quick self-tests and documentation checks pass, but
+  playback, recording and browser/game audio have not run in a seat: the 0.11.0 validation seat
+  started without `--audio`.
 
 ## 0.10.0 — 2026-09-25
 

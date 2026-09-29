@@ -8,7 +8,7 @@
     AGENTS.md, CLAUDE.md, llms.txt, docs/*.md, examples/**/*.md, packaging/**/*.md, the agent skill
     and the distribution manifests that exist (packaging/mcpb, packaging/winget, server.json, plugin
     and marketplace JSON, glama.json, bucket/anode.json). Tool counts, the PROTOCOL.md tool list and
-    seat_/anode_/steam_/gamepad_ tokens are compared with the tools/list reply of 'anode mcp'.
+    seat_/anode_/steam_/gamepad_/android_ tokens are compared with the tools/list reply of 'anode mcp'.
     Runs no other anode command.
 .EXAMPLE
     powershell -NoProfile -ExecutionPolicy Bypass -File scripts\check-docs.ps1 -Anode src\Anode\bin\Debug\net10.0-windows\win-x64\anode.exe
@@ -17,7 +17,8 @@ param([string]$Anode)
 $ErrorActionPreference = 'Stop'
 $root = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
 # Error codes and a Steam environment variable that share a tool prefix.
-$nonTools = @('seat_busy', 'seat_stopped', 'seat_not_ready', 'steam_master_ipc_name_override')
+# The android_test prompt shares the android_ prefix with tools.
+$nonTools = @('seat_busy', 'seat_stopped', 'seat_not_ready', 'steam_master_ipc_name_override', 'android_test')
 $problems = [Collections.Generic.List[string]]::new()
 function Report([string]$Document, [int]$Line, [string]$Message) { $problems.Add("${Document}:${Line}: $Message") }
 
@@ -188,7 +189,7 @@ $linkPatterns = @(
     '\b(?:href|src)\s*=\s*"([^"]*)"',
     '(?i)\bhttps://(?:github\.com|raw\.githubusercontent\.com)/skulitom/anode\b[^\s<>"''()\[\]`*]*')
 $tools = @(Get-McpToolNames $Anode)
-$toolPattern = [regex]'\b(?:seat|anode|steam|gamepad)_[a-z]+(?:_[a-z]+)*\b'
+$toolPattern = [regex]'\b(?:seat|anode|steam|gamepad|android)_[a-z]+(?:_[a-z]+)*\b'
 foreach ($path in $documents) {
     $document = Get-RelativeName $path
     $source = Get-Source $path
