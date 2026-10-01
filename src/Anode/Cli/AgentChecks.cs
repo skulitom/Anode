@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json.Nodes;
 using Anode.Core.Agents;
 using Anode.Core.Bridge;
@@ -84,6 +85,125 @@ internal static class AgentChecks
         Require((await activeFailure.HandleAsync(Input("B", activeToken), Dispatch).WaitAsync(TimeSpan.FromSeconds(1))).Bool("ok") == true,
             "failed cleanup leaked the interaction gate");
         return "exclusive ownership, recoverable acquire, bounded renewal, idle expiry, stale-token refusal and scoped release";
+    }
+
+    public static async Task<string> ClientLifetime()
+    {
+        long now = 0;
+        bool alive = true;
+        int invalidations = 0, probes = 0;
+        (int, long) seen = default;
+        var record = new List<string>();
+        var lease = new DesktopLease(() => invalidations++, milliseconds: () => now, record: record.Add,
+            clientAlive: (pid, started) => { probes++; seen = (pid, started); return alive; });
+        Task<JsonObject> Call(JsonObject request) => lease.HandleAsync(request, (_, _) => Task.FromResult(JsonLine.Ok()));
+        JsonObject Tracked(string action, int pid, long started, string? token = null)
+        {
+            var request = Lease("A", action, token);
+            request["clientPid"] = pid; request["clientStarted"] = started; request["ttlSeconds"] = 600;
+            return request;
+        }
+        await Call(Tracked("acquire", 10, 100));
+        lease.ExpireIdle();
+        now = 120001;
+        lease.ExpireIdle();
+        Require(invalidations == 0, "a live client lost its lease before its TTL");
+        alive = false;
+        lease.ExpireIdle();
+        Require(invalidations == 1 && record[^1] == "desktop lease of A ended: its client process exited",
+            "dead client kept its lease or its exit was not recorded");
+        Require((await Call(Lease("B", "acquire"))).Bool("ok") == true, "dead client prevented immediate handoff");
+        int previousProbes = probes;
+        now += DesktopLease.PlaceHoldMs + 1;
+        lease.ExpireIdle();
+        Require(invalidations == 1 && probes == previousProbes, "an untracked owner inherited process tracking");
+        now += 120000;
+        lease.ExpireIdle();
+        Require(invalidations == 2 && record[^1] == "desktop lease of B expired", "untracked idle lease ignored its TTL");
+
+        alive = true;
+        string token = (await Call(Tracked("acquire", 10, 100))).Obj("result")!.Str("leaseToken")!;
+        Require((await Call(Tracked("renew", 20, 200, token))).Bool("ok") == true, "tracked renewal failed");
+        lease.ExpireIdle();
+        Require(seen == (20, 200L), "renew did not replace the client process");
+        now += 1000;
+        var recovered = (await Call(Tracked("acquire", 30, 300))).Obj("result")!;
+        lease.ExpireIdle();
+        Require(seen == (30, 300L) && recovered.Str("leaseToken") == token && recovered.Int("expiresInMs") == 599000,
+            "recovery did not replace the process while preserving token and expiry");
+        var finish = Signal();
+        Task<JsonObject> active = lease.HandleAsync(Input("A", token), async (_, _) => { await finish.Task; return JsonLine.Ok(); });
+        try
+        {
+            Require(!active.IsCompleted, "operation was not admitted");
+            alive = false; previousProbes = probes;
+            lease.ExpireIdle();
+            Require(invalidations == 2 && probes == previousProbes, "client exit ended an active lease");
+        }
+        finally { finish.TrySetResult(); await active.WaitAsync(TimeSpan.FromSeconds(2)); }
+        Require(invalidations == 3 && record[^1].Contains("client process exited"), "client exit was not checked when the operation finished");
+        alive = true;
+        await Call(Tracked("acquire", 40, 400));
+        now += 600000; lease.ExpireIdle();
+        Require(invalidations == 4 && record[^1] == "desktop lease of A expired", "live client prevented idle TTL expiry");
+        return "dead clients hand off without clock advance; live/untracked owners, TTL, replacement and admitted work retain their rules";
+    }
+
+    public static string ClientProbe()
+    {
+        using var process = Process.GetCurrentProcess();
+        long started = process.StartTime.ToUniversalTime().ToFileTimeUtc();
+        Require(DesktopLease.ClientAlive(process.Id, started), "current process was not alive");
+        Require(!DesktopLease.ClientAlive(process.Id, started + 1), "reused pid was considered alive");
+        Require(!DesktopLease.ClientAlive(int.MaxValue, started), "absent pid was considered alive");
+        foreach (var failure in new Exception[] { new System.ComponentModel.Win32Exception(5), new InvalidOperationException() })
+            Require(DesktopLease.ClientAlive(process.Id, started, _ => throw failure), "unreadable process was considered gone");
+        // A real client that gets killed, as when an agent's whole process tree is: gone while this process still holds
+        // its handle (the exited process still answers for its start time), and gone once the handle is closed too.
+        var info = new ProcessStartInfo(Environment.GetEnvironmentVariable("ComSpec") ?? "cmd.exe", "/c pause")
+            { UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = true, RedirectStandardOutput = true };
+        using var client = Process.Start(info) ?? throw new InvalidOperationException("The stand-in client did not start.");
+        int clientId = client.Id;
+        try
+        {
+            long clientStarted = client.StartTime.ToUniversalTime().ToFileTimeUtc();
+            Require(DesktopLease.ClientAlive(clientId, clientStarted), "a running client was considered gone");
+            client.Kill(entireProcessTree: true);
+            client.WaitForExit();
+            Require(!DesktopLease.ClientAlive(clientId, clientStarted), "a killed client was considered alive while its handle was open");
+            client.Dispose();
+            Require(!DesktopLease.ClientAlive(clientId, clientStarted), "a killed client was considered alive after its handle closed");
+        }
+        finally { try { if (!client.HasExited) client.Kill(entireProcessTree: true); } catch (InvalidOperationException) { } }
+        return "real current, reused, absent and killed client pids; access denied and other unreadable processes remain alive";
+    }
+
+    public static string ClientValidation()
+    {
+        foreach (string action in new[] { "acquire", "renew" })
+        {
+            var request = Lease("A", action, "token");
+            Require(AgentAccess.Validate(request) is null, "process fields became mandatory");
+            request["clientPid"] = int.MaxValue; request["clientStarted"] = long.MaxValue;
+            Require(AgentAccess.Validate(request) is null && Tools.ValidateOperation("lease", AgentAccess.Arguments(request)) is null,
+                "valid process envelope was rejected or leaked into tool arguments");
+            foreach (string field in new[] { "clientPid", "clientStarted" })
+            {
+                var missing = (JsonObject)request.DeepClone(); missing.Remove(field);
+                Require(AgentAccess.Validate(missing)?.Contains("together") == true, "partial process identity accepted");
+                foreach (string value in new[] { "null", "true", "\"1\"", "{}", "[]", "0", "-1", "1.5", field == "clientPid" ? "2147483648" : "9223372036854775808" })
+                {
+                    var bad = (JsonObject)request.DeepClone(); bad[field] = JsonNode.Parse(value);
+                    Require(AgentAccess.Validate(bad)?.Contains(field) == true, $"invalid {field}={value} accepted");
+                }
+            }
+            foreach (var (op, otherAction) in new[] { ("status", action), ("input.text", action), ("lease", "status"), ("lease", "release"), ("lease", "unknown"), ("lease", (string?)null) })
+            {
+                var bad = (JsonObject)request.DeepClone(); bad["op"] = op; bad["action"] = otherAction;
+                Require(AgentAccess.Validate(bad)?.Contains("only allowed") == true, "process fields accepted on the wrong operation/action");
+            }
+        }
+        return "optional paired positive int32/int64 process fields, malformed values, action restrictions and envelope stripping";
     }
 
     public static async Task<string> QueueAndDisconnect()

@@ -26,8 +26,9 @@ Use separate agent IDs for independent tasks. Agents deliberately using the same
   pausing longer than the lifetime without acting. Nothing revives a lease that already expired.
 - **Handing it on.** Release when finished. While others wait, desktop results tell the owner
   (MCP adds a note; pipe responses carry `waitingAgents`). Ending an MCP session releases its lease
-  when the server generated its identity, because nothing could resume it; with a stable
-  `ANODE_AGENT_ID` the lease stays until it expires, so a restarted session can recover it.
+  when the server generated its identity; a killed session's lease also ends once its process is
+  gone and any admitted action finishes. With a stable `ANODE_AGENT_ID` the lease stays until expiry
+  or release for restart recovery; choose a short `ttlSeconds` when the session may be killed.
 - **Seeing who has it.** `seat_lease` with `{"action":"status"}`, `seat_status`, `anode status` and
   `anode lease status` report the owner, its name, the time left and the line. An agent asking
   about a lease it holds is told "You hold the desktop lease", so it never mistakes its own lease
@@ -83,8 +84,10 @@ not a live lease. The CLI never takes a lease implicitly.
 
 - Closing a CLI connection does not release a workflow's lease or cancel its jobs; the lease
   expires when its owner stops acting and renewing. An MCP session with a generated identity
-  releases on exit; set `ANODE_AGENT_ID` in the MCP process environment to keep and resume the same
-  identity instead. Reacquire, then use `seat_job {"action":"list"}` to recover jobs; never replay
+  releases on exit; if killed, its process is checked every second while idle and on lease/desktop
+  calls, and its lease ends when the process is gone. Stable `ANODE_AGENT_ID` sessions keep their
+  lease until expiry or release for recovery; use a short `ttlSeconds` if they may be killed.
+  Reacquire, then use `seat_job {"action":"list"}` to recover jobs; never replay
   an uncertain command start.
 - Expiry prevents new actions. An action already admitted may finish; another agent cannot
   acquire until it finishes. Queued requests are checked again at dispatch, so an expired or
