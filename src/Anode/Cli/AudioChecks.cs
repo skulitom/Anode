@@ -87,11 +87,25 @@ internal static class AudioChecks
         Require(response["structuredContent"] is null && !McpChecks.Text(response).Contains(base64)
             && McpChecks.Text(response).Contains("durationMs"), "audio hidden by structured data or duplicated as text");
         Require(calls == 2, "audio did not acquire exactly one lease before recording");
+        // MCP 2024-11-05 predates audio content, so its clients receive the WAV as an embedded resource.
+        backend.Initialized("selftest", "2024-11-05");
+        var legacy = await backend.CallAsync("seat_audio_listen", new JsonObject { ["durationMs"] = 100 }, CancellationToken.None);
+        var blocks = ((JsonArray)legacy["content"]!).OfType<JsonObject>().ToArray();
+        var resource = blocks.FirstOrDefault()?.Obj("resource");
+        Require(blocks.Length == 2 && blocks[0].Str("type") == "resource" && resource?.Str("blob") == base64
+            && resource.Str("mimeType") == "audio/wav" && resource.Str("uri")?.StartsWith("anode://seat/audio/", StringComparison.Ordinal) == true
+            && blocks[1].Str("type") == "text" && McpChecks.Text(legacy).Contains("durationMs") && legacy["structuredContent"] is null,
+            "a 2024-11-05 client received audio content, which its protocol does not define");
+        backend.Initialized("selftest", "2025-03-26");
+        var boundary = await backend.CallAsync("seat_audio_listen", new JsonObject { ["durationMs"] = 100 }, CancellationToken.None);
+        Require(((JsonArray)boundary["content"]!).OfType<JsonObject>().Any(c => c.Str("type") == "audio" && c.Str("data") == base64),
+            "a 2025-03-26 client did not receive native audio");
+        Require(calls == 4, "the held lease was not reused for later recordings");
         using var cancelled = new CancellationTokenSource();
         cancelled.Cancel();
         try { await SeatAudio.ListenAsync(100, cancelled.Token); throw new InvalidOperationException("cancelled capture continued"); }
         catch (OperationCanceledException) { }
-        return "private-pipe validation before dispatch, lease acquisition, native MCP audio and pre-cancelled capture";
+        return "private-pipe validation before dispatch, lease acquisition, native MCP audio, an embedded WAV for 2024-11-05 clients and pre-cancelled capture";
     }
 
     internal static async Task<string> Lifecycle()
