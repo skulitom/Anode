@@ -81,6 +81,8 @@ machine.
 ### When an emulator does not finish booting
 
 `start` returns `booted: false` when the boot outlasts `waitSeconds`, and the emulator keeps booting.
+The whole start call, including `adb start-server`, replies before the caller's deadline; a stalled
+adb ends the wait early with `booted: false`.
 `android_status` reports `booted` for the seat's emulators, so check again there; a cold boot takes
 longer than a quick boot. When adb keeps answering `device offline`, the device itself is failing:
 

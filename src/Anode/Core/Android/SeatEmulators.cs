@@ -126,6 +126,10 @@ internal sealed class SeatEmulators
 
     public async Task<JsonObject> StartAsync(JsonObject request, CancellationToken cancel)
     {
+        long entry = _machine.Milliseconds();
+        // Leave time to build and forward the reply; the pipe deadline includes queue time and adb startup.
+        const int ReplyReserveMs = 10_000;
+        long replyBy = entry + Math.Max(0, (request.Int("timeoutMs") ?? 60_000) - ReplyReserveMs);
         var sdk = AndroidSdk.Find(_machine.Environment);
         if (sdk is null || !File.Exists(sdk.Emulator))
             return JsonLine.Fail("The Android emulator was not found. Install it with Android Studio's SDK Manager, or set ANDROID_HOME to the SDK folder.");
@@ -147,7 +151,9 @@ internal sealed class SeatEmulators
         string serial = $"emulator-{console}";
 
         // Started before the emulator, the adb server learns of it as it boots, whatever its port.
-        if (File.Exists(sdk.Adb)) await _machine.Run(sdk.Adb, new[] { "start-server" }, 20_000, cancel).ConfigureAwait(false);
+        int serverTimeout = (int)Math.Min(20_000, replyBy - _machine.Milliseconds());
+        if (File.Exists(sdk.Adb) && serverTimeout > 0)
+            await _machine.Run(sdk.Adb, new[] { "start-server" }, serverTimeout, cancel).ConfigureAwait(false);
 
         string gpu = request.Str("gpu") ?? "auto";
         var args = new List<string> { "-avd", avd.Name, "-port", console.ToString(CultureInfo.InvariantCulture), "-no-boot-anim" };
@@ -174,6 +180,7 @@ internal sealed class SeatEmulators
         int budget = Math.Clamp(((request.Int("timeoutMs") ?? 60_000) - 20_000) / 1000, 0, 150);
         int wait = Math.Min(request.Int("waitSeconds") ?? 120, budget);
         long begun = _machine.Milliseconds();
+        long waitUntil = Math.Min(begun + wait * 1000L, replyBy);
         bool booted = false;
         while (true)
         {
@@ -184,9 +191,10 @@ internal sealed class SeatEmulators
                 launched.Dispose();
                 return JsonLine.Fail($"The emulator for {avd.Name} exited while starting." + (tail.Length > 0 ? " It printed:\n" + tail : "") + $"\nFull output: {log}");
             }
-            if (File.Exists(sdk.Adb) && await BootedAsync(sdk, serial, cancel).ConfigureAwait(false) == true) { booted = true; break; }
-            if (_machine.Milliseconds() - begun >= wait * 1000L) break;
-            await _machine.Delay(TimeSpan.FromSeconds(2), cancel).ConfigureAwait(false);
+            if (File.Exists(sdk.Adb) && await BootedAsync(sdk, serial, cancel, replyBy).ConfigureAwait(false) == true) { booted = true; break; }
+            long remaining = waitUntil - _machine.Milliseconds();
+            if (remaining <= 0) break;
+            await _machine.Delay(TimeSpan.FromMilliseconds(Math.Min(2000, remaining)), cancel).ConfigureAwait(false);
         }
         double seconds = Math.Round((_machine.Milliseconds() - begun) / 1000.0, 1);
         var others = Running().Where(e => e.Port != console).ToArray();
@@ -346,9 +354,11 @@ internal sealed class SeatEmulators
         return null;
     }
 
-    private async Task<bool?> BootedAsync(AndroidSdk sdk, string serial, CancellationToken cancel)
+    private async Task<bool?> BootedAsync(AndroidSdk sdk, string serial, CancellationToken cancel, long? replyBy = null)
     {
-        var result = await _machine.Run(sdk.Adb, new[] { "-s", serial, "shell", "getprop", "sys.boot_completed" }, 10_000, cancel).ConfigureAwait(false);
+        int timeout = replyBy is long deadline ? (int)Math.Min(10_000, deadline - _machine.Milliseconds()) : 10_000;
+        if (timeout <= 0) return null;
+        var result = await _machine.Run(sdk.Adb, new[] { "-s", serial, "shell", "getprop", "sys.boot_completed" }, timeout, cancel).ConfigureAwait(false);
         return result.ExitCode == 0 ? result.Text == "1" : null;
     }
 
