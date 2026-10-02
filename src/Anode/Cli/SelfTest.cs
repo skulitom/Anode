@@ -150,6 +150,7 @@ internal static class SelfTest
         Check(results, "display measurement", DisplayChecks.Measurement);
         Check(results, "Android SDK and AVDs", AndroidChecks.Sdk);
         Check(results, "Android emulators", () => AndroidChecks.Emulators().GetAwaiter().GetResult());
+        Check(results, "Android start deadlines", () => AndroidChecks.EmulatorDeadlines().GetAwaiter().GetResult());
         Check(results, "Android validation", AndroidChecks.Validation);
         Check(results, "seat launch guards", AndroidChecks.Guards);
         Check(results, "Android Studio profile", AndroidChecks.Studio);
