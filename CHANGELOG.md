@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.0 — 2026-09-29
 
 - **Android apps in the seat.** `android_emulator` (`anode android start|adb|shot|stop`) boots an AVD on
   an emulator inside the seat, on a free port, and returns its serial once it has booted. It starts
@@ -21,10 +21,16 @@
   packaged app, which would keep the sign-in where the seat cannot see it. `run` refuses Chrome and
   Edge on their usual profile, and links they would open, while they run outside the seat, where they
   keep that profile locked. Anyone holding the lease can use the sites signed in there.
-- **Android and the seat browser are not tested live yet.** Builds and quick self-tests pass; the
-  checks read this machine's SDK, AVDs and Studio install, and drive the new code with stand-ins for
-  every process, but no emulator, Studio or browser has been started in a live seat, because the seat
-  was busy. Run `scripts/test-android.ps1` when the seat is free.
+- **Tested live** on Windows 11 Pro build 26200 with emulator 36.2.12: `Pixel_9_Pro` (API 36, Google
+  Play) booted in the seat from its quick-boot snapshot in 12.2 s on the graphics card, adb reported
+  its 1280x2856 screen, a screenshot came back at that size, `adb kill-server` was refused, and it shut
+  down on `emu kill`. Android Studio opened at its Welcome screen on its own profile, with no setup
+  wizard, and Chrome opened a page in the seat on the seat profile, while `run` refused Chrome and a
+  link as long as Chrome ran on the desktop.
+- [Android](docs/ANDROID.md#when-an-emulator-does-not-finish-booting) explains an emulator that never
+  finishes booting: a quick-boot snapshot that resumes with adb offline, and an AVD that restarts
+  during every boot because of a fault in its own disk image, which the kernel log the emulator keeps
+  names.
 - **Agents can test other displays.** The new `seat_display` tool and `anode display` command change
   the running seat's resolution and Windows scaling while its apps keep running: 640x480 to 8192x8192,
   portrait included, at 100-500%. Anode asks Windows for the change live through Remote Desktop's
@@ -45,18 +51,19 @@
   scaling, and status reports `startupDisplay`. `anode start` with display options says to use
   `anode display` when Anode is already running, instead of ignoring them silently. `--scale 100`
   now asks for 100% instead of leaving the scale to Remote Desktop's default.
-- **Display changes are not tested live yet.** Builds and quick self-tests pass, and the self-test
-  confirms on the real Remote Desktop control that the display-change call and scaling setting exist,
-  but no running seat's display has been changed yet, because the seat was busy. Run
-  `scripts/test-display.ps1` when the seat is free.
+- **Tested live** in a seat that signed in through the Windows credential dialog: Windows applied
+  every change live, in 156-173 ms, through 1024x768, 1920x1080 at 150%, 1080x1920 portrait and
+  2560x1440 at 125%, with screenshots at each display's own size, and `reset` restored 1280x720 at
+  100%. The desktop suite passed at 1920x1080 and 150%, with the pointer at physical coordinates. The
+  reconnect fallback has not run live, because nothing needed it.
 
 - Agents can listen to browser/game audio as WAV clips and play bounded PCM WAV files through
   new audio MCP tools and `anode audio` commands. Audio uses the verified child session's Remote
   Audio endpoint, requires `--audio` at startup (also audible on the user's speakers), and never
   falls back to a physical capture device. Agent playback stops when its desktop lease ends.
-- **Audio is not fully tested yet.** Builds, quick self-tests and documentation checks pass,
-  but live playback/recording and browser/game audio have not been verified in a running seat.
-  Live testing was deferred to avoid disturbing the active session.
+- **Audio is not tested live yet.** Builds, quick self-tests and documentation checks pass, but
+  playback, recording and browser/game audio have not run in a seat: the 0.11.0 validation seat
+  started without `--audio`.
 
 ## 0.10.0 — 2026-09-25
 
