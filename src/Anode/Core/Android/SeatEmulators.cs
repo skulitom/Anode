@@ -126,6 +126,10 @@ internal sealed class SeatEmulators
 
     public async Task<JsonObject> StartAsync(JsonObject request, CancellationToken cancel)
     {
+        long entry = _machine.Milliseconds();
+        // Leave time to build and forward the reply; the pipe deadline includes queue time and adb startup.
+        const int ReplyReserveMs = 10_000;
+        long replyBy = entry + Math.Max(0, (request.Int("timeoutMs") ?? 60_000) - ReplyReserveMs);
         var sdk = AndroidSdk.Find(_machine.Environment);
         if (sdk is null || !File.Exists(sdk.Emulator))
             return JsonLine.Fail("The Android emulator was not found. Install it with Android Studio's SDK Manager, or set ANDROID_HOME to the SDK folder.");
@@ -147,7 +151,9 @@ internal sealed class SeatEmulators
         string serial = $"emulator-{console}";
 
         // Started before the emulator, the adb server learns of it as it boots, whatever its port.
-        if (File.Exists(sdk.Adb)) await _machine.Run(sdk.Adb, new[] { "start-server" }, 20_000, cancel).ConfigureAwait(false);
+        int serverTimeout = (int)Math.Min(20_000, replyBy - _machine.Milliseconds());
+        if (File.Exists(sdk.Adb) && serverTimeout > 0)
+            await _machine.Run(sdk.Adb, new[] { "start-server" }, serverTimeout, cancel).ConfigureAwait(false);
 
         string gpu = request.Str("gpu") ?? "auto";
         var args = new List<string> { "-avd", avd.Name, "-port", console.ToString(CultureInfo.InvariantCulture), "-no-boot-anim" };
@@ -174,6 +180,7 @@ internal sealed class SeatEmulators
         int budget = Math.Clamp(((request.Int("timeoutMs") ?? 60_000) - 20_000) / 1000, 0, 150);
         int wait = Math.Min(request.Int("waitSeconds") ?? 120, budget);
         long begun = _machine.Milliseconds();
+        long waitUntil = Math.Min(begun + wait * 1000L, replyBy);
         bool booted = false;
         while (true)
         {
@@ -184,9 +191,10 @@ internal sealed class SeatEmulators
                 launched.Dispose();
                 return JsonLine.Fail($"The emulator for {avd.Name} exited while starting." + (tail.Length > 0 ? " It printed:\n" + tail : "") + $"\nFull output: {log}");
             }
-            if (File.Exists(sdk.Adb) && await BootedAsync(sdk, serial, cancel).ConfigureAwait(false) == true) { booted = true; break; }
-            if (_machine.Milliseconds() - begun >= wait * 1000L) break;
-            await _machine.Delay(TimeSpan.FromSeconds(2), cancel).ConfigureAwait(false);
+            if (File.Exists(sdk.Adb) && await BootedAsync(sdk, serial, cancel, replyBy).ConfigureAwait(false) == true) { booted = true; break; }
+            long remaining = waitUntil - _machine.Milliseconds();
+            if (remaining <= 0) break;
+            await _machine.Delay(TimeSpan.FromMilliseconds(Math.Min(2000, remaining)), cancel).ConfigureAwait(false);
         }
         double seconds = Math.Round((_machine.Milliseconds() - begun) / 1000.0, 1);
         var others = Running().Where(e => e.Port != console).ToArray();
@@ -262,13 +270,14 @@ internal sealed class SeatEmulators
     // --------------------------------------------------------------------- adb
 
     /// <summary>
-    /// adb commands that act on the whole adb server or on other devices, which the user's desktop shares. The serial
-    /// is always the one given, so global options are refused too.
+    /// adb commands that act on the whole adb server or on other devices, which the user's desktop shares, whatever -s
+    /// says: among them the device list, the server's state, and raw, which sends any adb service, such as host:kill.
+    /// The serial is always the one given, so global options are refused too.
     /// </summary>
     private static readonly HashSet<string> ServerCommands = new(StringComparer.OrdinalIgnoreCase)
     {
         "kill-server", "start-server", "reconnect", "connect", "disconnect", "pair", "devices", "mdns", "keygen", "server", "nodaemon",
-        "wait-for-any-device", "wait-for-usb-device", "wait-for-local-device", "attach", "detach"
+        "wait-for-any-device", "wait-for-usb-device", "wait-for-local-device", "attach", "detach", "track-devices", "server-status", "raw"
     };
 
     internal static string? AdbProblem(IReadOnlyList<string> args)
@@ -278,8 +287,33 @@ internal sealed class SeatEmulators
             return $"adb option '{args[0]}' is not allowed: the serial is added for you, and other global options would reach other devices or the adb server.";
         if (ServerCommands.Contains(args[0]))
             return $"adb {args[0]} acts on the adb server or other devices, which the user's desktop shares, so it is not allowed here.";
+        // adb runs what follows a wait-for-STATE prefix, as in wait-for-device shell, so that is checked as a command too.
+        if (args[0].StartsWith("wait-for-", StringComparison.OrdinalIgnoreCase) && args.Count > 1) return AdbProblem(args.Skip(1).ToArray());
+        // The adb server keeps one list of host port forwards for every device, and these list or clear all of it.
+        if (args[0] == "forward" && args.Count > 1 && args[1] is "--list" or "--remove-all")
+            return $"adb forward {args[1]} acts on every device's forwards in the adb server, which the user's desktop shares, so it is not allowed here. "
+                + "Remove this emulator's own forwards one at a time with forward --remove LOCAL.";
         return null;
     }
+
+    /// <summary>
+    /// The host end a forward would take from whichever device holds it: forward --remove LOCAL, or forward LOCAL REMOTE,
+    /// which moves an existing LOCAL to this device. The adb server keys forwards by that name alone, whatever -s says.
+    /// Null for anything else, for --no-rebind, which fails rather than move one, and for tcp:0, which asks for a new port.
+    /// </summary>
+    internal static string? ForwardedLocal(IReadOnlyList<string> args)
+    {
+        while (args.Count > 1 && args[0].StartsWith("wait-for-", StringComparison.OrdinalIgnoreCase)) args = args.Skip(1).ToArray();
+        if (args.Count < 3 || args[0] != "forward") return null;
+        if (args[1] == "--remove") return args[2];
+        return args[1].StartsWith('-') || args[1] == "tcp:0" ? null : args[1];
+    }
+
+    /// <summary>The device a host end forwards to, from adb forward --list lines ("SERIAL LOCAL REMOTE"), or null.</summary>
+    internal static string? ForwardOwner(string list, string local) =>
+        list.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(line => line.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            .FirstOrDefault(fields => fields.Length >= 3 && fields[1] == local)?[0];
 
     public async Task<JsonObject> AdbAsync(JsonObject request, CancellationToken cancel)
     {
@@ -289,6 +323,17 @@ internal sealed class SeatEmulators
         if (AdbProblem(args) is { } problem) return JsonLine.Fail(problem);
         var sdk = AndroidSdk.Find(_machine.Environment);
         if (sdk is null || !File.Exists(sdk.Adb)) return JsonLine.Fail("adb was not found in the Android SDK's platform-tools.");
+        if (ForwardedLocal(args) is { } local)
+        {
+            var forwards = await _machine.Run(sdk.Adb, new[] { "forward", "--list" }, 10_000, cancel).ConfigureAwait(false);
+            if (forwards.ExitCode != 0)
+                return JsonLine.Fail($"Nothing was run: adb could not list the forwards to check that {local} is not another device's. "
+                    + (forwards.TimedOut ? "adb timed out." : forwards.Error.Trim()));
+            if (ForwardOwner(forwards.Text, local) is { } owner && owner != serial)
+                return JsonLine.Fail($"Nothing was run: {local} forwards to another device, and the adb server, which the user's desktop shares, "
+                    + (args.Contains("--remove") ? "would remove that forward. Remove only this emulator's own forwards."
+                        : $"would hand it to {serial}. Forward another port, or tcp:0 for a free one; forward --no-rebind never takes one over."));
+        }
         int seconds = request.Int("timeoutSeconds") ?? 60;
         var result = await _machine.Run(sdk.Adb, new[] { "-s", serial }.Concat(args).ToArray(), seconds * 1000, cancel).ConfigureAwait(false);
         string output = Bounded(Printable(Encoding.UTF8.GetString(result.Output)), 20_000), error = Bounded(Printable(result.Error), 4_000);
@@ -346,9 +391,11 @@ internal sealed class SeatEmulators
         return null;
     }
 
-    private async Task<bool?> BootedAsync(AndroidSdk sdk, string serial, CancellationToken cancel)
+    private async Task<bool?> BootedAsync(AndroidSdk sdk, string serial, CancellationToken cancel, long? replyBy = null)
     {
-        var result = await _machine.Run(sdk.Adb, new[] { "-s", serial, "shell", "getprop", "sys.boot_completed" }, 10_000, cancel).ConfigureAwait(false);
+        int timeout = replyBy is long deadline ? (int)Math.Min(10_000, deadline - _machine.Milliseconds()) : 10_000;
+        if (timeout <= 0) return null;
+        var result = await _machine.Run(sdk.Adb, new[] { "-s", serial, "shell", "getprop", "sys.boot_completed" }, timeout, cancel).ConfigureAwait(false);
         return result.ExitCode == 0 ? result.Text == "1" : null;
     }
 

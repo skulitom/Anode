@@ -154,9 +154,10 @@ Close owned test windows and cancel owned jobs. Leave other apps and agents' wor
 Apps that restore a session, such as Windows 11 Notepad or a browser on the user's profile, reopen
 the user's own documents in the seat; never edit or discard what they restore.
 Then call `seat_lease` with `action: "release"` so the next agent in line gets the desktop; use
-`cancelJobs: true` to request cancellation of your command jobs. Ending the MCP session also
-releases the lease, unless a stable `ANODE_AGENT_ID` keeps it until expiry for recovery; jobs run
-until their timeout.
+`cancelJobs: true` to request cancellation of your command jobs. Ending an MCP session with a
+generated identity releases its lease; if killed, the lease ends once its process is gone and any admitted
+action finishes. A stable `ANODE_AGENT_ID` keeps it until expiry or release for recovery; choose a
+short `ttlSeconds` if the session may be killed. Jobs run until their timeout.
 Lease release/expiry clear desktop references, release Anode's held input, detach its gamepads and
 restore the startup display.
 CLI workflows set `ANODE_AGENT_ID` and the acquired `ANODE_LEASE_TOKEN`; see the

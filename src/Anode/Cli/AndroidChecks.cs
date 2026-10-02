@@ -116,6 +116,7 @@ internal static class AndroidChecks
     {
         public long Now;
         public readonly List<string> Commands = new();
+        public readonly List<(long Clock, int Timeout)> Calls = new();
         public readonly List<RunningEmulator> Running = new();
         public readonly HashSet<int> Busy = new() { 5037 };
         public readonly HashSet<int> Dead = new();
@@ -123,6 +124,7 @@ internal static class AndroidChecks
         public string? StartedArgs;
         public int BootPolls = 2;
         public bool LauncherExits, EmuKillWorks = true;
+        public bool HangAdb;
         /// <summary>A reply for particular adb arguments; null falls through to the usual ones.</summary>
         public Func<string[], CommandResult?>? Adb;
 
@@ -142,7 +144,12 @@ internal static class AndroidChecks
             port => !Busy.Contains(port),
             (exe, args, timeout, cancel) =>
             {
-                lock (Commands) Commands.Add(string.Join(' ', args));
+                lock (Commands) { Commands.Add(string.Join(' ', args)); Calls.Add((Now, timeout)); }
+                if (HangAdb)
+                {
+                    Now += timeout;
+                    return Task.FromResult(new CommandResult(-1, Array.Empty<byte>(), "", true));
+                }
                 var list = args.ToArray();
                 if (Adb?.Invoke(list) is { } custom) return Task.FromResult(custom);
                 if (list.SequenceEqual(new[] { "start-server" })) return Task.FromResult(Result(""));
@@ -196,6 +203,8 @@ internal static class AndroidChecks
         Require(machine.StartedArgs == "-avd Pixel_9_Pro -port 5556 -no-boot-anim -read-only -gpu swiftshader_indirect -no-audio"
             && machine.Commands[0] == "start-server", "the emulator was started with other arguments, or before adb's server: " + machine.StartedArgs);
         Require(result!.Str("summary")!.Contains("Never use adb without this serial"), "the start result does not warn about the shared adb server");
+        Require(result!["waitedSeconds"]!.GetValue<double>() == 4 && machine.Now == 4000 && machine.BootPolls == -1,
+            "a fast boot changed its polling or waitedSeconds: " + started.ToJsonString());
 
         // Unknown AVDs are named; a writable start of an AVD already running is refused, since the emulator locks it.
         var unknown = await seat.StartAsync(Start("Pixel_10"), none);
@@ -234,8 +243,42 @@ internal static class AndroidChecks
         var adb = await seat.AdbAsync(new JsonObject { ["serial"] = "emulator-5556", ["args"] = new JsonArray("shell", "input", "tap", "540", "1200") }, none);
         Require(adb.Bool("ok") == true && machine.Commands.Last() == "-s emulator-5556 shell input tap 540 1200" && adb.Obj("result")?.Str("stdout") == "done\n",
             "adb did not run for the seat's serial: " + adb.ToJsonString());
-        foreach (var args in new[] { new[] { "kill-server" }, new[] { "-s", "emulator-5554", "shell" }, new[] { "devices" }, new[] { "connect", "10.0.0.2" }, Array.Empty<string>() })
+        foreach (var args in new[] { new[] { "kill-server" }, new[] { "-s", "emulator-5554", "shell" }, new[] { "devices" }, new[] { "connect", "10.0.0.2" }, Array.Empty<string>(),
+                     // adb runs the command after a wait-for prefix; raw sends any service; these reach every device.
+                     new[] { "wait-for-device", "kill-server" }, new[] { "wait-for-device", "disconnect" }, new[] { "wait-for-recovery", "-s", "R58M12345", "shell" },
+                     new[] { "raw", "host:kill" }, new[] { "track-devices" }, new[] { "forward", "--remove-all" }, new[] { "forward", "--list" },
+                     new[] { "wait-for-device", "forward", "--remove-all" } })
             Require(SeatEmulators.AdbProblem(args) is not null, $"adb {string.Join(' ', args)} was allowed");
+        foreach (var args in new[] { new[] { "wait-for-device" }, new[] { "wait-for-device", "shell", "getprop", "sys.boot_completed" }, new[] { "shell", "echo", "kill-server" },
+                     new[] { "forward", "tcp:0", "tcp:8080" }, new[] { "forward", "--remove", "tcp:8080" }, new[] { "reverse", "--remove-all" } })
+            Require(SeatEmulators.AdbProblem(args) is null, $"adb {string.Join(' ', args)} was refused: {SeatEmulators.AdbProblem(args)}");
+
+        // A forward's host end is one name in the shared adb server: another device's is never removed or taken over.
+        machine.Adb = args => args.SequenceEqual(new[] { "forward", "--list" })
+            ? StandIn.Result("emulator-5554 tcp:9222 localabstract:chrome_devtools_remote\nemulator-5556 tcp:8080 tcp:8080\n") : null;
+        foreach (var args in new[] { new JsonArray("forward", "--remove", "tcp:9222"), new JsonArray("forward", "tcp:9222", "tcp:9222"),
+                     new JsonArray("wait-for-device", "forward", "tcp:9222", "localabstract:app"),
+                     new JsonArray("wait-for-device", "wait-for-device", "forward", "tcp:9222", "tcp:8080"),
+                     new JsonArray("wait-for-device", "wait-for-device", "forward", "--remove", "tcp:9222") })
+        {
+            var taken = await seat.AdbAsync(new JsonObject { ["serial"] = "emulator-5556", ["args"] = args }, none);
+            Require(taken.Bool("ok") == false && taken.Str("error")!.Contains("forwards to another device") && machine.Commands.Last() == "forward --list",
+                $"adb {args.ToJsonString()} was run over another device's forward: {taken.ToJsonString()}");
+        }
+        foreach (var args in new[] { new JsonArray("forward", "--remove", "tcp:8080"), new JsonArray("forward", "tcp:7000", "tcp:7000"),
+                     new JsonArray("forward", "--no-rebind", "tcp:9222", "tcp:9222"),
+                     new JsonArray("wait-for-device", "wait-for-device", "forward", "--remove", "tcp:8080"),
+                     new JsonArray("wait-for-device", "wait-for-device", "forward", "--no-rebind", "tcp:9222", "tcp:8080") })
+        {
+            var own = await seat.AdbAsync(new JsonObject { ["serial"] = "emulator-5556", ["args"] = args }, none);
+            Require(own.Bool("ok") == true && machine.Commands.Last() == "-s emulator-5556 " + string.Join(' ', args.Select(a => a!.GetValue<string>())),
+                $"adb {args.ToJsonString()} was refused for the seat's own or a free forward: {own.ToJsonString()}");
+        }
+        machine.Adb = args => args.SequenceEqual(new[] { "forward", "--list" }) ? new CommandResult(1, Array.Empty<byte>(), "error: protocol fault", false) : null;
+        var unverified = await seat.AdbAsync(new JsonObject { ["serial"] = "emulator-5556", ["args"] = new JsonArray("forward", "--remove", "tcp:8080") }, none);
+        Require(unverified.Bool("ok") == false && unverified.Str("error")!.Contains("could not list the forwards") && machine.Commands.Last() == "forward --list",
+            "a forward was removed although its owner could not be checked: " + unverified.ToJsonString());
+        machine.Adb = null;
 
         // A screenshot is the device's own PNG, scaled and re-encoded like a seat screenshot.
         using (var picture = new Bitmap(1280, 2856))
@@ -273,7 +316,59 @@ internal static class AndroidChecks
             .StartAsync(Start("Pixel_9_Pro", new JsonObject { ["waitSeconds"] = 30, ["coldBoot"] = true, ["audio"] = true }), none);
         Require(waiting.Bool("ok") == true && waiting.Obj("result")?.Bool("booted") == false && slow.Now is >= 30_000 and < 34_000
             && slow.StartedArgs == "-avd Pixel_9_Pro -port 5554 -no-boot-anim -read-only -no-snapshot-load", "a slow boot was not bounded by waitSeconds: " + slow.StartedArgs);
-        return "free ports, read-only starts, boot waits, seat-only stop/screenshot/adb, refused server commands and failed starts, all with stand-ins";
+        return "free ports, read-only starts, boot waits, seat-only stop/screenshot/adb, refused server commands and other devices' forwards, and failed starts, all with stand-ins";
+    }
+
+    /// <summary>A start whose adb stalls still replies inside the caller's deadline, and a prompt adb waits as before.</summary>
+    public static async Task<string> EmulatorDeadlines()
+    {
+        using var fixture = new Fixture();
+        var none = CancellationToken.None;
+        JsonObject Start(string avd, JsonObject? extra = null)
+        {
+            var request = new JsonObject { ["action"] = "start", ["avd"] = avd, ["agentId"] = "agent-1", ["timeoutMs"] = 175_000 };
+            foreach (var (key, value) in extra ?? new JsonObject()) request[key] = value?.DeepClone();
+            return request;
+        }
+
+        // Hung adb calls consume their whole timeout, including start-server before the boot clock starts.
+        foreach (int timeout in new[] { 175_000, 25_000, 10_000, 5000 })
+        {
+            var hung = new StandIn { Now = 1234, HangAdb = true, BootPolls = int.MaxValue };
+            long entry = hung.Now, replyBy = entry + Math.Max(0, timeout - 10_000);
+            var bounded = await new SeatEmulators(3, Path.Combine(fixture.Root, "logs"), hung.Machine(fixture))
+                .StartAsync(Start("Pixel_9_Pro", new JsonObject { ["waitSeconds"] = 150, ["timeoutMs"] = timeout }), none);
+            Require(bounded.Bool("ok") == true && bounded.Obj("result")?.Bool("booted") == false
+                && bounded.Obj("result")?.Str("serial") == "emulator-5554" && hung.Last is not null,
+                "a stalled adb lost the launched emulator's serial: " + bounded.ToJsonString());
+            Require(hung.Now - entry < 166_000 && hung.Now <= replyBy,
+                $"a stalled adb outlasted the reply budget: timeout={timeout}, elapsed={hung.Now - entry}");
+            Require(hung.Calls.All(call => call.Timeout > 0 && call.Clock + call.Timeout <= replyBy),
+                $"an adb call was given time beyond the reply deadline: timeout={timeout}");
+            if (timeout <= 10_000)
+                Require(hung.Commands.Count == 0 && hung.Now == entry, "adb ran with no reply time left");
+            else
+                Require(hung.Commands[0] == "start-server" && hung.Calls[0].Timeout == Math.Min(20_000, timeout - 10_000),
+                    "start-server did not use its bounded timeout");
+            if (timeout == 175_000)
+                Require(hung.Calls.Count > 1, "the hung boot was never probed");
+        }
+
+        // The final delay stops at the wait window, even between the usual two-second polls.
+        var shortWait = new StandIn { BootPolls = int.MaxValue };
+        var pending = await new SeatEmulators(3, Path.Combine(fixture.Root, "logs"), shortWait.Machine(fixture))
+            .StartAsync(Start("Pixel_9_Pro", new JsonObject { ["waitSeconds"] = 3 }), none);
+        Require(pending.Bool("ok") == true && pending.Obj("result")?.Bool("booted") == false && shortWait.Now == 3000,
+            "the delay overran the boot wait window: " + shortWait.Now);
+
+        // A zero-second wait still probes once when adb answers promptly.
+        var immediate = new StandIn { BootPolls = 0 };
+        var ready = await new SeatEmulators(3, Path.Combine(fixture.Root, "logs"), immediate.Machine(fixture))
+            .StartAsync(Start("Pixel_9_Pro", new JsonObject { ["waitSeconds"] = 0 }), none);
+        Require(ready.Bool("ok") == true && ready.Obj("result")?.Bool("booted") == true
+            && ready.Obj("result")?["waitedSeconds"]?.GetValue<double>() == 0 && immediate.Commands.Count == 2,
+            "a zero-second wait skipped its first probe: " + ready.ToJsonString());
+        return "a stalled adb, the final delay and a zero-second wait stay inside the reply deadline, with stand-ins";
     }
 
     public static string Validation()
@@ -286,6 +381,7 @@ internal static class AndroidChecks
             ("android_emulator", new() { ["action"] = "stop", ["serial"] = "emulator-5554" }),
             ("android_emulator", new() { ["action"] = "screenshot", ["serial"] = "emulator-5682", ["maxWidth"] = 540, ["format"] = "jpeg" }),
             ("android_emulator", new() { ["action"] = "adb", ["serial"] = "emulator-5556", ["args"] = new JsonArray("install", "-r", @"C:\work\app.apk"), ["timeoutSeconds"] = 150 }),
+            ("android_emulator", new() { ["action"] = "adb", ["serial"] = "emulator-5556", ["args"] = new JsonArray("wait-for-device", "shell", "getprop", "sys.boot_completed") }),
             ("android_studio", new()), ("android_studio", new() { ["project"] = fixture.Root }),
             ("seat_browser", new()), ("seat_browser", new() { ["url"] = "https://play.google.com/console", ["browser"] = "edge" }),
             ("seat_browser", new() { ["url"] = "about:blank" })
@@ -301,6 +397,9 @@ internal static class AndroidChecks
             ("android_emulator", new() { ["action"] = "adb", ["serial"] = "emulator-5554" }),
             ("android_emulator", new() { ["action"] = "adb", ["serial"] = "emulator-5554", ["args"] = new JsonArray("kill-server") }),
             ("android_emulator", new() { ["action"] = "adb", ["serial"] = "emulator-5554", ["args"] = new JsonArray("-e", "shell") }),
+            ("android_emulator", new() { ["action"] = "adb", ["serial"] = "emulator-5554", ["args"] = new JsonArray("wait-for-device", "kill-server") }),
+            ("android_emulator", new() { ["action"] = "adb", ["serial"] = "emulator-5554", ["args"] = new JsonArray("raw", "host:kill") }),
+            ("android_emulator", new() { ["action"] = "adb", ["serial"] = "emulator-5554", ["args"] = new JsonArray("forward", "--remove-all") }),
             ("android_emulator", new() { ["action"] = "screenshot", ["serial"] = "emulator-5554", ["args"] = new JsonArray("x") }),
             ("android_emulator", new() { ["action"] = "start", ["avd"] = "A", ["gpu"] = "vulkan" }),
             ("android_studio", new() { ["project"] = "relative\\path" }), ("android_studio", new() { ["project"] = Path.Combine(fixture.Root, "missing") }),

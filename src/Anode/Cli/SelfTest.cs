@@ -130,6 +130,10 @@ internal static class SelfTest
         Check(results, "cancelled execution", () => DevelopmentChecks.CancelledStart().GetAwaiter().GetResult());
         Check(results, "malformed pipe messages", () => TransportChecks.MalformedMessages().GetAwaiter().GetResult());
         Check(results, "agent ownership", () => AgentChecks.Ownership().GetAwaiter().GetResult());
+        Check(results, "agent client lifetime", () => AgentChecks.ClientLifetime().GetAwaiter().GetResult());
+        Check(results, "agent client probe", AgentChecks.ClientProbe);
+        Check(results, "agent client validation", AgentChecks.ClientValidation);
+        Check(results, "MCP lease client process", () => McpChecks.LeaseClientProcess().GetAwaiter().GetResult());
         Check(results, "agent queue and disconnect", () => AgentChecks.QueueAndDisconnect().GetAwaiter().GetResult());
         Check(results, "agent line", () => AgentChecks.Line().GetAwaiter().GetResult());
         Check(results, "agent names", () => AgentChecks.Names().GetAwaiter().GetResult());
@@ -146,6 +150,7 @@ internal static class SelfTest
         Check(results, "display measurement", DisplayChecks.Measurement);
         Check(results, "Android SDK and AVDs", AndroidChecks.Sdk);
         Check(results, "Android emulators", () => AndroidChecks.Emulators().GetAwaiter().GetResult());
+        Check(results, "Android start deadlines", () => AndroidChecks.EmulatorDeadlines().GetAwaiter().GetResult());
         Check(results, "Android validation", AndroidChecks.Validation);
         Check(results, "seat launch guards", AndroidChecks.Guards);
         Check(results, "Android Studio profile", AndroidChecks.Studio);

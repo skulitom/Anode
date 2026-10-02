@@ -1,10 +1,12 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Threading.Channels;
 using Anode.Core.Bridge;
+using Anode.Core.Agents;
 using Anode.Core.Desktop;
 using Anode.Mcp;
 
@@ -39,6 +41,47 @@ internal static class McpChecks
     internal static McpServer Isolated(string pipe, string? agentId = null, string? workingDirectory = null) => new(pipe,
         () => throw new InvalidOperationException("a self-test tried to launch a daemon"),
         () => "self-test: daemon startup is disabled", agentId, workingDirectory ?? Path.GetTempPath());
+
+    public static async Task<string> LeaseClientProcess()
+    {
+        string? configured = Environment.GetEnvironmentVariable("ANODE_AGENT_ID");
+        using var process = Process.GetCurrentProcess();
+        long started = process.StartTime.ToUniversalTime().ToFileTimeUtc();
+        try
+        {
+            foreach (string identity in new[] { "generated", "environment", "constructor" })
+            {
+                Environment.SetEnvironmentVariable("ANODE_AGENT_ID", identity == "environment" ? "stable-env" : null);
+                var seen = new ConcurrentQueue<JsonObject>();
+                var lease = new DesktopLease();
+                string pipe = PipeName();
+                using var daemon = new JsonPipeServer(pipe, request =>
+                {
+                    seen.Enqueue((JsonObject)request.DeepClone());
+                    return lease.HandleAsync(request, (_, _) => Task.FromResult(JsonLine.Ok()));
+                });
+                daemon.Start();
+                using var backend = Isolated(pipe, identity == "constructor" ? "stable-argument" : null);
+                foreach (string action in new[] { "acquire", "renew", "status", "release" })
+                    Require((await backend.CallAsync("seat_lease", new JsonObject { ["action"] = action }, CancellationToken.None)).Bool("isError") != true,
+                        $"{identity} {action} failed through the process envelope");
+                Require((await backend.CallAsync("seat_windows", new JsonObject(), CancellationToken.None)).Bool("isError") != true,
+                    "implicit process-tracked acquisition failed");
+                await backend.ReleaseAsync();
+                Require(seen.Count == 7, "explicit/implicit acquire or session cleanup request missing");
+                foreach (var request in seen)
+                {
+                    bool tracked = identity == "generated" && request.Str("op") == "lease" && request.Str("action") is "acquire" or "renew";
+                    Require(tracked
+                        ? request.Int("clientPid") == process.Id && request["clientStarted"]?.GetValue<long>() == started
+                        : !request.ContainsKey("clientPid") && !request.ContainsKey("clientStarted"),
+                        $"{identity} {request.Str("op")} {request.Str("action")} sent incorrect process fields");
+                }
+            }
+        }
+        finally { Environment.SetEnvironmentVariable("ANODE_AGENT_ID", configured); }
+        return "private-pipe explicit acquire/renew and implicit acquire name this process only for generated identities; release stays unchanged";
+    }
 
     public static async Task<string> Discovery()
     {
@@ -372,11 +415,12 @@ internal static class McpChecks
     public static async Task<string> Validation()
     {
         int calls = 0;
+        string? negotiated = null;
         var session = new McpSession((_, _, _) =>
         {
             Interlocked.Increment(ref calls);
             return Task.FromResult(McpSession.TextResult("unexpected action"));
-        });
+        }, (_, protocol) => negotiated = protocol);
         string[] requests =
         {
             Request(1, "initialize", new JsonObject
@@ -415,7 +459,9 @@ internal static class McpChecks
             .Select(line => JsonLine.Parse(line)!).ToArray();
         Require(calls == 0, "invalid request or notification dispatched an action");
         Require(replies.Length == 23, "invalid requests or notifications produced the wrong number of replies");
-        Require(replies[0].Obj("result")?.Str("protocolVersion") == "2025-11-25", "unsupported protocol was echoed back");
+        // The server presents results for the version it answered, not the one requested.
+        Require(replies[0].Obj("result")?.Str("protocolVersion") == "2025-11-25" && negotiated == "2025-11-25",
+            "unsupported protocol was echoed back or passed on as the negotiated version");
         Require(replies[1].Obj("error")?.Int("code") == -32700, "malformed JSON was not a parse error");
         Require(replies[2].Obj("error")?.Int("code") == -32600 && replies[3].Obj("error")?.Int("code") == -32600,
             "invalid envelopes were accepted");

@@ -22,13 +22,24 @@ internal static class AgentAccess
     public static JsonObject Arguments(JsonObject request)
     {
         var args = (JsonObject)request.DeepClone();
-        foreach (string key in new[] { "op", "id", "timeoutMs", "agentId", "leaseToken", "agentName", "startSeat" }) args.Remove(key);
+        foreach (string key in new[] { "op", "id", "timeoutMs", "agentId", "leaseToken", "agentName", "startSeat", "clientPid", "clientStarted" }) args.Remove(key);
         return args;
     }
 
     public static string? Validate(JsonObject request)
     {
         string op = request.Str("op") ?? "";
+        if (request.ContainsKey("clientPid") || request.ContainsKey("clientStarted"))
+        {
+            if (op != "lease" || request.Str("action") is not ("acquire" or "renew"))
+                return "clientPid and clientStarted are only allowed on lease acquire or renew.";
+            if (!request.ContainsKey("clientPid") || !request.ContainsKey("clientStarted"))
+                return "clientPid and clientStarted must be supplied together.";
+            if (request["clientPid"] is not JsonValue pid || !pid.TryGetValue<int>(out int processId) || processId <= 0)
+                return "clientPid must be a positive 32-bit integer.";
+            if (request["clientStarted"] is not JsonValue started || !started.TryGetValue<long>(out long fileTime) || fileTime <= 0)
+                return "clientStarted must be a positive 64-bit integer (UTC Windows file time).";
+        }
         if (request.ContainsKey("agentId") && (request["agentId"] is not JsonValue agent
             || !agent.TryGetValue<string>(out var id) || !ValidId(id)))
             return "agentId must contain 1-80 ASCII letters, digits, dots, underscores or hyphens.";
