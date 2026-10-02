@@ -69,7 +69,7 @@ See [Microsoft's pipe option documentation](https://learn.microsoft.com/en-us/do
 | `ping` | | `{daemon, state}` |
 | `status` | | see below |
 | `seat.identity` | | `{session, parentSession}` from Windows; used by the seat host to verify its session before serving input |
-| `seat.display` | none, or `width`, `height`, `scale` and `method` (`live` or `reconnect`) | `{startup}`, the display a reset restores; or `{method, display}` once the viewer has asked for that display. Used by the seat host, which holds the desktop lease for the change and confirms it on the seat's screen. |
+| `seat.display` | none, or `width`, `height`, `scale` and `method` (`live`, `reconnect` or `record`) | `{startup}`, the display a reset restores; or `{method, display}` once the viewer has asked for that display, or, for `record`, has noted the display the seat shows, which its later connections ask for. Used by the seat host, which holds the desktop lease for the change and confirms it on the seat's screen. |
 | `seat.pad-visibility` | `devices` (instance paths of ViGEm pads and their devices) | `{session, devices: [{device, interfaces: [{path, opens}]}]}`; used by the seat host to check that the user's session cannot open a controller HidHide keeps in the seat. `opens` is `false` when refused, `null` when unknown. |
 | `doctor` | | `{checks: [{name, state, detail, fix}]}` |
 | `seat.start` | | `{session}` when ready |
@@ -156,7 +156,9 @@ Only the fields given change. The width is even, 640-8192, the height 480-8192, 
 (`seat.display`) to change the display live through Remote Desktop's display-control channel,
 measures the seat's screen until it shows the new display, and asks for a viewer reconnect at the new
 size when it does not change live (`method` `live` or `reconnect`; `none` when nothing had to change).
-A reconnect keeps the session and its apps. The operation needs the desktop lease and invalidates
+When the seat then shows another display than the one asked for, the seat host tells the daemon
+(`record`), so the viewer's later connections ask for what the seat shows rather than for the failed
+request. A reconnect keeps the session and its apps. The operation needs the desktop lease and invalidates
 observations; window IDs stay valid. A display other than the one asked for, or none, fails with
 `errorCode: "display_not_applied"` and a `result` describing the actual display. Release or expiry
 of the lease restores the startup display, and the next lease-gated operation waits for that; if it
@@ -306,7 +308,9 @@ will appear.
 emulators come from the files emulators keep in `%LOCALAPPDATA%\Temp\avd\running\pid_<pid>.ini`, and
 each is in the seat when its process runs in the seat's session. `stop`, `screenshot` and `adb` accept
 only `emulator-NNNN` serials of emulators in the seat; `adb` refuses options before the command and
-commands that act on adb's server or other devices. `start` takes the first even console port from
+commands that act on adb's server or other devices, including after a `wait-for-*` prefix, and a
+`forward` that would remove or take over another device's host end (checked with `adb forward --list`
+first). `start` takes the first even console port from
 5554 to 5682 whose adb port is free, starts adb's server, then runs
 `emulator -avd NAME -port PORT -no-boot-anim` with `-read-only` unless `readOnly` is false,
 `-no-snapshot-load` for `coldBoot`, `-gpu host` or the emulator's software mode, and `-no-audio` unless

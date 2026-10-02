@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json.Nodes;
 using Anode.Core.Bridge;
-using Anode.Core.Session;
 using Anode.Core.Util;
 
 namespace Anode.Core.Desktop;
