@@ -6,9 +6,13 @@
 #>
 param([Parameter(Mandatory = $true)][string]$Avd,
     [ValidateSet('auto', 'host', 'software')][string]$Gpu = 'auto',
-    [string]$Anode = (Join-Path $PSScriptRoot '..\dist\anode.exe'),
-    [string]$OutputDirectory = (Join-Path $PSScriptRoot '..\artifacts\android-test'))
+    [string]$Anode,
+    [string]$OutputDirectory)
 $ErrorActionPreference = 'Stop'
+# Windows PowerShell leaves $PSScriptRoot empty in the defaults of a script with a mandatory parameter.
+$here = Split-Path -Parent $MyInvocation.MyCommand.Path
+if (-not $Anode) { $Anode = Join-Path $here '..\dist\anode.exe' }
+if (-not $OutputDirectory) { $OutputDirectory = Join-Path $here '..\artifacts\android-test' }
 $Anode = (Resolve-Path -LiteralPath $Anode).Path
 function Invoke-AnodeJson([string[]]$Arguments) {
     $text = & $Anode @Arguments | Out-String

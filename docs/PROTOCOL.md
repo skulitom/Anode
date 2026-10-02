@@ -203,8 +203,10 @@ samples produce a full-duration silent WAV; this does not prove an application p
 
 MCP exposes `seat_audio_status`, `seat_audio_listen`, `seat_audio_play`, and `seat_audio_stop`.
 Listening returns a native `audio` content block plus a text block of metadata, with no duplicate
-base64 or `structuredContent`. The CLI writes a new WAV file. Clients without audio-content
-support can use the CLI and process the file. See [Audio](AUDIO.md) for setup and isolation.
+base64 or `structuredContent`. MCP added audio content in protocol `2025-03-26`, so a client that
+negotiated `2024-11-05` receives the same WAV as an embedded `resource` blob (`audio/wav`) instead.
+The CLI writes a new WAV file. Clients without audio-content support can use the CLI and process
+the file. See [Audio](AUDIO.md) for setup and isolation.
 
 ### Execution jobs
 
@@ -299,7 +301,9 @@ will appear.
 emulators come from the files emulators keep in `%LOCALAPPDATA%\Temp\avd\running\pid_<pid>.ini`, and
 each is in the seat when its process runs in the seat's session. `stop`, `screenshot` and `adb` accept
 only `emulator-NNNN` serials of emulators in the seat; `adb` refuses options before the command and
-commands that act on adb's server or other devices. `start` takes the first even console port from
+commands that act on adb's server or other devices, including after a `wait-for-*` prefix, and a
+`forward` that would remove or take over another device's host end (checked with `adb forward --list`
+first). `start` takes the first even console port from
 5554 to 5682 whose adb port is free, starts adb's server, then runs
 `emulator -avd NAME -port PORT -no-boot-anim` with `-read-only` unless `readOnly` is false,
 `-no-snapshot-load` for `coldBoot`, `-gpu host` or the emulator's software mode, and `-no-audio` unless

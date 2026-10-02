@@ -372,11 +372,12 @@ internal static class McpChecks
     public static async Task<string> Validation()
     {
         int calls = 0;
+        string? negotiated = null;
         var session = new McpSession((_, _, _) =>
         {
             Interlocked.Increment(ref calls);
             return Task.FromResult(McpSession.TextResult("unexpected action"));
-        });
+        }, (_, protocol) => negotiated = protocol);
         string[] requests =
         {
             Request(1, "initialize", new JsonObject
@@ -415,7 +416,9 @@ internal static class McpChecks
             .Select(line => JsonLine.Parse(line)!).ToArray();
         Require(calls == 0, "invalid request or notification dispatched an action");
         Require(replies.Length == 23, "invalid requests or notifications produced the wrong number of replies");
-        Require(replies[0].Obj("result")?.Str("protocolVersion") == "2025-11-25", "unsupported protocol was echoed back");
+        // The server presents results for the version it answered, not the one requested.
+        Require(replies[0].Obj("result")?.Str("protocolVersion") == "2025-11-25" && negotiated == "2025-11-25",
+            "unsupported protocol was echoed back or passed on as the negotiated version");
         Require(replies[1].Obj("error")?.Int("code") == -32700, "malformed JSON was not a parse error");
         Require(replies[2].Obj("error")?.Int("code") == -32600 && replies[3].Obj("error")?.Int("code") == -32600,
             "invalid envelopes were accepted");

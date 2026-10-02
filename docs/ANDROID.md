@@ -4,10 +4,9 @@ Agents can test Android apps on an emulator inside the seat, open Android Studio
 web consoles such as Google Play Console in a browser signed in as you, all without a window on your
 screen.
 
-**Not verified live yet:** builds and quick self-tests pass. The checks read this machine's SDK,
-AVDs and Android Studio install, and drive the emulator, Studio and browser code with stand-ins for
-every process. No emulator, Studio or browser has been started in a live seat yet, because the seat
-was busy. The opt-in test below still needs to run when a seat is free.
+**Verified live** in 0.11.0 on Windows 11 Pro build 26200 with emulator 36.2.12: a Pixel 9 Pro AVD
+(API 36) booted in the seat in 12.2 s on the graphics card and passed the [live test](#check-it-live);
+Android Studio opened at its Welcome screen on its own profile; and Chrome opened on the seat profile.
 
 ## Before you start
 
@@ -27,8 +26,10 @@ driver, as it does on your desktop. `anode android` shows what Anode finds, and 
 | `action: "stop"` | `anode android stop <serial>` | Asks the emulator to shut down, and ends its processes if it has not within 20 seconds. |
 
 Everything but `android_status` needs the desktop lease. Emulators start **read-only** by default:
-the test changes nothing in the AVD, and the AVD can run in the seat while you have it open on your
-desktop. Pass `readOnly: false` (`--writable`) to keep what the test does. `coldBoot` skips the
+what the test does goes to temporary files that the emulator deletes when it stops, so the AVD keeps
+none of it, and the AVD can run in the seat while you have it open on your desktop. Loading the
+quick-boot snapshot still writes to the AVD's disk images, as every quick boot does; a cold boot leaves
+them untouched. Pass `readOnly: false` (`--writable`) to keep what the test does. `coldBoot` skips the
 quick-boot snapshot, and `audio` gives the emulator sound, which is off by default.
 
 `gpu` chooses rendering: `auto` (the default), `host` (your graphics card) or `software`. If the
@@ -65,9 +66,13 @@ Every session on the machine shares one adb server, so adb can reach your own em
 on USB as easily as the seat's. Anode's Android tools act only on emulators whose processes run in
 the seat: a serial outside the seat, or one that is not an emulator, is refused, and so are adb
 commands that act on the server or other devices (`kill-server`, `start-server`, `devices`,
-`connect`, `disconnect`, `pair`, `reconnect` and options before the command, such as `-s`). This
-covers Anode's tools, not an agent's own shell: an agent that runs adb itself must pass the seat's
-serial with `-s`.
+`track-devices`, `connect`, `disconnect`, `pair`, `reconnect`, `raw`, which sends any adb service,
+and options before the command, such as `-s`), also after a `wait-for-device` prefix, which adb
+runs the next command after. Host port forwards live in the shared server too, keyed by their host
+end alone, so `forward --list` and `forward --remove-all` are refused, and `forward --remove LOCAL`
+or `forward LOCAL REMOTE` is refused when `LOCAL` forwards to another device; `--no-rebind` and
+`tcp:0` never take one over. This covers Anode's tools, not an agent's own shell: an agent that runs
+adb itself must pass the seat's serial with `-s`.
 
 When no adb server is running, `start` starts one, and it then runs in the seat. Stopping the seat
 ends it; adb starts a new one the next time anything, such as Android Studio on your desktop, needs
@@ -76,6 +81,22 @@ it.
 An emulator keeps running when its agent's lease ends, since a lease can expire between two steps of
 a long test. Stop it when the test is done: emulators are heavy, and one at a time is kinder to the
 machine.
+
+### When an emulator does not finish booting
+
+`start` returns `booted: false` when the boot outlasts `waitSeconds`, and the emulator keeps booting.
+`android_status` reports `booted` for the seat's emulators, so check again there; a cold boot takes
+longer than a quick boot. When adb keeps answering `device offline`, the device itself is failing:
+
+- **After a quick boot.** A quick-boot snapshot saved by an older emulator, or while the device was
+  failing, can resume with adb offline. Stop the emulator and start again with `coldBoot` (`--cold`).
+- **On every boot.** When adb comes online during each boot and drops again a minute or so later, the
+  device restarts: a fault in the AVD's own disk images stops its kernel. The emulator keeps the last
+  kernel log in the AVD folder's `data\misc\pstore\pstore.bin`, where the lines before
+  `Kernel panic` name the cause, such as `EXT4-fs error`. Anode starts AVDs read-only and cannot repair
+  one. Wiping its data in Android Studio's Device Manager (**Wipe Data**), or creating the AVD again,
+  removes everything installed on it, so that is the user's decision: agents stop the emulator and
+  report the fault.
 
 ## Android Studio
 
