@@ -157,15 +157,16 @@ internal sealed class SeatDisplay
 
         string method = "none";
         string? failure = null;
+        bool unconfirmed = false;
         var after = before;
         if (target != before)
         {
-            (after, method, failure) = await ApplyAsync(before, target, cancel).ConfigureAwait(false);
+            (after, method, failure, unconfirmed) = await ApplyAsync(before, target, cancel).ConfigureAwait(false);
         }
-        lock (_gate) _changed = after != startup;
+        lock (_gate) _changed = after != startup || unconfirmed;
         // The daemon's viewer asks for the requested display again on every later connection. When the seat shows
         // another one, the daemon learns which, so a Reconnect or sign-in never brings back a change that failed.
-        if (target != before && after != target) await RememberAsync(after).ConfigureAwait(false);
+        if (target != before && after != target && !unconfirmed) await RememberAsync(after).ConfigureAwait(false);
 
         var result = Describe(after, before, startup, target, method, reset, clock.ElapsedMilliseconds);
         if (after == target) return JsonLine.Ok(result);
@@ -181,24 +182,33 @@ internal sealed class SeatDisplay
     // reconnect at the old display after a failed one, a change stays within the 175 s clients allow seat_display.
     private const int LiveTimeoutMs = 10_000, ReconnectTimeoutMs = 65_000;
 
-    private async Task<(DisplayMode After, string Method, string? Failure)> ApplyAsync(DisplayMode before, DisplayMode target, CancellationToken cancel)
+    private async Task<(DisplayMode After, string Method, string? Failure, bool Unconfirmed)> ApplyAsync(DisplayMode before, DisplayMode target, CancellationToken cancel)
     {
         var live = await AskAsync(target, "live", LiveTimeoutMs, cancel).ConfigureAwait(false);
+        if (Unconfirmed(live)) return (_measure(), "live", Why(live!) + " The request may still finish; observe the display again before acting.", true);
         var now = await WatchAsync(target, live is null ? _liveWait : TimeSpan.Zero, cancel).ConfigureAwait(false);
-        if (now == target) return (now, "live", null);
+        if (now == target) return (now, "live", null, false);
         // Windows heard the request and chose something else, such as a smaller scale; a reconnect would ask the same.
-        if (live is null && now != before) return (now, "live", null);
+        if (live is null && now != before) return (now, "live", null, false);
 
         string notLive = "Windows did not apply it live" + (live is null ? "." : $" ({Why(live)}).");
         _record($"the seat's display did not change live to {target}{(live is null ? "" : $" ({Why(live)})")}; reconnecting the viewer at the new size");
         var reconnect = await AskAsync(target, "reconnect", ReconnectTimeoutMs, cancel).ConfigureAwait(false);
-        if (reconnect is null) return (await WatchAsync(target, _reconnectWait, cancel).ConfigureAwait(false), "reconnect", null);
+        if (Unconfirmed(reconnect)) return (_measure(), "reconnect", Why(reconnect!) + " The request may still finish; observe the display again before acting.", true);
+        if (reconnect is null) return (await WatchAsync(target, _reconnectWait, cancel).ConfigureAwait(false), "reconnect", null, false);
         // A viewer the failed reconnect left without a connection goes back to the display the seat had.
         if (reconnect.Str("errorCode") == "viewer_detached" && DisplayMode.Problem(before.Width, before.Height, before.Scale) is null
             && await AskAsync(before, "reconnect", ReconnectTimeoutMs, cancel).ConfigureAwait(false) is { } stranded)
+        {
             _record($"the viewer could not reconnect at {before} either ({Why(stranded)}); it stays detached until someone presses Reconnect");
-        return (_measure(), "reconnect", $"{notLive} {Why(reconnect)}");
+            if (Unconfirmed(stranded)) return (_measure(), "reconnect", Why(stranded), true);
+        }
+        return (_measure(), "reconnect", $"{notLive} {Why(reconnect)}", false);
     }
+
+    // Daemon replies carry the matching pipe request id. Local transport failures have no id:
+    // the handler may still be running, so neither replay its change nor persist an old measurement.
+    private static bool Unconfirmed(JsonObject? failure) => failure is not null && !failure.ContainsKey("id");
 
     /// <summary>Null when the daemon made the request, or its failure.</summary>
     private async Task<JsonObject?> AskAsync(DisplayMode target, string method, int timeoutMs, CancellationToken cancel)

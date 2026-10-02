@@ -92,6 +92,7 @@ internal static class DisplayChecks
         public Func<DisplayMode, DisplayMode>? Live = target => target;
         public Func<DisplayMode, DisplayMode>? Reconnect = target => target;
         public string? LiveError, ReconnectError, ReconnectCode, RecordError;
+        public bool LiveUnconfirmed, ReconnectUnconfirmed;
         public bool Unreachable;
         /// <summary>Applies a live change this long after the request, as Windows does.</summary>
         public int LiveDelayMs;
@@ -122,6 +123,7 @@ internal static class DisplayChecks
             if ((method == "live" ? LiveError : ReconnectError) is { } error)
             {
                 var failure = JsonLine.Fail(error);
+                if (!(method == "live" ? LiveUnconfirmed : ReconnectUnconfirmed)) failure["id"] = 1;
                 if (method == "reconnect" && ReconnectCode is not null) failure["errorCode"] = ReconnectCode;
                 return Task.FromResult(failure);
             }
@@ -199,6 +201,27 @@ internal static class DisplayChecks
         Require(unheard.Bool("ok") == false && unheard.Str("error") == reply.Str("error") && DisplayMode.FromJson(unheard.Obj("result")) == Hd
             && notes.Any(line => line.StartsWith("could not tell the daemon that the seat shows 1280x720 at 100%", StringComparison.Ordinal)),
             "a refused note changed the reply or went unlogged: " + unheard.ToJsonString());
+
+        // A lost reply is not a daemon refusal: it may still apply the target after this call returns.
+        foreach (string uncertainMethod in new[] { "live", "reconnect" })
+        {
+            var uncertain = new StandIn(Hd) { Live = null };
+            if (uncertainMethod == "live") { uncertain.LiveError = "'seat.display' timed out after 10000 ms"; uncertain.LiveUnconfirmed = true; }
+            else { uncertain.ReconnectError = "connection lost during 'seat.display'"; uncertain.ReconnectUnconfirmed = true; }
+            var display = uncertain.Display();
+            var unknown = await display.SetAsync(Change(Wide.Width, Wide.Height, Wide.Scale), CancellationToken.None);
+            Require(unknown.Bool("ok") == false && unknown.Str("error")!.Contains("may still finish")
+                && uncertain.Changes().Length == (uncertainMethod == "live" ? 1 : 2)
+                && !uncertain.Changes().Any(call => call.StartsWith("record ", StringComparison.Ordinal)),
+                "an uncertain display change was replayed or recorded as final: " + unknown.ToJsonString());
+            // The original request lands later. Lease cleanup must still restore this late change.
+            uncertain.Screen = Wide;
+            uncertain.LiveError = uncertain.ReconnectError = null;
+            uncertain.Live = target => target;
+            display.EndLease();
+            await display.RestoredAsync(CancellationToken.None);
+            Require(uncertain.Screen == Hd, "a late display change escaped lease-end restoration");
+        }
 
         // Only the fields given change.
         var patch = new StandIn(new DisplayMode(1920, 1080, 100));
