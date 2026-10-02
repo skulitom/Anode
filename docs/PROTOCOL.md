@@ -31,6 +31,13 @@ desktop operation extends its lease to a full `ttlSeconds` from when it starts; 
 wait, its response carries `waitingAgents`. Owned job reads require `agentId` but no lease. See
 [the full ownership protocol](MULTI-AGENT.md#protocol-and-upgrades).
 
+On `lease` acquire/renew only, `clientPid` (positive 32-bit integer) and `clientStarted`
+(positive 64-bit integer, process start time as UTC Windows file time) are optional but must come
+together. Only MCP servers with generated identities send them, including implicit acquisition;
+the CLI and stable identities omit them. Acquire (including recovery) and renew replace the recorded
+process. Once it exits or its PID is reused, the lease ends when no admitted action is running;
+an unreadable process is treated as alive. Idle checks run every second and on lease/desktop calls.
+
 **Response**
 
 ```json
@@ -70,7 +77,7 @@ See [Microsoft's pipe option documentation](https://learn.microsoft.com/en-us/do
 | `seat.show` | | |
 | `seat.hide` | | |
 | `seat.control` | `viewOnly` | `{viewOnly}` |
-| `lease` | `action`, `ttlSeconds`, `cancelJobs`, `agentId`, `leaseToken` | `{agentId, ownerAgentId, expiresInMs, operationRunning, leaseToken, summary}`; `acquire` starts the seat if needed; the request then goes to the seat host, which owns the lease, on an independent connection. See [multiple agents](MULTI-AGENT.md). |
+| `lease` | `action`, `ttlSeconds`, `cancelJobs`, `agentId`, `leaseToken`, optional `clientPid`/`clientStarted` on acquire/renew | `{agentId, ownerAgentId, expiresInMs, operationRunning, leaseToken, summary}`; `acquire` starts the seat if needed; the request then goes to the seat host, which owns the lease, on an independent connection. See [multiple agents](MULTI-AGENT.md). |
 | `quit` | | stops the seat, then exits Anode |
 
 `status` result:

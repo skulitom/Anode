@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json.Nodes;
 using Anode.Core.Bridge;
 
@@ -27,19 +28,42 @@ internal sealed class DesktopLease
     private readonly Action _invalidateReferences;
     private readonly Func<string, int> _cancelJobs;
     private readonly Action<string> _record;
+    private readonly Func<int, long, bool> _clientAlive;
     private readonly List<Waiter> _line = new();
     private string? _owner, _ownerName, _token;
     private long _expires, _ttl = DefaultTtlMs;
+    private int? _clientPid;
+    private long _clientStarted;
     private bool _active;
 
     /// <param name="record">Receives a line each time the desktop changes hands, for the log.</param>
     public DesktopLease(Action? invalidateReferences = null, Func<string, int>? cancelJobs = null, Func<long>? milliseconds = null,
-        Action<string>? record = null)
+        Action<string>? record = null, Func<int, long, bool>? clientAlive = null)
     {
         _invalidateReferences = invalidateReferences ?? (() => { });
         _cancelJobs = cancelJobs ?? (_ => 0);
         _milliseconds = milliseconds ?? (() => Environment.TickCount64);
         _record = record ?? (_ => { });
+        _clientAlive = clientAlive ?? ((pid, started) => ClientAlive(pid, started));
+    }
+
+    internal static bool ClientAlive(int pid, long started, Func<int, long>? readStarted = null)
+    {
+        try { return (readStarted ?? ProcessStarted)(pid) == started; }
+        catch (ArgumentException) { return false; } // GetProcessById: no such process.
+        catch { return true; } // An unreadable process is not evidence of exit.
+    }
+
+    private static long ProcessStarted(int pid)
+    {
+        using var process = Process.GetProcessById(pid);
+        return process.HasExited ? 0 : process.StartTime.ToUniversalTime().ToFileTimeUtc();
+    }
+
+    private void RememberClient(JsonObject request)
+    {
+        _clientPid = request.Int("clientPid");
+        _clientStarted = request["clientStarted"]?.GetValue<long>() ?? 0;
     }
 
     private void Expire()
@@ -51,6 +75,11 @@ internal sealed class DesktopLease
             _record($"desktop lease of {Label(_owner, _ownerName)} expired");
             EndLease();
         }
+        else if (!_active && _owner is not null && _clientPid is int pid && !_clientAlive(pid, _clientStarted))
+        {
+            _record($"desktop lease of {Label(_owner, _ownerName)} ended: its client process exited");
+            EndLease();
+        }
     }
 
     private void EndLease()
@@ -59,6 +88,7 @@ internal sealed class DesktopLease
         // If cleanup fails, keep the expired owner and refuse transfer until cleanup succeeds.
         _invalidateReferences();
         _owner = null; _ownerName = null; _token = null;
+        _clientPid = null; _clientStarted = 0;
     }
 
     public void ExpireIdle() { lock (_state) Expire(); }
@@ -122,7 +152,11 @@ internal sealed class DesktopLease
             {
                 long now = _milliseconds();
                 // An uncertain acquire can be recovered without silently extending its lifetime.
-                if (_owner == agent && _expires > now) return JsonLine.Ok(State(agent, includeToken: true));
+                if (_owner == agent && _expires > now)
+                {
+                    RememberClient(request);
+                    return JsonLine.Ok(State(agent, includeToken: true));
+                }
                 int place = _line.FindIndex(waiter => waiter.Agent == agent);
                 if (_owner is not null || place > 0 || (place < 0 && _line.Count > 0))
                 {
@@ -141,6 +175,7 @@ internal sealed class DesktopLease
                 _token = "l_" + Guid.NewGuid().ToString("N");
                 _ttl = (request.Int("ttlSeconds") ?? DefaultTtlMs / 1000) * 1000L;
                 _expires = now + _ttl;
+                RememberClient(request);
                 _record($"desktop lease taken by {Label(agent, _ownerName)}");
                 return JsonLine.Ok(State(agent, includeToken: true));
             }
@@ -149,6 +184,7 @@ internal sealed class DesktopLease
             {
                 _ttl = (request.Int("ttlSeconds") ?? DefaultTtlMs / 1000) * 1000L;
                 _expires = _milliseconds() + _ttl;
+                RememberClient(request);
                 return JsonLine.Ok(State(agent, includeToken: true));
             }
             if (_active) return Fail("seat_busy", "Wait for this agent's in-flight desktop operation to finish before releasing its lease.", agent);
