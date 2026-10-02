@@ -286,7 +286,7 @@ Every `lease` action needs an agent ID; `renew` and `release` also need the toke
 | `anode display [--json]` | Show the seat's resolution and scaling, and the display it started with. |
 | `anode display <W>x<H> [--scale N] [--shot file] [--json]`, `display --scale N`, `display reset` | *Lease.* Change the seat's resolution, its scaling or both while its apps keep running, or restore the startup display. The width is even, 640-8192, the height 480-8192, and `--scale` one of Windows' steps from 100 to 500. Lasts until your lease ends. See [Test other displays](DISPLAYS.md). |
 | `anode browser [url] [--edge] [--json]` | *Lease.* Open a page in Chrome, or Edge, in the seat on Anode's seat profile, apart from your own browser. |
-| `anode browser --sign-in [url] [--edge]` | Open the seat's browser profile on your own desktop, from your own terminal, to sign in to sites agents should use; close it afterwards. |
+| `anode browser --sign-in [url]... [--edge]` | Open the seat's browser profile on your own desktop, from your own terminal, to sign in to sites agents should use: a page that says what the window is for, then a tab for each address, up to 8. Close it afterwards. |
 | `anode windows [--query text] [--pid N] [--json]` | *Lease.* List seat windows and their IDs. |
 | `anode inspect <windowId> [--html file] [--image file] [--json]` | *Lease.* Read a window's controls. Limits: `--max-elements N` (1-500), `--max-depth N` (0-20), `--max-text N` (0-20000), `--offscreen`. |
 | `anode window <windowId> <action>` | *Lease.* `focus`, `raise`, `restore`, `maximize`, `minimize`, `close`, or `move` with `--x N --y N --width N --height N`. |

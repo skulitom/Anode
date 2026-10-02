@@ -7,6 +7,10 @@
   reuse window.
 - **Quicker startup feedback.** Readiness, failure and Stop wake waiting startup calls immediately.
   MCP connects as soon as it launches the daemon, and failed host connections retry sooner.
+- **The sign-in window explains itself.** `anode browser --sign-in` opened a blank window when given
+  no address, with its guidance in the terminal behind it. Its first tab now says what the window is
+  for and that it must be closed afterwards, and up to 8 addresses open in tabs of their own.
+  `seat_browser` and the agent guide hand the user the whole command, address included.
 
 ## 0.11.1 — 2026-10-02
 

@@ -295,7 +295,9 @@ installed; otherwise they are machine-wide.
   and pass `reset: true` when done; releasing the lease also restores the startup display.
 - Test Android apps with `android_emulator`: start an AVD in the seat, then use only the serial it
   returns for `adb` and `screenshot`, and stop it when done. Web consoles such as Play Console open with
-  `seat_browser` in a seat profile the user signed in to; never sign in yourself.
+  `seat_browser` in a seat profile the user signed in to; never sign in yourself. When a site asks,
+  close the seat's browser and give the user the whole command for their own terminal:
+  `anode browser --sign-in <the site's address>`.
 - Launch Steam games with `steam_launch`: the game runs in the seat and uses the Steam client on
   the user's desktop, which stays there. Use `force`, which takes Steam over from the desktop, only
   when the user agrees and the game will not start otherwise.
