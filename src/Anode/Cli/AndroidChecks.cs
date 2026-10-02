@@ -248,14 +248,18 @@ internal static class AndroidChecks
         machine.Adb = args => args.SequenceEqual(new[] { "forward", "--list" })
             ? StandIn.Result("emulator-5554 tcp:9222 localabstract:chrome_devtools_remote\nemulator-5556 tcp:8080 tcp:8080\n") : null;
         foreach (var args in new[] { new JsonArray("forward", "--remove", "tcp:9222"), new JsonArray("forward", "tcp:9222", "tcp:9222"),
-                     new JsonArray("wait-for-device", "forward", "tcp:9222", "localabstract:app") })
+                     new JsonArray("wait-for-device", "forward", "tcp:9222", "localabstract:app"),
+                     new JsonArray("wait-for-device", "wait-for-device", "forward", "tcp:9222", "tcp:8080"),
+                     new JsonArray("wait-for-device", "wait-for-device", "forward", "--remove", "tcp:9222") })
         {
             var taken = await seat.AdbAsync(new JsonObject { ["serial"] = "emulator-5556", ["args"] = args }, none);
             Require(taken.Bool("ok") == false && taken.Str("error")!.Contains("forwards to another device") && machine.Commands.Last() == "forward --list",
                 $"adb {args.ToJsonString()} was run over another device's forward: {taken.ToJsonString()}");
         }
         foreach (var args in new[] { new JsonArray("forward", "--remove", "tcp:8080"), new JsonArray("forward", "tcp:7000", "tcp:7000"),
-                     new JsonArray("forward", "--no-rebind", "tcp:9222", "tcp:9222") })
+                     new JsonArray("forward", "--no-rebind", "tcp:9222", "tcp:9222"),
+                     new JsonArray("wait-for-device", "wait-for-device", "forward", "--remove", "tcp:8080"),
+                     new JsonArray("wait-for-device", "wait-for-device", "forward", "--no-rebind", "tcp:9222", "tcp:8080") })
         {
             var own = await seat.AdbAsync(new JsonObject { ["serial"] = "emulator-5556", ["args"] = args }, none);
             Require(own.Bool("ok") == true && machine.Commands.Last() == "-s emulator-5556 " + string.Join(' ', args.Select(a => a!.GetValue<string>())),

@@ -295,7 +295,7 @@ internal sealed class SeatEmulators
     /// </summary>
     internal static string? ForwardedLocal(IReadOnlyList<string> args)
     {
-        if (args.Count > 1 && args[0].StartsWith("wait-for-", StringComparison.OrdinalIgnoreCase)) args = args.Skip(1).ToArray();
+        while (args.Count > 1 && args[0].StartsWith("wait-for-", StringComparison.OrdinalIgnoreCase)) args = args.Skip(1).ToArray();
         if (args.Count < 3 || args[0] != "forward") return null;
         if (args[1] == "--remove") return args[2];
         return args[1].StartsWith('-') || args[1] == "tcp:0" ? null : args[1];
