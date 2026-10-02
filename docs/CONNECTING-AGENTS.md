@@ -270,7 +270,9 @@ installed; otherwise they are machine-wide.
   keeps the lease; renew only across pauses longer than 120 seconds. Release after fixture
   cleanup so the next agent gets its turn. MCP supplies its identity/token automatically and names
   the agent after its client and project folder; `ANODE_AGENT_NAME` overrides the name. Configure a unique
-  `ANODE_AGENT_ID` per independent agent for restart recovery. See
+  `ANODE_AGENT_ID` per independent agent for restart recovery; its lease stays until expiry or
+  release, so choose a short `ttlSeconds` if the session may be killed. With a generated identity,
+  a killed session's lease ends once its process is gone and any admitted action finishes. See
   [multiple agents](https://github.com/skulitom/Anode/blob/main/docs/MULTI-AGENT.md).
 - Use `seat_capabilities` to probe actual screenshot availability.
 - Use `seat_exec` with an absolute cwd for builds, test runners and development servers.

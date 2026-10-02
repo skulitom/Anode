@@ -32,8 +32,9 @@ internal static class Tools
             + "in a first-come line, and calling it again within 5 s keeps your place. action=renew extends the lease while you think without acting. "
             + "action=release hands the desktop to the next agent; release when you finish, optionally cancelling only your command jobs. "
             + "status shows the owner, time left and who is waiting, and never starts a seat. After the lease changes hands, observe again before acting. "
-            + "Closing this MCP session releases its lease unless ANODE_AGENT_ID gives it a stable identity, which keeps the lease until it expires "
-            + "so a restarted session can resume. Ownership coordinates trusted agents under the same Windows account; it does not isolate files or applications.",
+            + "With a generated identity, closing this MCP session releases its lease; a killed session's lease also ends once its process is gone and any admitted action finishes. "
+            + "A stable ANODE_AGENT_ID keeps the lease until expiry or release so a restarted session can resume; choose a short ttlSeconds if it may be killed. "
+            + "Ownership coordinates trusted agents under the same Windows account; it does not isolate files or applications.",
             Schema(("action", "string", "status (default), acquire, renew, or release.", false),
                 ("ttlSeconds", "integer", "Lease lifetime after your last desktop action, 10-600 seconds; default 120. Only acquire/renew.", false),
                 ("waitSeconds", "integer", "How long acquire waits in line for another agent to finish, 0-300 seconds; default 30. Only acquire.", false),

@@ -270,6 +270,12 @@ internal sealed class McpServer : IDisposable
     {
         var payload = AgentAccess.Attach(arguments, _agentId, _leaseToken);
         if (leaseAction is not null && _agentName is not null) payload["agentName"] = _agentName;
+        if (_ephemeral && leaseAction is "acquire" or "renew")
+        {
+            using var process = Process.GetCurrentProcess();
+            payload["clientPid"] = process.Id;
+            payload["clientStarted"] = process.StartTime.ToUniversalTime().ToFileTimeUtc();
+        }
         return payload;
     }
 
@@ -279,9 +285,8 @@ internal sealed class McpServer : IDisposable
     /// </summary>
     private async Task<JsonObject?> TakeLeaseAsync(JsonPipeClient client, string toolName, CancellationToken cancel)
     {
-        var request = AgentAccess.Attach(new JsonObject { ["action"] = "acquire" }, _agentId, null);
+        var request = Envelope(new JsonObject { ["action"] = "acquire" }, "acquire");
         request["startSeat"] = false;
-        if (_agentName is not null) request["agentName"] = _agentName;
         var response = await client.RequestAsync("lease", request, 30_000, cancel).ConfigureAwait(false);
         if (response.Bool("ok") == true && response.Obj("result")?.Str("leaseToken") is { } token)
         {
