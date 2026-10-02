@@ -1,6 +1,3 @@
-using System.Drawing;
-using System.Windows.Forms;
-
 namespace Anode.Cli;
 
 /// <summary>Opt-in live fixture: it refuses to create a window on the parent desktop.</summary>
