@@ -44,6 +44,12 @@ the measured improvement is in discovery before launch. An exploratory build tha
 host-reuse window had one accepted launch with no host appearing. That shortcut was removed
 before the final live check; the scheduler handoff itself remains unchanged.
 
+The final reconnect retained session 6 and host process 29244, with no additional host launch.
+After Windows completed sign-in, host reconnection and verification took 13 ms (16:23:32.003
+to 16:23:32.016). Manual credential entry is excluded. The disposable desktop fixture passed
+all 15 checks on the final build; capture was available both before and after reconnect. The
+test lease was released and the development seat was closed afterward.
+
 ## Validation and reproduction
 
 Build and run the quick checks as described in [development testing](DEVELOPMENT-TESTING.md).
