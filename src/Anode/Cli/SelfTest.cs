@@ -171,6 +171,9 @@ internal static class SelfTest
         Check(results, "startup disconnect", () => DiagnosticsChecks.StartupFailure().GetAwaiter().GetResult());
         Check(results, "seat cleanup", () => DiagnosticsChecks.SeatCleanup().GetAwaiter().GetResult());
         Check(results, "startup status polling", () => DiagnosticsChecks.StartupPolling().GetAwaiter().GetResult());
+        Check(results, "startup daemon discovery", () => StartupChecks.DaemonDiscovery().GetAwaiter().GetResult());
+        Check(results, "startup host connection", () => StartupChecks.HostConnection().GetAwaiter().GetResult());
+        Check(results, "startup state notification", () => StartupChecks.StateNotifications().GetAwaiter().GetResult());
         Check(results, "log diagnostics", () => DiagnosticsChecks.Logging().GetAwaiter().GetResult());
         Check(results, "MCP stdio", () => TransportChecks.McpStdio().GetAwaiter().GetResult());
         Check(results, "MCP validation", () => McpChecks.Validation().GetAwaiter().GetResult());

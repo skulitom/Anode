@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Faster desktop startup.** CLI and MCP skip their initial connection wait when no daemon is
+  present, while still waiting for one that is starting. Reconnects retain their existing host
+  reuse window.
+- **Quicker startup feedback.** Readiness, failure and Stop wake waiting startup calls immediately.
+  MCP connects as soon as it launches the daemon, and failed host connections retry sooner.
+
 ## 0.11.1 — 2026-10-02
 
 - **Safer adb commands.** The seat refuses shared-server commands, including those behind repeated

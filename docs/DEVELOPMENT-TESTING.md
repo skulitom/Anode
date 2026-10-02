@@ -198,6 +198,9 @@ codex mcp add anode-dev -- "C:\path\to\artifacts\debug\anode.exe" --channel dev 
 
 ## Coverage and limits
 
+For startup measurements, expected improvements and a safe reproduction procedure, see
+[Startup performance](STARTUP-PERFORMANCE.md).
+
 Audio has a separate opt-in smoke test: `scripts/test-audio.ps1 -Anode <new-executable>`.
 It requires an existing lease and an already ready daemon started with `--audio`; it never
 starts or stops a seat. It plays a short audible tone, records the seat's Remote Audio mix,

@@ -27,6 +27,7 @@ internal sealed class AnodeDaemon : IDisposable
     private bool _reconnecting;
     private bool _promptForCredentials;
     private int _connectionAttempt;
+    private TaskCompletionSource _stateChanged = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Func<uint?> _findChild;
     private readonly Func<string?> _blockingSummary;
     private readonly Func<Task> _startHost;
@@ -340,20 +341,14 @@ internal sealed class AnodeDaemon : IDisposable
                 DisposeSeatClient();
             }
 
-            // Reuse a host that is already listening when its viewer reconnects.
-            _seat = await JsonPipeClient.TryConnectAsync(Env.SeatPipe, 500, cancel).ConfigureAwait(false);
-            cancel.ThrowIfCancellationRequested();
-
-            if (_seat is null)
+            _seat = await ConnectHostAsync(Env.SeatPipe, () =>
             {
                 SeatLauncher.LaunchInSession(
                     id.Value,
                     Env.ExecutablePath,
                     $"--channel {Env.Channel} __seat-host --state-dir " + DaemonLauncher.Quote(Env.StateDirectory),
                     AppContext.BaseDirectory);
-
-                _seat = await ConnectSeatWithRetryAsync(TimeSpan.FromSeconds(90), cancel).ConfigureAwait(false);
-            }
+            }, cancel).ConfigureAwait(false);
 
             lock (_lifecycleGate)
             {
@@ -407,14 +402,28 @@ internal sealed class AnodeDaemon : IDisposable
         }
     }
 
-    private static async Task<JsonPipeClient?> ConnectSeatWithRetryAsync(TimeSpan timeout, CancellationToken cancel)
+    internal static async Task<JsonPipeClient?> ConnectHostAsync(string pipe, Action launch, CancellationToken cancel)
+    {
+        // Keep the reuse window even on first login: Windows can still be preparing the session.
+        var existing = await JsonPipeClient.TryConnectAsync(pipe, 500, cancel).ConfigureAwait(false);
+        if (cancel.IsCancellationRequested)
+        {
+            existing?.Dispose();
+            cancel.ThrowIfCancellationRequested();
+        }
+        if (existing is not null) return existing;
+        launch();
+        return await ConnectSeatWithRetryAsync(pipe, TimeSpan.FromSeconds(90), cancel).ConfigureAwait(false);
+    }
+
+    private static async Task<JsonPipeClient?> ConnectSeatWithRetryAsync(string pipe, TimeSpan timeout, CancellationToken cancel)
     {
         var deadline = DateTime.UtcNow + timeout;
         while (DateTime.UtcNow < deadline)
         {
-            var client = await JsonPipeClient.TryConnectAsync(Env.SeatPipe, 1000, cancel).ConfigureAwait(false);
+            var client = await JsonPipeClient.TryConnectAsync(pipe, 1000, cancel).ConfigureAwait(false);
             if (client is not null) return client;
-            await Task.Delay(500, cancel).ConfigureAwait(false);
+            await Task.Delay(50, cancel).ConfigureAwait(false);
         }
         return null;
     }
@@ -562,6 +571,7 @@ internal sealed class AnodeDaemon : IDisposable
     internal async Task<JsonObject> StartSeatAsync(int? expectedStopVersion = null)
     {
         await _seatGate.WaitAsync().ConfigureAwait(false);
+        int startupStopVersion = Volatile.Read(ref _stopVersion);
         try
         {
             if (expectedStopVersion is int version && version != Volatile.Read(ref _stopVersion))
@@ -602,11 +612,20 @@ internal sealed class AnodeDaemon : IDisposable
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(120);
         while (DateTime.UtcNow < deadline)
         {
-            if (_stopRequested) return JsonLine.Fail("The seat was stopped before startup completed.");
-            if (_hostReady) return JsonLine.Ok(new JsonObject { ["session"] = _sessionId });
-            if (_state is "error" or "logon-error" or "stopped" or "detached")
-                return JsonLine.Fail(string.IsNullOrEmpty(_lastError) ? $"Seat startup ended in state '{_state}'." : _lastError);
-            await Task.Delay(300).ConfigureAwait(false);
+            Task changed;
+            lock (_lifecycleGate)
+            {
+                if (_stopRequested || startupStopVersion != Volatile.Read(ref _stopVersion))
+                    return JsonLine.Fail("The seat was stopped before startup completed.");
+                if (_hostReady) return JsonLine.Ok(new JsonObject { ["session"] = _sessionId });
+                if (_state is "error" or "logon-error" or "stopped" or "detached")
+                    return JsonLine.Fail(string.IsNullOrEmpty(_lastError) ? $"Seat startup ended in state '{_state}'." : _lastError);
+                changed = _stateChanged.Task;
+            }
+            var remaining = deadline - DateTime.UtcNow;
+            if (remaining <= TimeSpan.Zero) break;
+            try { await changed.WaitAsync(remaining).ConfigureAwait(false); }
+            catch (TimeoutException) { break; }
         }
         return JsonLine.Fail(_promptForCredentials && _state is "connecting" or "signing-in"
             ? "Windows has not finished signing in. Complete the credential dialog in Anode, then check `anode status`."
@@ -634,6 +653,7 @@ internal sealed class AnodeDaemon : IDisposable
         {
             _stopRequested = true;
             _bringUpCancellation.Cancel();
+            NotifyStateChanged();
         }
     }
 
@@ -1025,12 +1045,24 @@ internal sealed class AnodeDaemon : IDisposable
 
     private void SetState(string state, string message)
     {
-        _state = state;
-        if (state is "error" or "logon-error") _lastError = message;
-        else if (state == "ready") _lastError = string.Empty;
+        lock (_lifecycleGate)
+        {
+            _state = state;
+            if (state is "error" or "logon-error") _lastError = message;
+            else if (state == "ready") _lastError = string.Empty;
+            NotifyStateChanged();
+        }
         _window?.SetStatus(message);
         _window?.SetHeadline(state);
         Log.Info($"[{state}] {message}");
+    }
+
+    // Call while holding _lifecycleGate so a waiter cannot miss the transition it just inspected.
+    private void NotifyStateChanged()
+    {
+        var changed = _stateChanged;
+        _stateChanged = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        changed.TrySetResult();
     }
 
     private void DisposeSeatClient()

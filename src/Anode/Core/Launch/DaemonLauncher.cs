@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using Anode.Core.Session;
+using Anode.Core.Bridge;
 using Anode.Core.Util;
 
 namespace Anode.Core.Launch;
@@ -8,6 +9,17 @@ namespace Anode.Core.Launch;
 /// <summary>Shared by the CLI and MCP so the daemon can outlive either client.</summary>
 internal static class DaemonLauncher
 {
+    /// <summary>
+    /// An absent daemon cannot answer later in this probe. Only wait when its mutex says it is
+    /// already starting or running; still try the pipe once for compatibility with older hosts.
+    /// This is discovery, not the wait after launching a daemon.
+    /// </summary>
+    public static Task<JsonPipeClient?> ConnectExistingAsync(int timeoutMs, CancellationToken cancel = default) =>
+        ConnectExistingAsync(Env.ControlPipe, Env.DaemonMutex, timeoutMs, cancel);
+
+    internal static Task<JsonPipeClient?> ConnectExistingAsync(string pipe, string mutex, int timeoutMs, CancellationToken cancel) =>
+        JsonPipeClient.TryConnectAsync(pipe, SeatSlot.Exists(mutex) ? timeoutMs : 0, cancel);
+
     /// <exception cref="SeatTakenException">Another channel's Anode has this Windows session's seat.</exception>
     public static void Launch(string[] extra)
     {

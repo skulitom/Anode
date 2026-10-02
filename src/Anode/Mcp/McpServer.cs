@@ -432,7 +432,10 @@ internal sealed class McpServer : IDisposable
         {
             if (_daemon is { IsConnected: true }) return _daemon;
             _daemon?.Dispose();
-            _daemon = await JsonPipeClient.TryConnectAsync(_controlPipe, ConnectTimeoutMs, cancel).ConfigureAwait(false);
+            // Injected private pipes have no daemon mutex; their stand-in server may still be starting.
+            _daemon = _controlPipe == Env.ControlPipe
+                ? await DaemonLauncher.ConnectExistingAsync(ConnectTimeoutMs, cancel).ConfigureAwait(false)
+                : await JsonPipeClient.TryConnectAsync(_controlPipe, ConnectTimeoutMs, cancel).ConfigureAwait(false);
             if (_daemon is not null || !mayStart) return _daemon;
 
             _seatTaken = null;
@@ -460,8 +463,8 @@ internal sealed class McpServer : IDisposable
             var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(40);
             while (DateTime.UtcNow < deadline && _daemon is null)
             {
-                await Task.Delay(400, cancel).ConfigureAwait(false);
                 _daemon = await JsonPipeClient.TryConnectAsync(_controlPipe, 500, cancel).ConfigureAwait(false);
+                if (_daemon is null) await Task.Delay(50, cancel).ConfigureAwait(false);
             }
 
             if (_daemon is null) return null;

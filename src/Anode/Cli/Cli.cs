@@ -704,7 +704,7 @@ internal static partial class Cli
 
     private static async Task<JsonPipeClient?> Connect(bool autoStart)
     {
-        var client = await JsonPipeClient.TryConnectAsync(Env.ControlPipe, 800);
+        var client = await DaemonLauncher.ConnectExistingAsync(800);
         if (client is not null || !autoStart) return client;
 
         if (Preconditions.BlockingSummary() is { } blocked)

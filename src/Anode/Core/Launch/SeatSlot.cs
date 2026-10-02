@@ -94,7 +94,7 @@ internal static class SeatSlot
         }
     }
 
-    private static bool Exists(string mutex)
+    internal static bool Exists(string mutex)
     {
         try
         {
