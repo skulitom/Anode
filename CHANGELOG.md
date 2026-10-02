@@ -1,6 +1,23 @@
 # Changelog
 
-## Unreleased
+## 0.11.1 — 2026-10-02
+
+- **Safer adb commands.** The seat refuses shared-server commands, including those behind repeated
+  `wait-for-*` prefixes, and refuses to replace or remove another device's forwarded local port.
+  Emulator startup keeps boot probes inside the caller's reply deadline, including when adb hangs.
+- **Display changes are remembered only when confirmed.** The viewer keeps the size Windows
+  actually applied. A lost reply is never replayed or recorded as a successful change, and lease
+  cleanup still restores the startup display if the original request finishes late.
+- **Killed agents release the desktop.** A generated MCP identity tracks its process and start time;
+  its lease ends after the process exits and any admitted action finishes. A stable `ANODE_AGENT_ID`
+  keeps its existing release-or-expiry behavior.
+- **Audio works with older MCP clients.** Protocol `2024-11-05` receives WAV recordings as embedded
+  resources; newer clients continue to receive native audio blocks.
+- **Tested live on Windows 11.** Native desktop controls, actual Chrome mouse/keyboard delivery,
+  four display changes and reset, audio playback/recording, Android boot/capture/stop, hidden-viewer
+  pointer isolation and a seat-only Xbox controller passed. A killed MCP client released its lease
+  in 406 ms and restored the display before the next client acquired it. Both old and new MCP audio
+  formats passed against the running seat. See [release validation](docs/RELEASE-READINESS.md).
 
 - **Ready for directory submissions.** The README leads with desktop isolation and a three-command
   install, keeps a hidden demo GIF placeholder, and includes the MCP Registry ownership marker.

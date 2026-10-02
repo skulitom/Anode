@@ -12,10 +12,9 @@ Use this one-line description wherever a directory asks for it:
 
 ## 1. MCP Registry (automatic)
 
-Merging this workflow to `main` lists **0.11.0 as metadata only**, provided the registry has no Anode
-listing and the matching GitHub release exists. The repository's `server.json` uses schema
-`2025-12-11` and intentionally has no `packages` property. A daily run can recover that first
-listing if the merge run failed and the latest release still matches `server.json` on `main`.
+The first listing, **0.11.0 as metadata only**, was published on 2 October 2026. The repository's
+`server.json` uses schema `2025-12-11` and intentionally has no `packages` property. Pushes to `main`
+now skip publication because Anode is already listed; later versions follow the release process below.
 
 For later releases, CI publishes the installable MCPB entry once the owner attaches the tested
 `anode-windows-x64.mcpb` to the release ([section 2](#2-next-release-installable-mcpb)). The daily run

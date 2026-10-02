@@ -68,7 +68,7 @@ internal static class Tools
 
         new("seat_audio_listen", "Anode: listen to browsers and games in the seat", "audio.listen", false, Effect.ReadOnly,
             "Record the next short interval of the seat's mixed application output, including browsers, games and agent playback. "
-            + "Returns an MCP audio block containing 48 kHz stereo 16-bit PCM WAV plus timing and silence metadata. "
+            + "Returns 48 kHz stereo 16-bit PCM WAV plus timing and silence metadata, as an MCP audio block or an embedded resource for pre-audio clients. "
             + "Requires Remote Audio (--audio at startup) and the desktop lease. Never captures the user's physical audio devices or microphone. "
             + "Silence is retained for the requested duration; protected content may be silent. Clients must support MCP audio to listen directly.",
             Schema(("durationMs", "integer", "Duration from 100 to 30000 ms. Default 5000.", false)).Bounded("durationMs", 100, 30000)),
