@@ -300,12 +300,31 @@ or with `anode ps kill steam`, then start it on your desktop again.
 
 ### A browser will not start in the seat
 
-Chrome, Edge and Firefox refuse a second instance on the same profile directory. Give the seat its
-own:
+Chrome, Edge and Firefox refuse a second instance on the same profile directory, so the browser on
+your desktop keeps a browser in the seat off your usual profile. `anode run` refuses Chrome and Edge on
+it while they run outside the seat. Use the seat's own profile, which persists between seats:
 
 ```powershell
-anode run "C:\Program Files\Google\Chrome\Application\chrome.exe" --user-data-dir=C:\Users\you\AppData\Local\AnodeChrome
+anode browser https://example.com
+anode browser --sign-in https://play.google.com/console   # from your own terminal: sign in for agents
 ```
+
+Agents use `seat_browser`. For Firefox, pass `-no-remote -profile` with a folder of the seat's own.
+If `anode browser --sign-in` says the terminal runs inside a packaged app, run it from Windows
+Terminal or PowerShell opened from the Start menu. See [Android apps and web consoles](ANDROID.md).
+
+### An Android emulator will not start or stays black
+
+- **Its screen stays black, or it exits at once.** Start it again with `--gpu software` (agents:
+  `gpu: "software"`); the seat's graphics may not suit the emulator's default renderer.
+- **It says the AVD is already running.** A writable start (`--writable`) cannot share an AVD; start it
+  read-only, the default, or close the other emulator.
+- **It says no hypervisor is available.** The emulator needs the Windows Hypervisor Platform or the
+  Android Emulator hypervisor driver, as on your desktop; install one with Android Studio's SDK Manager.
+- **"runs outside the seat".** That serial belongs to an emulator on your desktop or elsewhere, which
+  Anode never drives. Start one in the seat and use its serial.
+- **It did not finish booting in time.** A cold boot can take minutes. Check `anode android` until the
+  seat's emulator says `booted`; its output is in the log file `android start` names.
 
 ### My own documents opened in the seat
 
@@ -403,6 +422,29 @@ the services and main desktop. It is not an automatic service change, and the he
 may return. From a source checkout, retest with `scripts/test-development.ps1 -VerifyInput`
 to prove delivery.
 
+### A display change fails or looks wrong
+
+- **`display_not_applied`.** Windows applied a display other than the one asked for, most often a
+  smaller scaling at a small resolution. The error's `result` is what the seat shows now, and
+  screenshots and input already use it. Ask for high scaling on a larger resolution.
+- **"The viewer could not reconnect".** Windows did not change the display live, and reconnecting the
+  viewer at the new size failed. The seat and its apps keep running, and Anode reconnects the viewer at
+  the display it had. If `anode status` then says `detached`, open the viewer with `anode show` and
+  press **Reconnect**.
+- **"would need the Windows password".** Windows did not change the display live, and this seat signed
+  in through the credential dialog, so reconnecting the viewer at the new size would ask for your
+  password in the middle of an agent's task. Anode left the viewer connected instead. When the seat's
+  apps can close, `anode quit`, then `anode start --sign-in --width N --height N --scale N` starts a
+  seat at the display you need.
+- **An app is blurry or laid out for the old display.** It reads scaling only at startup, and Windows
+  stretches it after a change, as on a real PC. Close it and start it again.
+- **`display_restoring`.** The previous agent's lease changed the display and ended; Anode is putting
+  back the startup display before anyone acts. Try again in a few seconds.
+- **The display went back on its own.** Display changes last until the lease that made them ends, by
+  release or expiry. Acquire the lease again and set the display again.
+
+See [Test other displays](DISPLAYS.md).
+
 ---
 
 ## Performance
@@ -425,9 +467,10 @@ A child session renders through the Remote Desktop graphics pipeline, not out of
 good enough for most games at moderate settings and it is not good enough for competitive twitch play.
 That is a property of the approach, not a bug to be fixed.
 
-Lower the seat resolution below the default 1280x720, which helps more than anything else. Seat
-options apply only when Anode starts, so quit it first; `anode quit` closes every program in the
-seat, so save work there:
+Lower the seat resolution below the default 1280x720, which helps more than anything else. While
+you hold the desktop lease, `anode display 1024x576` lowers it in the running seat until the lease
+ends. To start every seat that way, quit Anode first; `anode quit` closes every program in the seat,
+so save work there:
 
 ```powershell
 anode quit | Out-Host

@@ -30,7 +30,13 @@ internal static class ScreenCapture
                     + "No foreground capture or viewer activation was attempted. Use seat_observe with includeScreenshot=false for accessible controls; do not guess screen coordinates.", ex);
             }
         }
+        return Encode(raw, maxWidth, format, jpegQuality);
+    }
 
+    /// <summary>A picture scaled down to maxWidth, if wider, and encoded; source sizes are the picture's own.</summary>
+    public static Shot Encode(Bitmap raw, int? maxWidth, string format, int jpegQuality)
+    {
+        var source = new Size(raw.Width, raw.Height);
         Bitmap output = raw;
         bool scaled = false;
         if (maxWidth is int limit && limit > 0 && source.Width > limit)
@@ -88,12 +94,8 @@ internal static class ScreenCapture
     /// the whole virtual desktop, because that is the coordinate space mouse injection
     /// uses: a pixel in a screenshot is the pixel a click with the same x and y hits.
     /// A child session only ever has one display, so inside the seat the two agree.
+    /// It is read afresh each time, never from WinForms' cached screens, because an agent
+    /// can change the seat's resolution while the seat host runs.
     /// </summary>
-    public static Rectangle SeatBounds()
-    {
-        var bounds = System.Windows.Forms.Screen.PrimaryScreen?.Bounds ?? Rectangle.Empty;
-        if (bounds.Width > 0 && bounds.Height > 0) return bounds;
-        var virtualScreen = System.Windows.Forms.SystemInformation.VirtualScreen;
-        return virtualScreen.Width > 0 ? virtualScreen : new Rectangle(0, 0, 1920, 1080);
-    }
+    public static Rectangle SeatBounds() => new(Point.Empty, Input.InputInjector.ScreenSize());
 }

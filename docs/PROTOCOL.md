@@ -62,6 +62,7 @@ See [Microsoft's pipe option documentation](https://learn.microsoft.com/en-us/do
 | `ping` | | `{daemon, state}` |
 | `status` | | see below |
 | `seat.identity` | | `{session, parentSession}` from Windows; used by the seat host to verify its session before serving input |
+| `seat.display` | none, or `width`, `height`, `scale` and `method` (`live` or `reconnect`) | `{startup}`, the display a reset restores; or `{method, display}` once the viewer has asked for that display. Used by the seat host, which holds the desktop lease for the change and confirms it on the seat's screen. |
 | `seat.pad-visibility` | `devices` (instance paths of ViGEm pads and their devices) | `{session, devices: [{device, interfaces: [{path, opens}]}]}`; used by the seat host to check that the user's session cannot open a controller HidHide keeps in the seat. `opens` is `false` when refused, `null` when unknown. |
 | `doctor` | | `{checks: [{name, state, detail, fix}]}` |
 | `seat.start` | | `{session}` when ready |
@@ -86,11 +87,12 @@ See [Microsoft's pipe option documentation](https://learn.microsoft.com/en-us/do
   "pointerGuard": { "installed": true, "patchedImports": 1, "suppressed": 61, "forwarded": 0,
                     "viewer": {"x":400,"y":167,"width":1280,"height":720} },
   "parentSession": 1,
+  "startupDisplay": { "width": 1280, "height": 720, "scale": 100 },
   "uptimeSeconds": 184.2,
   "lastError": null,
   "logPath": "C:\\Users\\you\\AppData\\Local\\Anode\\anode.log",
   "logError": null,
-  "seat":  { "session": 3, "pid": 9120, "user": "you", "screen": {"width":1280,"height":720}, "cursor": {"x":640,"y":360} },
+  "seat":  { "session": 3, "pid": 9120, "user": "you", "screen": {"width":1280,"height":720,"scale":100}, "cursor": {"x":640,"y":360} },
   "steam": { "steamExe": "D:\\STEAM\\steam.exe", "seatSession": 3, "runningSessions": [1],
              "runningOutsideSeat": true, "clientSession": 1, "signedIn": true,
              "summary": "Steam is running on your desktop (session 1)..." }
@@ -103,7 +105,9 @@ A viewer disconnect during startup becomes `error`, preserving the disconnect co
 in `lastError`. Startup waits return that failure immediately. `logError` reports the most recent
 log-write failure and clears after a successful write; `logPath` is the actual resolved destination.
 `channel` is `main` for the installed Anode, or the development channel, such as `dev`, whose pipes
-this daemon serves.
+this daemon serves. `seat.screen` is the seat's display now, in physical pixels with its Windows
+scaling in percent; `startupDisplay` is the display the seat started with, which a lease's end and
+`display.set` with `reset` restore.
 
 `lease` is the desktop lease as the requesting `agentId` sees it: its `summary` begins "You hold the
 desktop lease" when that agent is the owner, and `queuePosition` gives its place in line. Without an
@@ -126,12 +130,32 @@ therefore needs no daemon change.
 
 | `op` | Arguments | Result |
 | --- | --- | --- |
-| `ping` | | `{session, pid, user, uptimeSeconds, screen:{width,height}, cursor:{x,y}}` |
+| `ping` | | `{session, pid, user, uptimeSeconds, screen:{width,height,scale}, cursor:{x,y}}` |
 | `screenshot` | `maxWidth`, `format` (`png`\|`jpeg`), `quality` | `{data (base64), mimeType, width, height, sourceWidth, sourceHeight, bytes}` |
 
 `width`/`height` are the returned image; `sourceWidth`/`sourceHeight` are the seat's real screen.
 **Click coordinates always use the source size**, so downscaling a screenshot costs tokens, not
-accuracy.
+accuracy. The seat host and its workers use physical pixels at every Windows scaling, so the source
+size is the display's real resolution.
+
+### Display
+
+| `op` | Arguments | Result |
+| --- | --- | --- |
+| `display.set` | `width` and `height` together, `scale`, or `reset: true`; optional `screenshot` and `maxWidth` | `{width, height, scale, effectiveWidth, effectiveHeight, previous, startup, changed, method, elapsedMs, screenshot?, screenshotError?, summary}` |
+
+Only the fields given change. The width is even, 640-8192, the height 480-8192, and `scale` one of
+100, 125, 150, 175, 200, 225, 250, 300, 350, 400, 450 or 500. The seat host asks the daemon
+(`seat.display`) to change the display live through Remote Desktop's display-control channel,
+measures the seat's screen until it shows the new display, and asks for a viewer reconnect at the new
+size when it does not change live (`method` `live` or `reconnect`; `none` when nothing had to change).
+A reconnect keeps the session and its apps. The operation needs the desktop lease and invalidates
+observations; window IDs stay valid. A display other than the one asked for, or none, fails with
+`errorCode: "display_not_applied"` and a `result` describing the actual display. Release or expiry
+of the lease restores the startup display, and the next lease-gated operation waits for that; if it
+is still restoring when the operation's deadline passes, it fails with `errorCode:
+"display_restoring"` without acting. Clients allow the operation about three minutes. See
+[Test other displays](DISPLAYS.md).
 
 ### Desktop inspection and actions
 
@@ -177,8 +201,10 @@ samples produce a full-duration silent WAV; this does not prove an application p
 
 MCP exposes `seat_audio_status`, `seat_audio_listen`, `seat_audio_play`, and `seat_audio_stop`.
 Listening returns a native `audio` content block plus a text block of metadata, with no duplicate
-base64 or `structuredContent`. The CLI writes a new WAV file. Clients without audio-content
-support can use the CLI and process the file. See [Audio](AUDIO.md) for setup and isolation.
+base64 or `structuredContent`. MCP added audio content in protocol `2025-03-26`, so a client that
+negotiated `2024-11-05` receives the same WAV as an embedded `resource` blob (`audio/wav`) instead.
+The CLI writes a new WAV file. Clients without audio-content support can use the CLI and process
+the file. See [Audio](AUDIO.md) for setup and isolation.
 
 ### Execution jobs
 
@@ -251,10 +277,42 @@ the conversation uses handles Steam duplicates into the game, which works across
 same user. The links last as long as the seat host.
 
 `run` also refuses direct `steam.exe`/`steam` commands and `steam://` URLs when Steam is running
-outside the seat, because they would start a second client that takes Steam over. This check does
+outside the seat, because they would start a second client that takes Steam over. It refuses Chrome
+and Edge without `--user-data-dir`, and http(s) links when one of them is the default browser, while
+that browser runs outside the seat, whose profile lock would stop it; use `browser.open`. It always
+refuses Android Studio's launchers (`studio64.exe`, `studio.exe`, `studio.bat`), which would share the
+user's settings with any Studio on the desktop; use `android.studio`. This check does
 not inspect shortcuts or wrapper scripts. Other applications may also reuse an existing instance in another
 session; a `run` response confirms where the launch originated, not where every resulting window
 will appear.
+
+### Android and browsers
+
+| `op` | Arguments | Result |
+| --- | --- | --- |
+| `android.status` | none | `{sdk, emulatorVersion, adb, adbServerRunning, avds: [{name, displayName, api, image, abi, screen, playStore}], emulators: [{serial, avd, pid, session, inSeat, startedBy, booted?}], studio: [{path, version}], summary}` |
+| `android.emulator` | `action` `start` with `avd`, `gpu`, `readOnly`, `coldBoot`, `audio`, `waitSeconds`; `stop` with `serial`; `screenshot` with `serial`, `maxWidth`, `format`; `adb` with `serial`, `args`, `timeoutSeconds` | start `{serial, avd, pid, consolePort, booted, waitedSeconds, readOnly, gpu, log, summary}`; stop `{serial, stopped, method, summary}`; screenshot `{serial, screenshot: {data, mimeType, width, height, sourceWidth, sourceHeight}, summary}`; adb `{serial, exitCode, timedOut, stdout, stderr, summary}` |
+| `android.studio` | `project` (absolute folder) | `{path, version, pid, profile, project, firstStart, summary}` |
+| `browser.open` | `url` (http, https or `about:blank`), `browser` (`chrome` or `edge`) | `{browser, path, profile, url, pid, newProfile, summary}` |
+
+`android.status` needs no lease and never starts adb's server; the others need the lease. Running
+emulators come from the files emulators keep in `%LOCALAPPDATA%\Temp\avd\running\pid_<pid>.ini`, and
+each is in the seat when its process runs in the seat's session. `stop`, `screenshot` and `adb` accept
+only `emulator-NNNN` serials of emulators in the seat; `adb` refuses options before the command and
+commands that act on adb's server or other devices. `start` takes the first even console port from
+5554 to 5682 whose adb port is free, starts adb's server, then runs
+`emulator -avd NAME -port PORT -no-boot-anim` with `-read-only` unless `readOnly` is false,
+`-no-snapshot-load` for `coldBoot`, `-gpu host` or the emulator's software mode, and `-no-audio` unless
+`audio`. It waits for `sys.boot_completed` for up to `waitSeconds` (0-150, default 120) within the
+request's deadline, and keeps the emulator's output in `android\<serial>.log` in Anode's state folder.
+Clients allow `android.emulator` about three minutes.
+
+`android.studio` starts the newest Android Studio with `STUDIO_PROPERTIES` pointing at
+`%LOCALAPPDATA%\AnodeAndroidStudio\studio.properties`, which moves its config, system, plugin and log
+folders there and sets `disable.android.first.run`, and with `ANDROID_HOME` set to the SDK when it is
+unset. `browser.open` starts Chrome or Edge with `--user-data-dir` set to `%LOCALAPPDATA%\AnodeChrome`
+or `AnodeEdge`, `--no-first-run`, `--no-default-browser-check` and `--new-window`. See
+[Android apps and web consoles](ANDROID.md).
 
 ### Gamepad
 
@@ -322,8 +380,11 @@ except `anode_guide` maps to exactly one `op`, so there is no second implementat
 | | | `seat_wait` | `desktop.wait` |
 | `seat_audio_status` | `audio.status` | `seat_audio_listen` | `audio.listen` |
 | `seat_audio_play` | `audio.play` | `seat_audio_stop` | `audio.stop` |
+| `seat_display` | `display.set` | `seat_browser` | `browser.open` |
+| `android_status` | `android.status` | `android_emulator` | `android.emulator` |
+| `android_studio` | `android.studio` | | |
 
-There are 36 tools. MCP assigns an agent ID (or uses `ANODE_AGENT_ID` from its environment),
+There are 41 tools. MCP assigns an agent ID (or uses `ANODE_AGENT_ID` from its environment),
 remembers the token returned by `seat_lease` acquire or renew, and supplies both on desktop calls.
 `anode_guide` returns the embedded operating guide without a daemon, setup or waiting behind long
 tool calls.
@@ -333,7 +394,7 @@ they launch a hidden one through the shared launcher, and they wait for the seat
 `seat_status` never starts a daemon. With none running it returns a successful result containing
 `state: stopped`, `daemonRunning: false`, `agentId`, `ownerAgentId: null` and a `summary` that says
 to acquire a lease; with one running it returns that daemon's status. `seat_capabilities`,
-`seat_processes`, `steam_status` and `seat_audio_status` likewise report a stopped seat instead of starting one, and
+`seat_processes`, `steam_status`, `seat_audio_status` and `android_status` likewise report a stopped seat instead of starting one, and
 `seat_show` and `seat_hide` return an error. A lease-requiring tool that finds no daemon forgets
 its token and returns an error asking for a new acquisition; it never relaunches a daemon a person
 quit. The same holds when a person stops the seat but Anode keeps running (the Stop button, the
@@ -350,9 +411,10 @@ block plus capture-size text. Errors from the daemon or seat host return `isErro
 failure object, including any `errorCode`, in `structuredContent`.
 
 Annotations follow each tool's effect. `anode_guide`, `seat_status`, `seat_windows`, `seat_observe`,
-`seat_screenshot`, `seat_wait`, `seat_capabilities`, `seat_processes` and `steam_status` are
-read-only (`readOnlyHint: true`). `seat_windows`, `seat_observe`, `seat_screenshot` and `seat_wait`
-return whatever the seat's apps and web pages show, so they set `openWorldHint: true` to mark that
+`seat_screenshot`, `seat_wait`, `seat_capabilities`, `seat_processes`, `steam_status`,
+`seat_audio_status`, `seat_audio_listen` and `android_status` are read-only (`readOnlyHint: true`).
+`seat_windows`, `seat_observe`, `seat_screenshot`, `seat_wait` and `seat_audio_listen` return whatever
+the seat's apps and web pages show, so they set `openWorldHint: true` to mark that
 content as untrusted; the other read-only tools set it false. `seat_start` and `seat_hide` are additive
 (`destructiveHint: false`, `idempotentHint: true`, `openWorldHint: false`). Every other tool keeps
 conservative hints (`destructiveHint: true`, `idempotentHint: false`, `openWorldHint: true`),
@@ -361,9 +423,12 @@ tool's title. Annotations describe effects; they are not approval overrides, and
 timed-out action safe to replay. Titles and initialization instructions provide task-selection
 guidance. See [For agents](FOR-AGENTS.md).
 
-The server also offers two prompts, answered locally like `anode_guide`: `desktop_test` takes no
-arguments and returns the lease workflow for the app or task the user names, and `desktop_guide`
-returns the full guide. In Claude Code, `/mcp__anode__desktop_test` runs one (its `/` menu lists it
+The server also offers four prompts, answered locally like `anode_guide`. None takes arguments.
+`desktop_test` returns the lease workflow for the app or task the user names, `desktop_guide` returns
+the full guide, `display_test` walks the app the user names through a set of resolutions and
+scalings with `seat_display` and asks for a report of what breaks at each, and `android_test` tests
+an Android app on an emulator in the seat: every screen, dark mode, font size, process death and
+logcat. In Claude Code, `/mcp__anode__desktop_test` runs one (its `/` menu lists it
 as `/anode:desktop_test`); in VS Code, `/mcp.anode.desktop_test`. The names follow the server name
 in the client's configuration. An unknown prompt name returns JSON-RPC error `-32602`.
 

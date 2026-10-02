@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Anode.Core.Display;
 using Anode.Core.Util;
 
 namespace Anode.Daemon;
@@ -154,9 +155,10 @@ internal sealed class RdpViewer : AxHost
 
         ConfigureCredentialPrompt((IMsRdpCredentialPrompt)control, options.PromptForCredentials);
 
-        if (options.ScaleFactor is int scale && scale > 100)
+        // Set on every connection that names a scale, 100% included: the control keeps an earlier value otherwise.
+        if (options.ScaleFactor is int scale)
         {
-            TryExtended(extended, "DesktopScaleFactor", (uint)Math.Min(500, scale));
+            TryExtended(extended, "DesktopScaleFactor", (uint)Math.Clamp(scale, 100, 500));
             TryExtended(extended, "DeviceScaleFactor", 100u);
         }
 
@@ -164,7 +166,8 @@ internal sealed class RdpViewer : AxHost
         // (including reconnects) unless the isolation gate has been installed successfully.
         ConnectGuarded(PointerGuard.Install, () =>
         {
-            Log.Info($"connecting the viewer to a child session at {options.Width}x{options.Height}");
+            Log.Info($"connecting the viewer to a child session at {options.Width}x{options.Height}"
+                + (options.ScaleFactor is int percent ? $", {percent}% scaling" : ""));
             Dispatch.Call(control, "Connect");
         });
     }
@@ -192,6 +195,19 @@ internal sealed class RdpViewer : AxHost
             Log.Warn($"could not read the Remote Desktop disconnect description: {ex.Message}");
             return null;
         }
+    }
+
+    /// <summary>
+    /// Asks the connected seat for another display, as a monitor change would, through Remote Desktop's
+    /// display-control channel. Windows applies it asynchronously, or not at all when it cannot change the
+    /// session live; the seat host measures what it did.
+    /// </summary>
+    public void UpdateDisplay(DisplayMode display)
+    {
+        if (ConnectionState != 1) throw new InvalidOperationException("The viewer is not connected to the seat.");
+        var (width, height) = display.PhysicalMillimetres();
+        // Orientation 0: the width and height already give a portrait display its shape.
+        Dispatch.Call(Ocx, "UpdateSessionDisplaySettings", (uint)display.Width, (uint)display.Height, width, height, 0u, (uint)display.Scale, 100u);
     }
 
     internal static void ConfigureCredentialPrompt(IMsRdpCredentialPrompt prompt, bool enabled)
@@ -295,7 +311,7 @@ internal sealed class RdpViewer : AxHost
     }
 }
 
-/// <summary>How a seat should be created. Set once at `anode up` and kept for reconnects.</summary>
+/// <summary>How a seat should be created. Set once at `anode up` and kept for reconnects; an agent's display change replaces the size and scale.</summary>
 internal sealed record SeatOptions
 {
     public int Width { get; init; } = 1280;

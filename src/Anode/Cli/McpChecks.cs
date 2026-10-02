@@ -56,7 +56,7 @@ internal static class McpChecks
             () => { readinessChecks++; return "setup missing"; }) { ConnectTimeoutMs = 50 };
         var guide = await backend.CallAsync("anode_guide", new JsonObject(), CancellationToken.None);
         Require(guide.Bool("isError") != true && AgentGuide.Text.Length > 100, "embedded guide unavailable before setup");
-        foreach (string diagnostic in new[] { "seat_status", "seat_capabilities", "seat_processes", "steam_status", "seat_audio_status" })
+        foreach (string diagnostic in new[] { "seat_status", "seat_capabilities", "seat_processes", "steam_status", "seat_audio_status", "android_status" })
         {
             var stopped = await backend.CallAsync(diagnostic, new JsonObject(), CancellationToken.None);
             Require(stopped.Bool("isError") != true && stopped.Obj("structuredContent") is { } state && state.Str("state") == "stopped"
@@ -118,7 +118,7 @@ internal static class McpChecks
             input.Send(Request(4, "prompts/list"));
             var listed = await output.Next();
             Require(listed.Int("id") == 4 && (listed.Obj("result")?["prompts"] as JsonArray)?.OfType<JsonObject>().Select(p => p.Str("name"))
-                .SequenceEqual(new[] { "desktop_test", "desktop_guide" }) == true, "prompts were not listed while a tool was busy");
+                .SequenceEqual(new[] { "desktop_test", "desktop_guide", "display_test", "android_test" }) == true, "prompts were not listed while a tool was busy");
             input.Send(Request(5, "prompts/get", new JsonObject { ["name"] = "desktop_test" }));
             var message = (await output.Next()).Obj("result")?["messages"]?[0] as JsonObject;
             Require(message?.Str("role") == "user" && message.Obj("content")?.Str("text") is { } workflow
@@ -147,10 +147,12 @@ internal static class McpChecks
         foreach (var prompt in AgentGuide.Prompts().OfType<JsonObject>())
             texts.Add(AgentGuide.Prompt(prompt.Str("name")!)!["messages"]![0]!["content"]!["text"]!.GetValue<string>());
         texts.AddRange(definitions.Select(d => d.Str("description")!));
+        // Prompt names, such as android_test, share tool prefixes.
+        var prompts = AgentGuide.Prompts().OfType<JsonObject>().Select(prompt => prompt.Str("name")).ToHashSet();
         foreach (Match token in texts.SelectMany(text => ToolToken.Matches(text)))
-            Require(Tools.TryResolve(token.Value, out _, out _), $"guidance names unknown tool {token.Value}");
+            Require(Tools.TryResolve(token.Value, out _, out _) || prompts.Contains(token.Value), $"guidance names unknown tool {token.Value}");
 
-        string[] readOnly = { "anode_guide", "seat_status", "seat_windows", "seat_observe", "seat_screenshot", "seat_wait", "seat_capabilities", "seat_processes", "steam_status", "seat_audio_status", "seat_audio_listen" };
+        string[] readOnly = { "anode_guide", "seat_status", "seat_windows", "seat_observe", "seat_screenshot", "seat_wait", "seat_capabilities", "seat_processes", "steam_status", "seat_audio_status", "seat_audio_listen", "android_status" };
         string[] additive = { "seat_start", "seat_hide" };
         string[] seatContent = { "seat_windows", "seat_observe", "seat_screenshot", "seat_wait", "seat_audio_listen" };
         var titles = new HashSet<string>();
@@ -197,7 +199,7 @@ internal static class McpChecks
         return $"{definitions.Length} titled tools, annotation table, schema bounds, {Encoding.UTF8.GetByteCount(AgentGuide.Instructions)}-byte instructions and skill frontmatter";
     }
 
-    private static readonly Regex ToolToken = new(@"\b(seat|anode|steam|gamepad)_[a-z]+(?:_[a-z]+)*", RegexOptions.CultureInvariant);
+    private static readonly Regex ToolToken = new(@"\b(seat|anode|steam|gamepad|android)_[a-z]+(?:_[a-z]+)*", RegexOptions.CultureInvariant);
 
     /// <summary>Every integer bound is accepted at its limit and rejected one past it; every enum value passes.</summary>
     private static void CheckBounds(string tool, JsonObject schema)
@@ -240,6 +242,13 @@ internal static class McpChecks
             "seat_run" => new JsonObject { ["path"] = "notepad.exe" },
             "seat_key" => new JsonObject { ["keys"] = "enter" },
             "seat_type" => new JsonObject { ["text"] = "a" },
+            "seat_display" => new JsonObject { ["width"] = 1280, ["height"] = 720 },
+            "android_emulator" => field switch
+            {
+                "timeoutSeconds" => new JsonObject { ["action"] = "adb", ["serial"] = "emulator-5554", ["args"] = new JsonArray("shell", "true") },
+                "maxWidth" or "format" => new JsonObject { ["action"] = "screenshot", ["serial"] = "emulator-5554" },
+                _ => new JsonObject { ["action"] = "start", ["avd"] = "Pixel_9_Pro" }
+            },
             "steam_launch" => new JsonObject { ["appId"] = 1 },
             "gamepad_tap" => new JsonObject { ["button"] = "a" },
             _ => new JsonObject()
@@ -247,6 +256,10 @@ internal static class McpChecks
         args[field] = value;
         string? choice = value is JsonValue text && text.TryGetValue<string>(out var s) ? s : null;
         if (tool == "seat_job" && field == "action" && choice == "list") args = new JsonObject { ["action"] = "list" };
+        if (tool == "seat_display" && field == "maxWidth") args["screenshot"] = true;
+        if (tool == "android_emulator" && field == "action" && choice is not null && choice != "start")
+            args = choice == "adb" ? new JsonObject { ["action"] = "adb", ["serial"] = "emulator-5554", ["args"] = new JsonArray("shell", "true") }
+                : new JsonObject { ["action"] = choice, ["serial"] = "emulator-5554" };
         if (tool == "seat_window" && field == "action" && choice != "move")
             foreach (string key in new[] { "x", "y", "width", "height" }) args.Remove(key);
         if (tool == "seat_element" && field == "action")
@@ -359,11 +372,12 @@ internal static class McpChecks
     public static async Task<string> Validation()
     {
         int calls = 0;
+        string? negotiated = null;
         var session = new McpSession((_, _, _) =>
         {
             Interlocked.Increment(ref calls);
             return Task.FromResult(McpSession.TextResult("unexpected action"));
-        });
+        }, (_, protocol) => negotiated = protocol);
         string[] requests =
         {
             Request(1, "initialize", new JsonObject
@@ -402,7 +416,9 @@ internal static class McpChecks
             .Select(line => JsonLine.Parse(line)!).ToArray();
         Require(calls == 0, "invalid request or notification dispatched an action");
         Require(replies.Length == 23, "invalid requests or notifications produced the wrong number of replies");
-        Require(replies[0].Obj("result")?.Str("protocolVersion") == "2025-11-25", "unsupported protocol was echoed back");
+        // The server presents results for the version it answered, not the one requested.
+        Require(replies[0].Obj("result")?.Str("protocolVersion") == "2025-11-25" && negotiated == "2025-11-25",
+            "unsupported protocol was echoed back or passed on as the negotiated version");
         Require(replies[1].Obj("error")?.Int("code") == -32700, "malformed JSON was not a parse error");
         Require(replies[2].Obj("error")?.Int("code") == -32600 && replies[3].Obj("error")?.Int("code") == -32600,
             "invalid envelopes were accepted");

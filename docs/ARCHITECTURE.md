@@ -116,8 +116,8 @@ end on purpose.
 
 Multiple clients share the seat through an exclusive desktop lease. The seat host validates
 the agent and token before queueing and again immediately before desktop dispatch. Expiry cannot
-transfer control while an admitted action is still running. Release/expiry invalidate references
-and clear held input/controllers. Lease management and owned job reads use independent daemon-to-host
+transfer control while an admitted action is still running. Release/expiry invalidate references,
+clear held input/controllers and restore the startup display. Lease management and owned job reads use independent daemon-to-host
 connections so they do not wait behind long desktop actions. Stop keeps its separate lifecycle path.
 See [multiple agents](MULTI-AGENT.md) for recovery, cleanup and the trust model.
 
@@ -131,13 +131,22 @@ connections to the same Windows identity and elevation level. Deadlines include
 queue time; timed-out requests close their connection and are never replayed.
 
 The daemon handles the handful of operations it owns (`ping`, `status`, `seat.identity`, `doctor`,
-`seat.start`, `seat.stop` and its alias `kill`, `seat.show`, `seat.hide`, `seat.control`, `quit`, and
-`lease`, which starts the seat for an acquisition before forwarding it) and **forwards everything
+`seat.start`, `seat.stop` and its alias `kill`, `seat.show`, `seat.hide`, `seat.control`, `seat.display`,
+`quit`, and `lease`, which starts the seat for an acquisition before forwarding it) and **forwards everything
 else** to the seat host unchanged. Adding a capability to the seat therefore needs no daemon change,
 and the CLI and MCP server never diverge because there is only one implementation. Full operation
 list in [PROTOCOL.md](PROTOCOL.md).
 
 ## Design decisions worth defending
+
+**The display changes where it comes from.** Windows gives a Remote Desktop session the display its
+client asks for; programs inside the session cannot change it. So a display change, which
+an agent requests of the seat host under its lease, goes to the daemon: its Remote Desktop control
+asks for the new size and scaling live through the display-control channel, or reconnects at them,
+which keeps the session. The seat host measures its own screen before calling the change done,
+because Windows applies it asynchronously and may choose otherwise. The seat host and its workers are
+per-monitor DPI aware, so screenshots, input and control bounds share one space of physical pixels at
+every scaling. See [Test other displays](DISPLAYS.md).
 
 Audio playback and WASAPI loopback capture also run in the verified seat host. They explicitly
 select the session's Remote Audio render endpoint and refuse physical endpoints; physical
@@ -191,6 +200,13 @@ bounded, expiring references; actions verify the window and control identities
 again. Input and inspection serialize through one host gate, while status and Stop
 remain independent. MCP returns readable summaries, structured data and optional
 images. The CLI can also produce a standalone HTML report. See [Desktop tools](DESKTOP-TOOLS.md).
+
+**Single-instance apps get a seat of their own.** Browsers lock their profile folder, and Android
+Studio hands a second start on the same settings to the instance already running, in whichever session
+that is. Started in the seat on the user's own profile, they fail or act on the user's desktop. So the
+seat has its own: a persistent browser profile and an Android Studio profile under LOCALAPPDATA, and
+`run` refuses the usual ones. Emulators start their AVD read-only for the same reason, and every
+Android action checks that its emulator's process runs in the seat, because adb's server is shared.
 
 **Steam stays where it runs.** Steam keeps one client per Windows user, and a client started in the
 seat takes over from the one on the desktop. A game, however, needs only to find its client, which

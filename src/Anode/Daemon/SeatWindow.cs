@@ -80,12 +80,7 @@ internal sealed class SeatWindow : Form
         if (_fitSeat) Viewer.Dock = DockStyle.None;
         _seatArea.Controls.Add(Viewer);
         _seatArea.Resize += (_, _) => PlaceSeat();
-        Viewer.RemoteSizeChanged += (width, height) =>
-        {
-            if (width <= 0 || height <= 0) return;
-            _seatSize = new Size(width, height);
-            PlaceSeat();
-        };
+        Viewer.RemoteSizeChanged += SetSeatSize;
 
         Text = "Anode seat" + Env.ChannelSuffix;
         AccessibleName = "Anode seat viewer" + Env.ChannelSuffix;
@@ -165,6 +160,15 @@ internal sealed class SeatWindow : Form
         var bounds = new Rectangle((area.Width - width) / 2, (area.Height - height) / 2, width, height);
         Viewer.Bounds = bounds;
         if (_standIn is not null) _standIn.Bounds = bounds;
+    }
+
+    /// <summary>The seat's display size, which shapes its picture. The window keeps the size the user gave it.</summary>
+    public void SetSeatSize(int width, int height)
+    {
+        if (InvokeRequired) { BeginInvoke(new Action(() => SetSeatSize(width, height))); return; }
+        if (width <= 0 || height <= 0) return;
+        _seatSize = new Size(width, height);
+        PlaceSeat();
     }
 
     /// <summary>For design previews: a picture that stands in for the seat, placed where the seat shows.</summary>
