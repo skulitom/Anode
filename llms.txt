@@ -49,4 +49,5 @@ acquire and `seat_start` start a seat. The MCP prompt `desktop_test` walks throu
 - [Multiple agents and desktop leases](https://raw.githubusercontent.com/skulitom/Anode/main/docs/MULTI-AGENT.md): taking turns, waiting in line, agent identities, ownership and restart recovery.
 - [Usage and CLI](https://raw.githubusercontent.com/skulitom/Anode/main/docs/USAGE.md): commands, viewer, Steam and gamepad.
 - [Privacy](https://raw.githubusercontent.com/skulitom/Anode/main/docs/PRIVACY.md): what Anode sends, returns and keeps.
+- [Publishing](https://raw.githubusercontent.com/skulitom/Anode/main/docs/PUBLISHING.md): MCP Registry published by CI, manual owner directory submissions, and the MCPB test gate.
 - [Latest release](https://github.com/skulitom/Anode/releases/latest): anode-windows-x64.zip, install.ps1, SHA256SUMS.

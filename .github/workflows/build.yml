@@ -30,6 +30,21 @@ jobs:
       - name: Publish
         run: ./scripts/build.ps1 -Package -Mcpb
 
+      - name: Generate installable registry entry
+        run: |
+          [xml]$project = Get-Content src/Anode/Anode.csproj -Raw
+          $version = @($project.Project.PropertyGroup.Version | Where-Object { $_ })[0]
+          ./scripts/registry-entry.ps1 -Tag "v$version" -Bundle artifacts/release/anode-windows-x64.mcpb
+
+      - name: Validate server.json with the MCP Registry publisher
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $publisher = ./scripts/mcp-publisher.ps1
+          # Only metadata: the generated MCPB URL does not exist during CI.
+          & $publisher validate server.json
+          if ($LASTEXITCODE -ne 0) { throw 'MCP Registry metadata validation failed.' }
+
       # The quick self-test covers only environment-independent behavior: key-name
       # resolution, gamepad name mapping, pipe deadlines/cancellation, MCP stdio,
       # launch quoting, session identity, desktop reference/worker limits, report
@@ -71,4 +86,5 @@ jobs:
             artifacts/release/install.ps1
             artifacts/release/SHA256SUMS
             artifacts/release/anode-windows-x64.mcpb
+            artifacts/release/server.registry.json
           if-no-files-found: error

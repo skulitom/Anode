@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- **Ready for directory submissions.** The README leads with desktop isolation and a three-command
+  install, keeps a hidden demo GIF placeholder, and includes the MCP Registry ownership marker.
+- `publish-registry.yml` publishes to the official MCP Registry using GitHub OIDC, with no secret
+  or registry sign-in: a first metadata-only listing on merge, then a per-release MCPB entry once the
+  tested bundle is attached. Runs are idempotent. The repository's `server.json` stays metadata-only;
+  [the publishing guide](docs/PUBLISHING.md) covers the Claude Desktop test gate and manual directories.
+- The Release workflow builds and attests the MCPB bundle and uploads it, its checksum and registry
+  entry as a workflow artifact for owner testing. Public release assets remain the ZIP, installer and
+  `SHA256SUMS`. CI exercises the generator, validates registry metadata with a pinned publisher, and
+  checks the generated entry against the bundle.
+
 ## 0.11.0 — 2026-09-29
 
 - **Android apps in the seat.** `android_emulator` (`anode android start|adb|shot|stop`) boots an AVD on

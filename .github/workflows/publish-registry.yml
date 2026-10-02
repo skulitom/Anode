@@ -1,0 +1,236 @@
+name: Publish to MCP Registry
+
+on:
+  push:
+    branches: [main]
+    paths: [server.json, .github/workflows/publish-registry.yml]
+  schedule:
+    - cron: '23 6 * * *'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish, for example v0.11.0; empty means the latest release'
+        required: false
+        type: string
+      metadata_only:
+        description: "Publish the tag's server.json without its MCPB bundle. That version can never get its bundle afterwards."
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mcp-registry-publish
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: "${{ github.repository == 'skulitom/Anode' }}"
+    permissions:
+      contents: read
+    outputs:
+      action: '${{ steps.plan.outputs.action }}'
+      ref: '${{ steps.plan.outputs.ref }}'
+      tag: '${{ steps.plan.outputs.tag }}'
+      version: '${{ steps.plan.outputs.version }}'
+      reason: '${{ steps.plan.outputs.reason }}'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decide what to publish
+        id: plan
+        shell: bash
+        env:
+          GH_TOKEN: '${{ github.token }}'
+          INPUT_TAG: '${{ inputs.tag }}'
+          METADATA_ONLY: '${{ inputs.metadata_only }}'
+          DEFAULT_BRANCH: '${{ github.event.repository.default_branch }}'
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$1"; exit 1; }
+          validate_tag() {
+            [[ "$1" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail 'Release tag must have the form vX.Y.Z.'
+          }
+          finish() {
+            {
+              echo "action=$action"
+              echo "ref=$ref"
+              echo "tag=$tag"
+              echo "version=$version"
+              echo "reason=$reason"
+            } >> "$GITHUB_OUTPUT"
+            printf '%s: %s (%s). %s\n' "$action" "$name" "$version" "$reason" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          }
+          name=$(jq -er '.name' server.json)
+          metadata_version=$(jq -er '.version' server.json)
+          validate_tag "v$metadata_version"
+          encoded_name=${name//\//%2F}
+          versions_url="https://registry.modelcontextprotocol.io/v0.1/servers/$encoded_name/versions"
+          response=$(mktemp)
+          status=$(curl -sS --max-time 30 --retry 3 --retry-all-errors -o "$response" -w '%{http_code}' "$versions_url")
+          published_versions=''
+          case "$status" in
+            200) listed=true; published_versions=$(jq -r '.servers[].server.version' "$response") ;;
+            404) listed=false ;;
+            *) fail "Registry versions request failed (HTTP $status)." ;;
+          esac
+          already_published() { grep -Fxq -- "$version" <<< "$published_versions"; }
+          action=none
+          ref=$GITHUB_SHA
+          tag="v$metadata_version"
+          version=$metadata_version
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            if [[ "$listed" == true ]]; then
+              reason='already listed; later versions are published per release'
+            elif gh release view "$tag" -R "$GITHUB_REPOSITORY" --json tagName -q .tagName > /dev/null; then
+              action=metadata
+              reason='first listing from main for an existing release'
+            else
+              reason="no matching release $tag yet; refusing to claim an unreleased version"
+            fi
+            finish
+          fi
+
+          if [[ "$METADATA_ONLY" == true && -z "$INPUT_TAG" ]]; then
+            fail 'metadata_only requires an explicit release tag.'
+          fi
+          if [[ -n "$INPUT_TAG" ]]; then
+            validate_tag "$INPUT_TAG"
+            tag=$INPUT_TAG
+            gh release view "$tag" -R "$GITHUB_REPOSITORY" --json tagName -q .tagName > /dev/null ||
+              fail "No GitHub release for $tag."
+          else
+            tag=$(gh release view -R "$GITHUB_REPOSITORY" --json tagName -q .tagName)
+            validate_tag "$tag"
+          fi
+          version=${tag#v}
+          ref="refs/tags/$tag"
+          if already_published; then
+            reason='already published'
+            finish
+          fi
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch && "$METADATA_ONLY" == true ]]; then
+            action=metadata
+            reason='explicit metadata-only publication; this version can never get its bundle'
+            finish
+          fi
+          assets=$(gh release view "$tag" -R "$GITHUB_REPOSITORY" --json assets -q '.assets[].name')
+          if grep -Fxq 'anode-windows-x64.mcpb' <<< "$assets"; then
+            action=mcpb
+            reason='tested bundle attached to the release; attestation will be verified before publication'
+          elif [[ "$GITHUB_EVENT_NAME" == workflow_dispatch && -n "$INPUT_TAG" ]]; then
+            fail "Attach the tested bundle to $tag first (docs/PUBLISHING.md), or use metadata_only."
+          else
+            reason="no tested bundle attached to $tag yet"
+            # Recover a failed first listing, but only from the default branch's reviewed server.json.
+            if [[ "$listed" == false ]]; then
+              if [[ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]]; then
+                reason="$reason; run from $DEFAULT_BRANCH to recover the first listing"
+              elif [[ "$version" == "$metadata_version" ]]; then
+                action=metadata
+                ref=$GITHUB_SHA
+                reason='recovering the first metadata-only listing for the latest release'
+              fi
+            fi
+          fi
+          finish
+
+  publish:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    needs: plan
+    if: "${{ needs.plan.outputs.action != 'none' }}"
+    permissions:
+      contents: read # Check out metadata and download release assets.
+      id-token: write # Authenticate to the MCP Registry through GitHub OIDC, without a secret.
+      attestations: read # Verify the bundle was attested by this repository's Release workflow.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: '${{ needs.plan.outputs.ref }}'
+      # Older release tags predate these helpers. Use the workflow commit's publishing tools.
+      - uses: actions/checkout@v4
+        with:
+          ref: '${{ github.workflow_sha }}'
+          path: artifacts/registry-workflow
+          sparse-checkout: scripts
+      - name: Check versions
+        shell: pwsh
+        env:
+          VERSION: '${{ needs.plan.outputs.version }}'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $server = Get-Content server.json -Raw | ConvertFrom-Json
+          [xml]$project = Get-Content src/Anode/Anode.csproj
+          $version = @($project.Project.PropertyGroup.Version | Where-Object { $_ })[0]
+          if ($server.version -cne $env:VERSION -or $version -cne $env:VERSION) {
+            throw 'server.json and the project version must both match the planned version.'
+          }
+      - name: Validate, publish and verify registry entry
+        shell: pwsh
+        env:
+          GH_TOKEN: '${{ github.token }}'
+          ENTRY_TYPE: '${{ needs.plan.outputs.action }}'
+          RELEASE_TAG: '${{ needs.plan.outputs.tag }}'
+          VERSION: '${{ needs.plan.outputs.version }}'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # Keep the helpers beside this checkout's metadata and project file.
+          Copy-Item artifacts/registry-workflow/scripts/mcp-publisher.ps1 scripts/mcp-publisher.ps1 -Force
+          Copy-Item artifacts/registry-workflow/scripts/registry-entry.ps1 scripts/registry-entry.ps1 -Force
+          $publisher = ./scripts/mcp-publisher.ps1
+          $entryPath = 'server.json'
+          if ($env:ENTRY_TYPE -ceq 'mcpb') {
+            $tag = $env:RELEASE_TAG
+            $bundle = 'artifacts/registry/anode-windows-x64.mcpb'
+            gh release download $tag -R $env:GITHUB_REPOSITORY -p anode-windows-x64.mcpb -D artifacts/registry
+            if ($LASTEXITCODE -ne 0) { throw 'MCPB release download failed.' }
+            gh attestation verify $bundle --repo $env:GITHUB_REPOSITORY --signer-workflow "$env:GITHUB_REPOSITORY/.github/workflows/release.yml"
+            if ($LASTEXITCODE -ne 0) { throw 'MCPB attestation must come from this repository''s Release workflow.' }
+            $entryPath = 'artifacts/registry/server.registry.json'
+            ./scripts/registry-entry.ps1 -Tag $tag -Bundle $bundle -OutFile $entryPath
+          }
+          & $publisher validate $entryPath
+          if ($LASTEXITCODE -ne 0) { throw 'MCP Registry entry validation failed.' }
+          $entry = Get-Content -LiteralPath $entryPath -Raw | ConvertFrom-Json
+          $encodedName = [Uri]::EscapeDataString($entry.name)
+          $versionUrl = "https://registry.modelcontextprotocol.io/v0.1/servers/$encodedName/versions/$env:VERSION"
+          function Get-RegistryVersion {
+            $response = Invoke-WebRequest -Uri $versionUrl -SkipHttpErrorCheck -TimeoutSec 30
+            if ($response.StatusCode -notin @(200, 404)) {
+              throw "Registry version request failed (HTTP $($response.StatusCode))."
+            }
+            $response
+          }
+          function Write-RegistrySummary([string]$Result) {
+            "$Result`: $($entry.name) $env:VERSION ($env:ENTRY_TYPE). Registry URL: $versionUrl" |
+              Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+          }
+          $response = Get-RegistryVersion
+          if ($response.StatusCode -eq 200) {
+            Write-Host '::notice::Registry version already published.'
+            Write-RegistrySummary 'Already published; skipped'
+            exit 0
+          }
+          & $publisher login github-oidc
+          if ($LASTEXITCODE -ne 0) { throw 'MCP Registry OIDC login failed.' }
+          & $publisher publish $entryPath
+          if ($LASTEXITCODE -ne 0) {
+            $response = Get-RegistryVersion
+            if ($response.StatusCode -ne 200) { throw 'MCP Registry publication failed.' }
+            Write-Host '::notice::Registry version already published by a concurrent publisher.'
+            Write-RegistrySummary 'Already published concurrently; skipped'
+            exit 0
+          }
+          $response = Get-RegistryVersion
+          if ($response.StatusCode -ne 200) { throw 'Published registry version could not be read back.' }
+          if ($env:ENTRY_TYPE -ceq 'mcpb') {
+            $published = $response.Content | ConvertFrom-Json
+            if ($published.server.packages[0].fileSha256 -cne $entry.packages[0].fileSha256) {
+              throw 'Published MCPB SHA-256 does not match the entry.'
+            }
+          }
+          Write-RegistrySummary 'Published and verified'

@@ -98,11 +98,19 @@ release, update to the current supported patch, and rebuild and test the package
 
 The Release workflow checks the tag against the project version, builds a self-contained x64
 binary, runs quick and installation checks, then publishes the ZIP, installer and SHA-256 sums.
+It also builds and attests the MCPB bundle and uploads it, its checksum and the generated registry
+entry as the `anode-windows-x64-mcpb` workflow artifact, not as release assets. The owner runs the
+Claude Desktop test and uploads the exact tested bundle to the release. `publish-registry.yml`
+then publishes the registry entry using GitHub OIDC, with no secret or registry sign-in; see
+[the publishing guide](docs/PUBLISHING.md).
 It can also be dispatched for an existing version tag. It does not overwrite existing releases.
 Release publishing requires repository contents write permission. Normal build jobs are read-only.
 
 The archive has a stable asset name, `anode-windows-x64.zip`, for download links and installers.
 `SHA256SUMS` covers that archive and `install.ps1`. Checksums are not signatures; code signing and
 package-manager listings can be added separately when their distribution requirements are met.
-The Scoop bucket and the Claude Code plugin marketplace are served from this repository. The MCP
-Registry, winget and MCP Bundle manifests are maintained here but not yet published.
+The Scoop bucket and the Claude Code plugin marketplace are served from this repository. MCP Registry
+metadata, winget manifests and the MCPB manifest are maintained here. Keep `server.json` metadata-only;
+`scripts/registry-entry.ps1` generates the installable entry for a release, and `publish-registry.yml`
+publishes it after the tested bundle is attached. Winget and other directory submissions remain
+manual owner steps in [docs/PUBLISHING.md](docs/PUBLISHING.md).

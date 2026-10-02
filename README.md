@@ -1,34 +1,40 @@
 # <img src="assets/anode.svg" width="36" height="36" alt=""> Anode — a background Windows desktop for AI agents
 
-**Anode is a Windows MCP server and CLI that gives AI agents their own desktop for computer use,
-GUI automation and UI testing, while you keep using your PC.** Claude Code, Codex, Claude Desktop or
-any Model Context Protocol client gets a separate screen, mouse pointer and keyboard focus in a
-background Windows session, which Anode calls the *seat*. The agent can run builds, drive native
-apps and headed browsers, read accessible controls and take screenshots without moving your
-pointer or stealing your focus.
+<!-- mcp-name: io.github.skulitom/anode -->
 
-**Works on** 64-bit Windows 10/11 Pro, Enterprise or Education, and Windows Server with a Remote
-Desktop host. **Not Windows Home.** Free and open source (MIT).
+**Computer-use agents on Windows take over your mouse and keyboard; Anode gives them their own desktop instead.**
+Anode is a Windows MCP server and CLI for computer use, GUI automation and UI testing. Claude Code,
+Codex or any MCP client gets a hidden Windows session with its own screen, pointer and keyboard focus,
+called the *seat*. The agent drives native apps and headed browsers and takes screenshots while you
+keep working in yours.
+
+<!-- DEMO GIF: record assets/demo.gif (under 8 MB), then replace this comment with: ![An agent testing an app in Anode's background seat while the user keeps working](assets/demo.gif) -->
 
 [![Release](https://img.shields.io/github/v/release/skulitom/Anode)](https://github.com/skulitom/Anode/releases/latest)
 [![Windows build](https://github.com/skulitom/Anode/actions/workflows/build.yml/badge.svg)](https://github.com/skulitom/Anode/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**[Install for Windows x64](#install)** · [Portable ZIP](https://github.com/skulitom/Anode/releases/latest/download/anode-windows-x64.zip)
-· [Connect an agent](docs/CONNECTING-AGENTS.md) · [Troubleshooting](docs/TROUBLESHOOTING.md)
-· [Changelog](CHANGELOG.md)
+## Install in 3 commands
 
-```mermaid
-flowchart LR
-  subgraph yours["Your session: your mouse, keyboard and apps"]
-    agent["Claude Code / Codex / any MCP client"] -- "MCP (stdio)" --> mcp["anode mcp"]
-    mcp -- "named pipe" --> daemon["Anode daemon<br/>viewer + Stop button"]
-  end
-  subgraph seat["The seat: a background Windows child session"]
-    host["seat host<br/>screenshots, input, UI Automation, command jobs"] --> apps["apps, browsers, builds, games"]
-  end
-  daemon -- "named pipe" --> host
+In PowerShell, run the first line, then open a **new terminal** for the next two:
+
+```powershell
+iwr -UseBasicParsing https://github.com/skulitom/Anode/releases/latest/download/install.ps1 -OutFile install.ps1; powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+anode setup | Out-Host       # in a NEW terminal: one administrator prompt, once per machine
+anode configure | Out-Host   # registers Anode with installed Claude Code and/or Codex
 ```
+
+Restart your agent session and ask it:
+
+> Use Anode to open Notepad in the background seat, type "Hello from Anode", and show me a screenshot.
+> Keep the viewer hidden and leave my main desktop available.
+
+See [Install](#install) for custom locations and offline installs, or
+[other ways to install](#other-ways-to-install) for Scoop and the Claude Code plugin.
+
+**Good to know:** requires Windows 10/11 Pro, Enterprise or Education (not Home), x64.
+The seat is a Windows child session running as your user: desktop isolation, not a security sandbox.
+**Ctrl+Alt+Shift+K** stops it. Unsigned builds may trigger SmartScreen. No telemetry.
 
 ## What can you do with it?
 
@@ -163,6 +169,20 @@ renew only across pauses longer than 120 seconds, and release when finished. The
 See [the agent guide](docs/FOR-AGENTS.md), [portable skill](skills/anode-desktop/SKILL.md)
 and [llms.txt documentation index](llms.txt).
 
+## How it works
+
+```mermaid
+flowchart LR
+  subgraph yours["Your session: your mouse, keyboard and apps"]
+    agent["Claude Code / Codex / any MCP client"] -- "MCP (stdio)" --> mcp["anode mcp"]
+    mcp -- "named pipe" --> daemon["Anode daemon<br/>viewer + Stop button"]
+  end
+  subgraph seat["The seat: a background Windows child session"]
+    host["seat host<br/>screenshots, input, UI Automation, command jobs"] --> apps["apps, browsers, builds, games"]
+  end
+  daemon -- "named pipe" --> host
+```
+
 ## Documentation
 
 | I want to… | Start here |
@@ -183,6 +203,7 @@ and [llms.txt documentation index](llms.txt).
 | Diagnose startup, sign-in or capture problems | [Troubleshooting](docs/TROUBLESHOOTING.md) |
 | Integrate a client | [MCP and named-pipe protocol](docs/PROTOCOL.md) |
 | Understand the implementation | [Architecture](docs/ARCHITECTURE.md) |
+| Publish directory listings as the owner | [Publishing guide](docs/PUBLISHING.md) |
 
 ## Limits to know
 
