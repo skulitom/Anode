@@ -197,7 +197,9 @@ session and relationship to the running GameInput service, then stops only that 
 stop or reconfigure either machine-wide GameInput service. `-WhatIf` verifies the target without
 stopping it. The service may recreate a helper; this is not an automatic recurring repair.
 
-- Give it the **MCP server**, not a shell in your session. The tool surface is deliberately narrow.
+- Give it the **MCP server**, not a shell in your session. Its tools act in the seat and on the
+  agent's own jobs, but they include `seat_exec`, which runs any command as you, process control and
+  the seat browser profiles, so connect only agents you would trust with your account.
 - The daemon and an agent share one seat. **Your stop button always wins**, because the daemon owns
   the lifecycle and the agent is a client. Over MCP, only `seat_start` and `seat_lease` acquisition
   start a seat; other tools report that Anode or its seat is not running instead of bringing back

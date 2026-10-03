@@ -2,9 +2,9 @@
 
 <!-- mcp-name: io.github.skulitom/anode -->
 
-**Computer-use agents on Windows take over your mouse and keyboard; Anode gives them their own desktop instead.**
+**Computer-use agents that drive your Windows desktop take over your mouse and keyboard; Anode gives them their own desktop instead.**
 Anode is a Windows MCP server and CLI for computer use, GUI automation and UI testing. Claude Code,
-Codex or any MCP client gets a hidden Windows session with its own screen, pointer and keyboard focus,
+Codex or another local (stdio) MCP client gets a hidden Windows session with its own screen, pointer and keyboard focus,
 called the *seat*. The agent drives native apps and headed browsers and takes screenshots while you
 keep working in yours.
 
@@ -16,13 +16,21 @@ keep working in yours.
 
 ## Install in 3 commands
 
+**Before you start:** Anode needs Windows 10/11 Pro, Enterprise or Education (not Home) on x64, and
+administrator rights once, for `anode setup`. On a managed work PC, a policy that blocks unsigned
+programs or keeps Remote Desktop off will stop it; [see exactly what setup changes](docs/SECURITY.md#what-anode-setup-changes).
+
 In PowerShell, run the first line, then open a **new terminal** for the next two:
 
 ```powershell
 iwr -UseBasicParsing https://github.com/skulitom/Anode/releases/latest/download/install.ps1 -OutFile install.ps1; powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 anode setup | Out-Host       # in a NEW terminal: one administrator prompt, once per machine
-anode configure | Out-Host   # registers Anode with installed Claude Code and/or Codex
+anode configure | Out-Host   # registers Anode with the Claude Code and/or Codex CLIs on your PATH
 ```
+
+`anode setup` can restart Remote Desktop Services, which disconnects any Remote Desktop session to
+this PC, so run it at the machine itself. If you sign in to Windows only with a PIN or Windows Hello,
+the seat needs your Windows password once: see [sign-in](docs/TROUBLESHOOTING.md#it-asks-for-a-password-every-time).
 
 Restart your agent session and ask it:
 
@@ -32,9 +40,9 @@ Restart your agent session and ask it:
 See [Install](#install) for custom locations and offline installs, or
 [other ways to install](#other-ways-to-install) for Scoop and the Claude Code plugin.
 
-**Good to know:** requires Windows 10/11 Pro, Enterprise or Education (not Home), x64.
-The seat is a Windows child session running as your user: desktop isolation, not a security sandbox.
-**Ctrl+Alt+Shift+K** stops it. Unsigned builds may trigger SmartScreen. No telemetry.
+**Good to know:** the seat is a Windows child session running as your user: desktop isolation, not a security sandbox.
+**Ctrl+Alt+Shift+K** stops it (if another program holds that shortcut, use **Stop seat** in the viewer or
+`anode kill`). Unsigned builds may trigger SmartScreen. No telemetry.
 
 ## What can you do with it?
 
@@ -48,14 +56,14 @@ The seat is a Windows child session running as your user: desktop isolation, not
   seat with HidHide so you can play your own games meanwhile.
 - **Coordinate several agents:** exclusive desktop leases and command jobs scoped to each agent.
   Agents share one seat and take turns; see [multiple agents](docs/MULTI-AGENT.md).
-- **Listen and play sound:** with `--audio`, agents can listen to browsers and games in the seat,
-  and play WAV clips. This also sends seat sound to your speakers. See [audio](docs/AUDIO.md).
+- **Listen and play sound:** with `--audio`, set when Anode starts, agents can record what plays in the
+  seat, such as a browser or a game, and play short 16-bit PCM WAV clips. This also sends seat sound to your speakers. See [audio](docs/AUDIO.md).
 - **Test other displays:** agents change the seat's resolution and Windows scaling while its apps
-  keep running, from 1024x768 to 4K and portrait at 100-500%, then get the startup display back when
-  they finish. See [test other displays](docs/DISPLAYS.md).
+  keep running, from 640x480 to 8192x8192, portrait included, at Windows' scaling steps from 100% to
+  500%; Anode restores the startup display when they finish and reports what Windows actually applied. See [test other displays](docs/DISPLAYS.md).
 - **Test Android apps and use web consoles:** agents boot your AVDs read-only on an emulator in the
-  seat, drive them through adb, open Android Studio there on its own profile, and work in consoles such
-  as Google Play Console in a seat browser profile you sign in to once. See
+  seat, drive them through adb, open Android Studio there on its own profile, and open web consoles
+  such as Google Play Console in a seat browser profile you sign in to (sites may ask you to sign in again). See
   [Android apps and web consoles](docs/ANDROID.md).
 
 The seat is a Windows *child session*: a second session for your own account, created by Windows'
@@ -207,7 +215,7 @@ flowchart LR
 
 ## Limits to know
 
-- One connected child session per machine. Agents and CLI clients share that seat.
+- One seat per Windows session: agents and CLI clients share it and take turns.
 - Files, accounts, network ports and application singletons are shared. Steam games run in the seat
   using the Steam client on your desktop, which stays there, without the overlay or Steam Input; other
   single-instance apps may already belong to your main session. Use separate browser profiles for
