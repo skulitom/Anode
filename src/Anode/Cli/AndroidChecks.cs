@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using Anode.Core.Android;
 using Anode.Core.Bridge;
 using Anode.Core.Browser;
+using Anode.Core.Processes;
 using Anode.Mcp;
 
 namespace Anode.Cli;
@@ -570,6 +571,79 @@ internal static class AndroidChecks
         Require(Cli.SignInAddresses(new[] { "--sign-in", addresses[0], "--edge", "https://apps.admob.com" }).SequenceEqual(new[] { addresses[0], "https://apps.admob.com" })
             && Cli.SignInAddresses(new[] { "--sign-in" }).Length == 0, "the CLI lost a sign-in address");
         return "the sign-in window opens on a page that says what to do, then a tab per address; agents get the whole command, address included";
+    }
+
+    /// <summary>
+    /// The seat profile open on another desktop. A browser started on it there cannot take it and exits without a window,
+    /// so seat_browser and browser --sign-in refuse, naming the process that has it, instead of reporting a window.
+    /// </summary>
+    public static string BrowserProfileInUse()
+    {
+        using var fixture = new Fixture();
+        Fixture.Write(Path.Combine(fixture.ProgramFiles, @"Google\Chrome\Application\chrome.exe"), "");
+        var browser = SeatBrowser.Find(null, fixture.Get, _ => null)!;
+        var desktop = new ProcessControl.FileUser(4242, 1, new DateTime(2026, 10, 3, 18, 42, 55));
+        var seat = new ProcessControl.FileUser(5151, 7, null);
+        ProcessStartInfo? seen = null;
+        JsonObject Open(IReadOnlyList<ProcessControl.FileUser>? users)
+        {
+            seen = null;
+            return SeatBrowser.Open(new JsonObject { ["url"] = "https://play.google.com/console" }, fixture.Get, _ => null, info => { seen = info; return null; }, 7, _ => users);
+        }
+
+        var refused = Open(new[] { desktop });
+        string error = refused.Str("error") ?? "";
+        Require(refused.Bool("ok") == false && seen is null && error.Contains("on another desktop (session 1, process 4242, started 2026-10-03 18:42)")
+            && error.Contains("`Stop-Process -Id 4242`") && error.Contains(browser.ProfileFolder) && error.Contains("Do not end it yourself"),
+            "the seat started Chrome while another desktop has its profile, or did not say which process: " + refused.ToJsonString());
+        // The start time reads the same in every culture: no Thai calendar year, no Finnish time separator.
+        var culture = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            foreach (string name in new[] { "th-TH", "fi-FI" })
+            {
+                System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.GetCultureInfo(name);
+                Require(Open(new[] { desktop }).Str("error")?.Contains("started 2026-10-03 18:42") == true, $"the start time changes with the {name} culture");
+            }
+        }
+        finally { System.Globalization.CultureInfo.CurrentCulture = culture; }
+        Require(Open(new[] { seat }).Bool("ok") == true && seen is not null, "Chrome in the seat itself, which takes the new window over, stopped seat_browser");
+        Require(Open(null).Bool("ok") == true && seen is not null && Open(Array.Empty<ProcessControl.FileUser>()).Bool("ok") == true && seen is not null
+            && Open(new[] { desktop with { Session = -1 } }).Bool("ok") == true && seen is not null,
+            "a profile nothing holds, or one whose holder or its session could not be read, stopped seat_browser");
+
+        string? inSeat = SeatBrowser.SignInRefusal(browser, new[] { seat }, 1, 7);
+        string? other = SeatBrowser.SignInRefusal(browser, new[] { new ProcessControl.FileUser(6262, 3, null) }, 1, 7);
+        Require(inSeat is not null && inSeat.Contains("in the seat (session 7, process 5151)") && inSeat.Contains("Once no agent needs it")
+            && inSeat.Contains("`Stop-Process -Id 5151`")
+            && other is not null && other.Contains("on another desktop (session 3, process 6262)") && other.Contains("`Stop-Process -Id 6262`"),
+            $"browser --sign-in does not name the browser that has the profile and how to close it: {inSeat} / {other}");
+        Require(SeatBrowser.SignInRefusal(browser, new[] { desktop }, 1, 7) is null && SeatBrowser.SignInRefusal(browser, null, 1, 7) is null
+            && SeatBrowser.SignInRefusal(browser, Array.Empty<ProcessControl.FileUser>(), 1, null) is null,
+            "browser --sign-in refused a profile its own desktop has open, or one nothing holds");
+
+        // The real lookup, on a lock file held the way Chrome holds it (written, shared for reading, deleted on close) by this process.
+        var self = browser with { Process = Process.GetCurrentProcess().ProcessName };
+        string lockFile = Path.Combine(browser.ProfileFolder, SeatBrowser.LockFile);
+        Require(SeatBrowser.ProfileUsers(self) is { Count: 0 }, "a profile with no lock file was reported open");
+        Directory.CreateDirectory(browser.ProfileFolder);
+        uint here = Core.Session.ChildSession.CurrentSessionId();
+        using (new FileStream(lockFile, FileMode.Create, FileAccess.Write, FileShare.Read, 1, FileOptions.DeleteOnClose))
+        {
+            var users = SeatBrowser.ProfileUsers(self);
+            Require(users is { Count: 1 } && users[0].Pid == Environment.ProcessId && users[0].Session == (int)here
+                && users[0].Started is { } started && Math.Abs((started - Process.GetCurrentProcess().StartTime).TotalSeconds) < 2,
+                "the process holding a profile's lock was not found: " + string.Join(", ", users ?? Array.Empty<ProcessControl.FileUser>()));
+            Require(SeatBrowser.Elsewhere(users, here) is null && SeatBrowser.Elsewhere(users, here + 1)?.Pid == Environment.ProcessId
+                && SeatBrowser.Elsewhere(users, uint.MaxValue) is null,
+                "the holder's session was not compared with the caller's, or an unreadable caller session was guessed at");
+            Require(SeatBrowser.ProfileUsers(browser) is { Count: 0 }, "a program that is not the browser was taken for it");
+        }
+        Require(!File.Exists(lockFile) && SeatBrowser.ProfileUsers(self) is { Count: 0 }, "a closed profile was still reported open");
+        // A lock file left behind by a browser that did not exit cleanly holds nothing.
+        File.WriteAllText(lockFile, "");
+        Require(SeatBrowser.ProfileUsers(self) is { Count: 0 }, "a stale lock file was taken for an open profile");
+        return "seat_browser and browser --sign-in refuse while another desktop has the seat profile, naming its process; Restart Manager finds a real holder";
     }
 
     /// <summary>What this machine has, read the way the seat host reads it: folders only, nothing started.</summary>
