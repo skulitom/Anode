@@ -332,10 +332,10 @@ internal static class SeatHost
                 return JsonLine.Ok();
 
             case "input.text":
-                InputInjector.TypeText(
+                return InputInjector.TypeText(
                     r.Str("text") ?? throw new ArgumentException("text needs 'text'."),
-                    r.Int("perCharMs") ?? 0);
-                return JsonLine.Ok();
+                    r.Int("perCharMs"),
+                    DesktopStopping.Token);
 
             case "run":
                 return RunProgram(r, ChildSession.CurrentSessionId());

@@ -7,6 +7,12 @@
   reuse window.
 - **Quicker startup feedback.** Readiness, failure and Stop wake waiting startup calls immediately.
   MCP connects as soon as it launches the daemon, and failed host connections retry sooner.
+- **Typing keeps pace with the program.** `seat_type` and `anode type` sent characters as fast as
+  Windows took them, so a busy program, such as Chrome editing a long field, could drop and reorder
+  them while the call still reported success. Characters now go out 15 ms apart by default, timed precisely, and each
+  waits until the focused program has read the one before; `perCharMs` sets the pace. Text that can't
+  be typed within the request's time is refused before typing, and a program that stops reading ends
+  the call with the exact count typed.
 - **The sign-in window explains itself.** `anode browser --sign-in` opened a blank window when given
   no address, with its guidance in the terminal behind it. Its first tab now says what the window is
   for and that it must be closed afterwards, and up to 8 addresses open in tabs of their own.
