@@ -509,6 +509,69 @@ internal static class AndroidChecks
         return "Chrome and Edge open on Anode's persistent seat profiles, with first-run pages off and a new profile reported";
     }
 
+    /// <summary>
+    /// Signing in for agents. The window covers the terminal that opened it, so its first tab says what it is for; and
+    /// the bare command names no site, so every text an agent passes on carries the whole one.
+    /// </summary>
+    public static string BrowserSignIn()
+    {
+        using var fixture = new Fixture();
+        string chrome = Path.Combine(fixture.ProgramFiles, @"Google\Chrome\Application\chrome.exe");
+        Fixture.Write(chrome, "");
+        fixture.Variables["LOCALAPPDATA"] = Path.Combine(fixture.Root, "R&D", "Local");
+        var browser = SeatBrowser.Find(null, fixture.Get, _ => null)!;
+        string state = Path.Combine(fixture.Root, "R&D", "Anode state"), page = Path.Combine(state, SeatBrowser.SignInPageFile);
+        string first = new Uri(page).AbsoluteUri;
+        string[] window = { $"--user-data-dir={browser.ProfileFolder}", "--no-first-run", "--no-default-browser-check", "--new-window" };
+        string[] addresses = { "https://play.google.com/console", "https://x.test/?a=1&b=<2>" };
+        ProcessStartInfo? seen = null;
+        Process? Start(ProcessStartInfo info) { seen = info; return null; }
+
+        SeatBrowser.OpenForSignIn(browser, addresses, state, Start);
+        Require(seen?.FileName == chrome && seen.ArgumentList.SequenceEqual(window.Append(first).Concat(addresses)) && first.StartsWith("file:///", StringComparison.Ordinal)
+            && !first.Contains(' '), "the sign-in window does not open its page, then each address: " + string.Join(' ', seen!.ArgumentList));
+        string html = File.ReadAllText(page);
+        Require(html.Contains("Close this window when you are done") && html.Contains("Sign in on the other tabs of this window")
+            && html.Contains("R&amp;D") && html.Contains("a=1&amp;b=&lt;2&gt;") && !html.Contains("<2>"), "the page lacks its instructions or shows text unescaped: " + html);
+
+        SeatBrowser.OpenForSignIn(browser, Array.Empty<string>(), state, Start);
+        Require(seen!.ArgumentList.SequenceEqual(window.Append(first)) && File.ReadAllText(page).Contains("Open each site your agents should use"),
+            "a bare sign-in window does not say what to do");
+
+        // The page is a help: where it cannot be written, the window opens as it did before there was one.
+        string unwritable = Path.Combine(chrome, "state");
+        SeatBrowser.OpenForSignIn(browser, Array.Empty<string>(), unwritable, Start);
+        Require(seen!.ArgumentList.SequenceEqual(window.Append("about:blank")), "a page that could not be written stopped the bare sign-in");
+        SeatBrowser.OpenForSignIn(browser, addresses, unwritable, Start);
+        Require(seen!.ArgumentList.SequenceEqual(window.Concat(addresses)), "a page that could not be written stopped the sign-in");
+
+        string Summary(JsonObject request) => SeatBrowser.Open(request, fixture.Get, _ => null, Start).Obj("result")!.Str("summary")!;
+        string fresh = Summary(new JsonObject { ["url"] = addresses[0] });
+        Directory.CreateDirectory(Path.Combine(browser.ProfileFolder, "Default"));
+        Require(fresh.Contains("`anode browser --sign-in https://play.google.com/console`") && fresh.Contains("close this browser")
+            && Summary(new JsonObject()).Contains("`anode browser --sign-in <the site's address>`")
+            && SeatBrowser.SignInCommand("about:blank", edge: true) == "`anode browser --sign-in <the site's address> --edge`",
+            "a seat_browser result gives a sign-in command without its address: " + fresh);
+        // The user pastes the command into a shell, and a page may have chosen the address: nothing a shell expands gets through.
+        string used = Summary(new JsonObject { ["url"] = addresses[1] });
+        Require(used.Contains("`anode browser --sign-in https://x.test/`") && used.Split("--sign-in")[1].IndexOfAny(new[] { '&', '<', '"' }) < 0
+            && SeatBrowser.SignInCommand("https://x.test/a?next=$(calc)&b=%TOKEN%", edge: false) == "`anode browser --sign-in https://x.test/a`"
+            && SeatBrowser.SignInCommand("https://x.test/app?tab=1#users", edge: false) == "`anode browser --sign-in https://x.test/app?tab=1#users`",
+            "a sign-in command lost an address it could keep, or kept shell syntax: " + used);
+        foreach (string unsafeAddress in new[] { "https://x.test/$(calc)", "https://x.test/%TOKEN%", "https://x.test/a\"b", "https://x.test/a`b", "https://x.test/a b",
+                     "https://x.test/a;b", "https://x.test/a|b", "https://x.test/a&b", "https://x.test/(a)", "https://x.test/a'b", "https://x.test/a,b", "https://x.test/{a}", "https://x.test/a^b", "https://x.test/a!b" })
+            Require(SeatBrowser.SignInCommand(unsafeAddress, edge: false) == "`anode browser --sign-in <the site's address>`", $"a sign-in command spells out {unsafeAddress}");
+
+        string description = Tools.Definitions().OfType<JsonObject>().First(tool => tool.Str("name") == "seat_browser").Str("description")!;
+        foreach (var (name, text) in new[] { ("seat_browser's description", description), ("the agent guide", AgentGuide.Text) })
+            Require(text.Contains("browser --sign-in") && !System.Text.RegularExpressions.Regex.IsMatch(text, "browser --sign-in(?! (<|https://))"),
+                $"{name} gives the sign-in command without an address");
+
+        Require(Cli.SignInAddresses(new[] { "--sign-in", addresses[0], "--edge", "https://apps.admob.com" }).SequenceEqual(new[] { addresses[0], "https://apps.admob.com" })
+            && Cli.SignInAddresses(new[] { "--sign-in" }).Length == 0, "the CLI lost a sign-in address");
+        return "the sign-in window opens on a page that says what to do, then a tab per address; agents get the whole command, address included";
+    }
+
     /// <summary>What this machine has, read the way the seat host reads it: folders only, nothing started.</summary>
     public static string ThisMachine()
     {

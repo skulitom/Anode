@@ -38,6 +38,8 @@ All of this lives in `%LOCALAPPDATA%\Anode`, or the folder you pass with `--stat
   Command-job requests, argument values and environment overrides are not logged.
 - `rdp-rendering-backup.json`: your previous per-user RDP rendering preference, so
   `anode rendering --restore` can put it back.
+- `browser-sign-in.html`: the page `anode browser --sign-in` last showed, with the seat profile's
+  folder and the addresses you gave it.
 
 `anode configure` also leaves timestamped backups beside the client settings it changes.
 Command-job output is held only in the seat host's memory. Screenshots and inspection reports are

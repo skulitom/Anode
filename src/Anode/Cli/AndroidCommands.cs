@@ -115,13 +115,14 @@ internal static partial class Cli
 
     private static async Task<int> BrowserCommand(string[] args)
     {
+        var options = new Args(args);
+        if (options.Flag("sign-in")) return SignInHere(options.Flag("edge") ? "edge" : null, SignInAddresses(args));
         var payload = BrowserRequest(args);
-        if (new Args(args).Flag("sign-in")) return SignInHere(payload);
         using var client = await Connect(autoStart: false);
         if (client is null) return NotRunning();
         var response = await RequestAsync(client, "browser.open", payload);
         if (response.Bool("ok") != true || response.Obj("result") is not { } result) return Report(response);
-        Console.WriteLine(new Args(args).Flag("json") ? result.ToJsonString(Indented) : result.Str("summary"));
+        Console.WriteLine(options.Flag("json") ? result.ToJsonString(Indented) : result.Str("summary"));
         return 0;
     }
 
@@ -130,25 +131,23 @@ internal static partial class Cli
     /// A terminal inside a packaged app, such as an agent's desktop app, would keep the profile's new files private to
     /// that app, where the seat never sees them, so that is refused.
     /// </summary>
-    private static int SignInHere(JsonObject payload)
+    private static int SignInHere(string? choice, IReadOnlyList<string> addresses)
     {
-        var browser = Core.Browser.SeatBrowser.Find(payload.Str("browser"), Environment.GetEnvironmentVariable, Core.Browser.SeatBrowser.AppPath);
+        var browser = Core.Browser.SeatBrowser.Find(choice, Environment.GetEnvironmentVariable, Core.Browser.SeatBrowser.AppPath);
         if (browser is null)
         {
-            Console.Error.WriteLine(payload.Str("browser") == "edge" ? "Edge was not found." : "Neither Chrome nor Edge was found.");
+            Console.Error.WriteLine(choice == "edge" ? "Edge was not found." : "Neither Chrome nor Edge was found.");
             return 1;
         }
         string actual = Core.Util.Env.ResolveDirectory(browser.ProfileFolder);
         if (!string.Equals(Path.GetFullPath(actual), Path.GetFullPath(browser.ProfileFolder), StringComparison.OrdinalIgnoreCase))
         {
             Console.Error.WriteLine($"This terminal runs inside a packaged app, which stores new files for {browser.ProfileFolder} in {actual}, "
-                + "where the seat cannot see them. Run `anode browser --sign-in` from your own terminal, such as Windows Terminal opened from the Start menu.");
+                + "where the seat cannot see them. Run the same command from your own terminal, such as Windows Terminal opened from the Start menu.");
             return 1;
         }
         int[] elsewhere = Core.Browser.SeatBrowser.Sessions(browser.Process).Where(session => session != Process.GetCurrentProcess().SessionId).ToArray();
-        var info = new ProcessStartInfo(browser.Executable) { UseShellExecute = false };
-        foreach (string argument in Core.Browser.SeatBrowser.Arguments(browser, payload.Str("url") ?? "about:blank")) info.ArgumentList.Add(argument);
-        using (Process.Start(info)) { }
+        Core.Browser.SeatBrowser.OpenForSignIn(browser, addresses, Core.Util.Env.StateDirectory, Process.Start);
         Console.WriteLine($"{browser.Name} opened on this desktop with Anode's seat profile ({browser.ProfileFolder}). Sign in to the sites agents "
             + $"should use, such as Play Console, then close that {browser.Name} window: the seat can use the profile only once it is closed here.");
         if (elsewhere.Length > 0)
@@ -161,9 +160,25 @@ internal static partial class Cli
     internal static JsonObject BrowserRequest(string[] args)
     {
         var payload = new JsonObject();
-        if (Words("browser", args).FirstOrDefault() is { } url) payload["url"] = url;
+        var words = Words("browser", args);
+        if (words.Count > 1) throw new UsageException("browser opens one address in the seat; only --sign-in takes several.");
+        if (words.FirstOrDefault() is { } url) payload["url"] = url;
         if (new Args(args).Flag("edge")) payload["browser"] = "edge";
         if (Mcp.Tools.ValidateArguments("seat_browser", payload) is { } error) throw new UsageException(CliError(error));
         return payload;
+    }
+
+    /// <summary>
+    /// The addresses browser --sign-in opens on this desktop, one tab each, since a first sitting usually covers several
+    /// sites. Each is checked as seat_browser checks its url, before anything starts.
+    /// </summary>
+    internal static string[] SignInAddresses(string[] args)
+    {
+        var addresses = Words("browser", args);
+        foreach (string address in addresses)
+            if (Mcp.Tools.ValidateArguments("seat_browser", new JsonObject { ["url"] = address }) is { } error)
+                throw new UsageException($"{CliError(error)} Check '{address}'.");
+        if (addresses.Sum(address => address.Length + 1) > 30000) throw new UsageException("The addresses exceed the Windows command-line limit.");
+        return addresses.ToArray();
     }
 }

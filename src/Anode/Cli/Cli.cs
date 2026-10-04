@@ -885,13 +885,14 @@ internal static partial class Cli
             ("anode display <W>x<H> [--scale N] [--shot FILE] [--json]", "change the seat's resolution, and its scaling if given"),
             ("anode display --scale N", "change only the scaling"),
             ("anode display reset", "restore the display the seat started with")),
-        Row("Work in the seat", "browser", "edge json sign-in", 1,
+        Row("Work in the seat", "browser", "edge json sign-in", 8,
             "Chrome, or Edge with --edge, runs in the seat on Anode's seat profile (%LOCALAPPDATA%\\AnodeChrome or AnodeEdge), "
             + "apart from your own browser, whose profile it keeps locked. Opening a page needs the lease. The profile persists, so sign "
             + "in to the sites agents need once: --sign-in opens the profile here on your desktop, from your own terminal (not one inside "
-            + "an app), and needs no lease. Close that window afterwards so the seat can use the profile.",
+            + "an app), and needs no lease. Its first tab says what the window is for, and each address, up to 8, opens in a tab of "
+            + "its own. Close that window afterwards so the seat can use the profile.",
             ("anode browser [url] [--edge] [--json]", "open a page in the seat's own browser profile"),
-            ("anode browser --sign-in [url] [--edge]", "open the seat's profile on your desktop to sign in for agents")),
+            ("anode browser --sign-in [url]... [--edge]", "open the seat's profile on your desktop to sign in for agents")),
         Row("Work in the seat", "windows", "query= pid# json", 0, null,
             ("anode windows [--query TEXT] [--pid N] [--json]", "list the seat's windows and their IDs")),
         Row("Work in the seat", "audio", null, 0,
@@ -1232,7 +1233,8 @@ internal static partial class Cli
                 CheckDisplay(words, options);
                 break;
             case "browser":
-                BrowserRequest(args);
+                if (options.Flag("sign-in")) SignInAddresses(args);
+                else BrowserRequest(args);
                 break;
         }
     }
