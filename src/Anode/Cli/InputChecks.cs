@@ -23,16 +23,20 @@ internal static class InputChecks
         public readonly List<double> Waits = new();
         public int Asked;
 
-        public TextTyping.Typist Typist(Func<int, bool?> answer, double sendMs = 1) => new()
+        /// <summary>How late each wait ends, as a real timer is by a fraction of a millisecond.</summary>
+        public double WaitLateMs;
+
+        public TextTyping.Typist Typist(Func<int, bool?> answer, double sendMs = 1, CancellationToken cancel = default) => new()
         {
             Send = unit => { Sent.Add(unit); Now += sendMs; },
-            Answered = limit =>
+            Responsive = limit =>
             {
-                Require(limit == TextTyping.ReadLimitMs, "typing asked the program with another limit: " + limit);
+                Require(limit == TextTyping.BusyLimitMs, "typing asked the program with another limit: " + limit);
                 return answer(++Asked);
             },
-            Wait = milliseconds => { Waits.Add(milliseconds); Now += milliseconds; },
-            Now = () => Now
+            Wait = milliseconds => { Waits.Add(milliseconds); Now += milliseconds + WaitLateMs; },
+            Now = () => Now,
+            Cancel = cancel
         };
     }
 
@@ -53,7 +57,7 @@ internal static class InputChecks
 
         var unpaced = new Recorder();
         Require(TextTyping.Type(Sample, 0, unpaced.Typist(_ => true)).Bool("ok") == true && unpaced.Waits.Count == 0 && unpaced.Asked == 6,
-            "perCharMs 0 waited between characters, or stopped asking the program");
+            "perCharMs 0 waited between characters, or stopped checking the program");
 
         var unknown = new Recorder();
         Require(TextTyping.Type(Sample, 5, unknown.Typist(_ => null)).Bool("ok") == true && unknown.Sent.Count == 7,
@@ -63,7 +67,7 @@ internal static class InputChecks
         var stopped = TextTyping.Type(Sample, null, stalled.Typist(asked => asked < 3));
         Require(stopped.Bool("ok") == false && stopped.Str("errorCode") == "typing_stopped" && stopped.Int("typed") == 3
             && stopped.Int("total") == 7 && stopped.Int("nextIndex") == 4 && stalled.Sent.Count == 3,
-            "a program that stopped reading did not end typing with the exact count: " + stopped.ToJsonString());
+            "a program that stopped responding did not end typing with the exact count: " + stopped.ToJsonString());
         string error = stopped.Str("error") ?? "";
         Require(error.Contains("first 3 of 7", StringComparison.Ordinal)
             && !error.Contains("ab\n", StringComparison.Ordinal) && !error.Contains("\U0001F600", StringComparison.Ordinal),
@@ -74,24 +78,36 @@ internal static class InputChecks
         Require(late.Bool("ok") == false && late.Str("errorCode") == "typing_stopped" && late.Int("typed") == 3 && slow.Sent.Count == 3,
             "typing ran past the time a call has: " + late.ToJsonString());
 
-        using (var stopping = new CancellationTokenSource())
+        // A text that just fits the 45 s plan must survive a timer that ends each wait half a millisecond late.
+        var lateTimer = new Recorder { WaitLateMs = 0.5 };
+        var full = TextTyping.Type(new string('x', 3001), null, lateTimer.Typist(_ => true));
+        Require(full.Bool("ok") == true && full.Obj("result")?.Int("typed") == 3001,
+            "text that fits the plan stopped short when the timer ran a little late: " + full.ToJsonString());
+
+        // A request with its own deadline plans for three quarters of it.
+        var shortDeadline = new Recorder();
+        Require(TextTyping.Type(new string('x', 251), null, shortDeadline.Typist(_ => true), timeoutMs: 5000).Bool("ok") == true
+            && TextTyping.Type(new string('x', 252), null, new Recorder().Typist(_ => true), timeoutMs: 5000).Bool("ok") == false,
+            "a request's own deadline did not bound the text one call types");
+
+        using (var cancel = new CancellationTokenSource())
         {
-            var stopped2 = new Recorder();
-            var typist = stopped2.Typist(_ => true);
+            var halting = new Recorder();
+            var typist = halting.Typist(_ => true, cancel: cancel.Token);
             var halted = TextTyping.Type(Sample, null, new TextTyping.Typist
             {
-                Send = unit => { typist.Send(unit); if (stopped2.Sent.Count == 2) stopping.Cancel(); },
-                Answered = typist.Answered, Wait = typist.Wait, Now = typist.Now, Stopping = stopping.Token
+                Send = unit => { typist.Send(unit); if (halting.Sent.Count == 2) cancel.Cancel(); },
+                Responsive = typist.Responsive, Wait = typist.Wait, Now = typist.Now, Cancel = typist.Cancel
             });
-            Require(halted.Bool("ok") == false && halted.Int("typed") == 2 && stopped2.Sent.Count == 2
-                && (halted.Str("error") ?? "").Contains("stopping", StringComparison.Ordinal),
-                "typing went on after the seat began stopping: " + halted.ToJsonString());
+            Require(halted.Bool("ok") == false && halted.Int("typed") == 2 && halting.Sent.Count == 2
+                && (halted.Str("error") ?? "").Contains("cancelled", StringComparison.Ordinal),
+                "typing went on after its request was cancelled: " + halted.ToJsonString());
         }
 
         var refused = new Recorder();
         Require(TextTyping.Type(new string('x', 3002), null, refused.Typist(_ => true)).Bool("ok") == false && refused.Sent.Count == 0,
             "text too long for one call was partly typed before being refused");
-        return "15 ms apart by default, waits for the focused program, stops with an exact count, keeps Enter, Tab and emoji whole";
+        return "15 ms apart by default, pauses for a busy program, stops with an exact count for a hung one, a deadline or a cancel, keeps Enter, Tab and emoji whole";
     }
 
     public static string Limits()
@@ -107,6 +123,8 @@ internal static class InputChecks
             && longText.Contains("3002", StringComparison.Ordinal), "3002 characters at the default pace were accepted, or the refusal lacks the limit");
         Require(Problem(new string('x', 46), 1000) is null && Problem(new string('x', 47), 1000) is not null, "the limit ignores perCharMs");
         Require(Problem(new string('x', 50_000), 0) is null, "perCharMs 0 limited plain text");
+        // A held Enter overlaps the pace that counts from its start: 1,000 lines of "a" take about 35 s, not 50.
+        Require(Problem(string.Concat(Enumerable.Repeat("a\n", 1000)), null) is null, "Enter holds were counted on top of the pace");
         Require(Problem(new string('\n', 2251), 0) is { } keys && keys.Contains("2250 newlines and tabs", StringComparison.Ordinal),
             "Enter presses were not counted against the call's time");
         Require(Tools.ValidateOperation("input.text", new JsonObject { ["text"] = new string('x', 3002) }) is not null,
@@ -166,19 +184,19 @@ internal static class InputChecks
         IntPtr handle = window.Handle;
         try
         {
-            Require(TextTyping.Answered(handle, 2000) == true, "a thread waiting for messages did not answer");
+            Require(TextTyping.Responsive(handle, 2000) == true, "a thread waiting for messages did not respond");
             PostMessage(handle, MessageWindow.Busy, 1500, IntPtr.Zero);
             Require(window.Working.Wait(2000), "the window's thread never got busy");
             var clock = Stopwatch.StartNew();
-            Require(TextTyping.Answered(handle, 300) == false && clock.ElapsedMilliseconds >= 250, "a busy thread counted as reading its messages");
-            Require(TextTyping.Answered(handle, 5000) == true, "the thread did not answer once it was free again");
+            Require(TextTyping.Responsive(handle, 300) == false && clock.ElapsedMilliseconds >= 250, "a thread busy in a handler counted as responsive");
+            Require(TextTyping.Responsive(handle, 5000) == true, "the thread did not respond once it was free again");
         }
         finally
         {
             PostMessage(handle, MessageWindow.Quit, IntPtr.Zero, IntPtr.Zero);
             thread.Join(5000);
         }
-        Require(TextTyping.Answered(handle, 500) is null, "a closed window counted as a program that stopped reading");
+        Require(TextTyping.Responsive(handle, 500) is null, "a closed window counted as a program that stopped responding");
         return string.Create(CultureInfo.InvariantCulture,
             $"5 ms waits take {median:0.0} ms (median); a busy thread holds the next character, a free one releases it");
     }

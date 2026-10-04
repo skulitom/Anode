@@ -427,18 +427,18 @@ to prove delivery.
 ### Typed text arrives incomplete or out of order
 
 A program reads typed characters at its own speed. `seat_type` (CLI: `anode type`) sends them 15 ms
-apart, each once the focused program has read the one before, a pace Chrome keeps up with even in a
-long field. If text still arrives wrong:
+apart and pauses while the focused program is busy, a pace Chrome keeps up with even in a long field.
+If text still arrives wrong:
 
 - **Type slower.** Pass a larger `perCharMs`. Use `perCharMs: 0` only for a program you know keeps up:
-  it sends each character as soon as the program has read the one before.
+  it sends characters without a pause.
 - **Send smaller pieces.** One call types at most about 3,000 characters at the default pace, so that it
   answers within the request's time. Longer text is refused before anything is typed; send it in
   several calls.
 - **Skip the keyboard.** For a form field, `seat_element` `set_value` on the observed control sets the
   whole value at once.
-- **`typing_stopped`.** The focused program stopped reading input for 5 seconds, or typing ran out of
-  the call's time. The error gives `typed` and `total` (a newline or an emoji counts as one character)
+- **`typing_stopped`.** The focused program stopped responding for 5 seconds, typing ran out of the
+  call's time, or the seat stopped. The error gives `typed` and `total` (a newline or an emoji counts as one character)
   and `nextIndex`, the UTF-16 index where the untyped rest starts. Check the field before you send the
   rest; Anode never sends it again by itself.
 

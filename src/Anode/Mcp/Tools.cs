@@ -333,14 +333,14 @@ internal static class Tools
 
         new("seat_type", "Anode: type text", "input.text", false, Effect.Action,
             "Type literal text with the keyboard into the focused control of an app on Anode's background Windows desktop (the seat). "
-            + "Characters go out at a steady pace, 15 ms apart by default, each once the app has read the one before, so a busy app "
-            + "such as a browser editing a long field doesn't drop or reorder them. One call types at most about 3,000 characters "
-            + "at the default pace: split longer text across calls, or set a field's whole value with seat_element set_value. "
+            + "Characters go out at a steady pace, 15 ms apart by default, and typing pauses while the app is busy, so a browser "
+            + "editing a long field keeps up. One call types at most about 3,000 characters at the default pace: split longer "
+            + "text across calls, or set a field's whole value with seat_element set_value. "
             + "The user's own keyboard focus is unaffected.",
             Schema(
                 ("text", "string", "The text to type. A newline presses Enter and a tab presses Tab.", true),
                 ("perCharMs", "integer", "Milliseconds between characters. Default 15, a pace browsers keep up with; "
-                    + "0 types as fast as the app reads, for apps known to keep up.", false))),
+                    + "0 sends without a pause, for apps known to keep up.", false))),
 
         new("gamepad_attach", "Anode: plug in a virtual Xbox controller", "gamepad.attach", false, Effect.Action,
             "Plug a virtual Xbox 360 controller into the machine. Games in the seat see it as a real controller. "

@@ -177,6 +177,10 @@ internal static class SeatHost
         bool changesUi = op.StartsWith("input.", StringComparison.Ordinal) || op is "run" or "steam.launch" or "ps.kill" or "android.studio" or "browser.open";
         if (!desktop && !changesUi) return Dispatch(op, request);
         if (changesUi) Desktop.InvalidateObservations();
+        // Typing can take most of a request's time, so it stops for the lease's deadline and for a stopping seat.
+        if (op == "input.text")
+            return InputInjector.TypeText(request.Str("text") ?? throw new ArgumentException("text needs 'text'."),
+                request.Int("perCharMs"), request.Int("timeoutMs") ?? 60_000, cancel);
         return desktop ? await Desktop.HandleAsync(op, request, cancel).ConfigureAwait(false) : Dispatch(op, request);
     }
 
@@ -330,12 +334,6 @@ internal static class SeatHost
                 InputInjector.KeyUp(r.Str("key") ?? throw new ArgumentException("keyup needs 'key'."),
                     r.Bool("scanCode") ?? true);
                 return JsonLine.Ok();
-
-            case "input.text":
-                return InputInjector.TypeText(
-                    r.Str("text") ?? throw new ArgumentException("text needs 'text'."),
-                    r.Int("perCharMs"),
-                    DesktopStopping.Token);
 
             case "run":
                 return RunProgram(r, ChildSession.CurrentSessionId());

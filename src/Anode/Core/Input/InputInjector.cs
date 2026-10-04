@@ -291,18 +291,18 @@ internal static class InputInjector
     /// Types literal text as Unicode, so layout and dead keys do not interfere. <see cref="TextTyping"/> paces it so
     /// the focused program keeps up, and says how far it got when it can't.
     /// </summary>
-    public static JsonObject TypeText(string text, int? perCharMs = null, CancellationToken stopping = default)
+    public static JsonObject TypeText(string text, int? perCharMs, int timeoutMs, CancellationToken cancel)
     {
         using var timer = new TextTyping.PreciseTimer();
         var clock = Stopwatch.StartNew();
         return TextTyping.Type(text, perCharMs, new TextTyping.Typist
         {
             Send = unit => TypeUnit(unit, timer.Wait),
-            Answered = TextTyping.FocusAnswered,
+            Responsive = TextTyping.FocusResponsive,
             Wait = timer.Wait,
             Now = () => clock.Elapsed.TotalMilliseconds,
-            Stopping = stopping
-        });
+            Cancel = cancel
+        }, timeoutMs);
     }
 
     private static void TypeUnit(TextTyping.Unit unit, Action<double> wait)

@@ -933,8 +933,8 @@ internal static partial class Cli
             "Pass one token and join keys with +. Keys go out as scan codes so games see them.",
             ("anode key <chord>", "press a key or chord, e.g. anode key ctrl+shift+esc")),
         Row("Drive the seat", "type", null, 0,
-            "Arguments are joined with single spaces; quote text to keep it exact. Characters go out 15 ms apart, each once "
-            + "the focused program has read the one before, so one call types at most about 3,000 characters.",
+            "Arguments are joined with single spaces; quote text to keep it exact. Characters go out 15 ms apart and pause "
+            + "while the focused program is busy, so one call types at most about 3,000 characters.",
             ("anode type <text>", "type text into whatever has focus in the seat")),
 
         Row("Virtual controller (needs the ViGEm bus driver)", "gamepad pad", "slot# ms#", 4,
