@@ -74,10 +74,16 @@ Binaries and scripts are currently **unsigned**. SmartScreen or an organization'
 policy may block them. Checksums detect a corrupt or mismatched download, not publisher identity.
 Get the files from this repository's releases and follow your organization's policy.
 
-Each release also carries a GitHub build attestation. With the [GitHub CLI](https://cli.github.com/),
-`gh attestation verify anode-windows-x64.zip --repo skulitom/Anode` checks that the file was built by
-this repository's Release workflow, and names the tag, commit and workflow run; it works the same way
-for `install.ps1`. To install a fixed version rather than the latest, download `install.ps1` from that
+Releases from v0.6.0 on also carry a GitHub build attestation; v0.5.0 and earlier have none. With
+the [GitHub CLI](https://cli.github.com/),
+
+```powershell
+gh attestation verify anode-windows-x64.zip --repo skulitom/Anode --signer-workflow skulitom/Anode/.github/workflows/release.yml
+```
+
+checks that the file was built by this repository's Release workflow; the attestation also records
+the tag, commit and workflow run (add `--format json` to see them). It works the same way for
+`install.ps1`. To install a fixed version rather than the latest, download `install.ps1` from that
 release's page and run it with `-Version`, as shown above.
 
 ## Other ways to install
@@ -183,8 +189,9 @@ rendering value, with one administrator prompt, and only while no Anode runs, be
 sessions off signs out any seat. `-UndoSetup` does that without asking; `-Quiet` asks nothing and
 leaves a running Anode and machine setup alone. Remote Desktop stays enabled, and logs remain in
 `%LOCALAPPDATA%\Anode`. The seat's browser profiles, `%LOCALAPPDATA%\AnodeChrome` and
-`%LOCALAPPDATA%\AnodeEdge`, also remain, still signed in to any site you signed in to there; delete
-them to sign those sites out. To turn child sessions off, do it during removal (answer yes, or pass
+`%LOCALAPPDATA%\AnodeEdge`, and Android Studio's seat profile, `%LOCALAPPDATA%\AnodeAndroidStudio`,
+also remain, still signed in to any site or account you signed in to there; delete them to sign
+those out. To turn child sessions off, do it during removal (answer yes, or pass
 `-UndoSetup`): once `anode.exe` is gone, `anode setup --undo` is no longer available.
 
 For portable, Scoop and plugin installs, or to remove Anode by hand:
@@ -206,8 +213,9 @@ For portable, Scoop and plugin installs, or to remove Anode by hand:
    Scoop users run `scoop uninstall anode` instead.
 5. Logs and saved rendering state remain in `%LOCALAPPDATA%\Anode`. Keep them for troubleshooting
    or delete them after restoring settings. Client config backups remain beside the originals.
-   The seat browser profiles in `%LOCALAPPDATA%\AnodeChrome` and `%LOCALAPPDATA%\AnodeEdge` keep
-   their sign-ins until you delete them.
+   The seat browser profiles in `%LOCALAPPDATA%\AnodeChrome` and `%LOCALAPPDATA%\AnodeEdge`, and
+   Android Studio's seat profile in `%LOCALAPPDATA%\AnodeAndroidStudio`, keep their sign-ins until
+   you delete them.
 
 ## Build from source
 

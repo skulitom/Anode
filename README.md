@@ -30,7 +30,8 @@ anode configure | Out-Host   # registers Anode with the Claude Code and/or Codex
 
 `anode setup` can restart Remote Desktop Services, which disconnects any Remote Desktop session to
 this PC, so run it at the machine itself. If you sign in to Windows only with a PIN or Windows Hello,
-the seat needs your Windows password once: see [sign-in](docs/TROUBLESHOOTING.md#it-asks-for-a-password-every-time).
+the seat needs your Windows password to sign in, and Windows may ask for it again when you create
+another seat: see [sign-in](docs/TROUBLESHOOTING.md#it-asks-for-a-password-every-time).
 
 Restart your agent session and ask it:
 
