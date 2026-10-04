@@ -233,6 +233,9 @@ internal static class TextTyping
     {
         private readonly IntPtr _timer = CreateWaitableTimerExW(IntPtr.Zero, null, CreateWaitableTimerHighResolution, TimerAllAccess);
 
+        /// <summary>False before Windows 10 1803, where waits fall back to a sleep that rounds up to the clock tick.</summary>
+        public bool HighResolution => _timer != IntPtr.Zero;
+
         public void Wait(double milliseconds)
         {
             if (milliseconds <= 0) return;

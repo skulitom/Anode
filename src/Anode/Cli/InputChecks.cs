@@ -180,8 +180,10 @@ internal static class InputChecks
     public static string Waits()
     {
         double median;
+        bool precise;
         using (var timer = new TextTyping.PreciseTimer())
         {
+            precise = timer.HighResolution;
             var times = new List<double>();
             for (int i = 0; i < 21; i++)
             {
@@ -191,7 +193,8 @@ internal static class InputChecks
             }
             times.Sort();
             median = times[times.Count / 2];
-            Require(times[0] >= 4 && median < 10, string.Create(CultureInfo.InvariantCulture,
+            // Before Windows 10 1803 there is no high-resolution timer, and the fallback sleep only has to be long enough.
+            Require(times[0] >= 4 && (!precise || median < 10), string.Create(CultureInfo.InvariantCulture,
                 $"5 ms waits took {times[0]:0.0} to {times[^1]:0.0} ms (median {median:0.0}); a plain sleep rounds up to the 15.6 ms clock tick"));
         }
 
@@ -225,6 +228,6 @@ internal static class InputChecks
         }
         Require(TextTyping.Responsive(handle, 500) is null, "a closed window counted as a program that stopped responding");
         return string.Create(CultureInfo.InvariantCulture,
-            $"5 ms waits take {median:0.0} ms (median); a busy thread holds the next character, a free one releases it");
+            $"5 ms waits take {median:0.0} ms (median, {(precise ? "high-resolution timer" : "fallback sleep")}); a busy thread holds the next character, a free one releases it");
     }
 }
