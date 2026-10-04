@@ -1,7 +1,9 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Net;
 using System.Text.Json.Nodes;
 using Anode.Core.Bridge;
+using Anode.Core.Processes;
 using Anode.Core.Util;
 using Microsoft.Win32;
 
@@ -60,11 +62,80 @@ internal static class SeatBrowser
     internal static IReadOnlyList<string> Arguments(Kind browser, params string[] urls) =>
         new[] { $"--user-data-dir={browser.ProfileFolder}", "--no-first-run", "--no-default-browser-check", "--new-window" }.Concat(urls).ToArray();
 
-    public static JsonObject Open(JsonObject request, Func<string, string?> environment, Func<string, string?> appPath, Func<ProcessStartInfo, Process?> start)
+    /// <summary>The file Chrome and Edge hold open while they run on a profile, and delete when they exit.</summary>
+    internal const string LockFile = "lockfile";
+
+    /// <summary>
+    /// The browser processes that have the profile open, in any session, found by who holds its lock file; null when that
+    /// cannot be read. Other programs that only read the file, such as a virus scanner, are left out.
+    /// </summary>
+    internal static IReadOnlyList<ProcessControl.FileUser>? ProfileUsers(Kind browser)
+    {
+        string lockFile = Path.Combine(browser.ProfileFolder, LockFile);
+        if (!File.Exists(lockFile)) return Array.Empty<ProcessControl.FileUser>();
+        if (ProcessControl.FileUsers(lockFile) is not { } users)
+        {
+            Log.Warn($"could not tell which program has {lockFile} open");
+            return null;
+        }
+        return users.Where(user => Named(user.Pid, browser.Process)).ToArray();
+
+        static bool Named(int pid, string name)
+        {
+            try
+            {
+                using var process = Process.GetProcessById(pid);
+                return process.ProcessName.Equals(name, StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException) { return false; }
+        }
+    }
+
+    /// <summary>
+    /// The browser on another desktop that has the profile open, if any. Chrome and Edge let one desktop use a profile at
+    /// a time: one started on another desktop finds no window there to hand its pages to, cannot take the lock, and exits
+    /// without a window. One running on the same desktop takes the pages over instead. A session that could not be read,
+    /// the holder's or this one's (uint.MaxValue), is not guessed at.
+    /// </summary>
+    internal static ProcessControl.FileUser? Elsewhere(IReadOnlyList<ProcessControl.FileUser>? users, uint session) =>
+        session == uint.MaxValue ? null : users?.FirstOrDefault(user => user.Session >= 0 && user.Session != (int)session);
+
+    private static string Describe(ProcessControl.FileUser user) =>
+        $"session {user.Session}, process {user.Pid}{(user.Started is { } started ? $", started {started.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)}" : "")}";
+
+    /// <summary>
+    /// Why browser --sign-in cannot open the profile on this desktop, naming the browser that has it and how to close
+    /// it, or null when it can. <paramref name="seat"/> is this desktop's seat session, if it has one.
+    /// </summary>
+    internal static string? SignInRefusal(Kind browser, IReadOnlyList<ProcessControl.FileUser>? users, uint session, uint? seat)
+    {
+        if (Elsewhere(users, session) is not { } holder) return null;
+        bool inSeat = seat == (uint)holder.Session;
+        return $"Anode's seat profile ({browser.ProfileFolder}) is open in {browser.Name} {(inSeat ? "in the seat" : "on another desktop")} ({Describe(holder)}), "
+            + $"and {browser.Name} lets one desktop use a profile at a time, so a window opened here would never appear. "
+            + (inSeat ? $"Once no agent needs it, close the seat's {browser.Name} in the viewer (`anode show`), or end it with `Stop-Process -Id {holder.Pid}`, "
+                : $"Close that {browser.Name}, or end it with `Stop-Process -Id {holder.Pid}`, ")
+            + "then run this command again.";
+    }
+
+    /// <summary>
+    /// Opens a page in the seat. <paramref name="session"/> is the seat's session and <paramref name="users"/> finds the
+    /// browser processes that have the profile open; both default to the real ones.
+    /// </summary>
+    public static JsonObject Open(JsonObject request, Func<string, string?> environment, Func<string, string?> appPath, Func<ProcessStartInfo, Process?> start,
+        uint? session = null, Func<Kind, IReadOnlyList<ProcessControl.FileUser>?>? users = null)
     {
         var browser = Find(request.Str("browser"), environment, appPath);
         if (browser is null)
             return JsonLine.Fail(request.Str("browser") is { } asked ? $"{(asked == "edge" ? "Edge" : "Chrome")} was not found." : "Neither Chrome nor Edge was found.");
+        if (Elsewhere((users ?? ProfileUsers)(browser), session ?? Session.ChildSession.CurrentSessionId()) is { } holder)
+        {
+            Log.Info($"seat browser refused: {browser.Name} process {holder.Pid} in session {holder.Session} has the seat profile open");
+            return JsonLine.Fail($"{browser.Name} cannot open in the seat: Anode's seat profile ({browser.ProfileFolder}) is open in {browser.Name} on another "
+                + $"desktop ({Describe(holder)}), and {browser.Name} lets one desktop use a profile at a time, so its window would never appear here. "
+                + $"Ask the user to close that {browser.Name}: its window, or, if it shows none ({browser.Name} can keep running in the background), "
+                + $"`Stop-Process -Id {holder.Pid}` in their own PowerShell. Do not end it yourself; open the page again once it has closed.");
+        }
         string url = request.Str("url") ?? "about:blank";
         bool fresh = !Directory.Exists(Path.Combine(browser.ProfileFolder, "Default"));
         var info = new ProcessStartInfo(browser.Executable) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(browser.Executable)! };

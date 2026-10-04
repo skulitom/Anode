@@ -133,7 +133,8 @@ Run it from your own terminal. It opens the seat profile on your desktop, not in
 no lease. The window's first tab says what the window is for, and each address, up to 8, opens in a
 tab of its own; with no address, open the sites yourself in new tabs. Sign in, then close that window:
 only one desktop can have the profile open, so the seat can use it once it is closed on yours, and
-`--sign-in` can open it once the seat's browser is closed. A terminal inside a packaged app, such as
+`--sign-in` can open it once the seat's browser is closed. Until then each side refuses and names the
+browser process that has the profile. A terminal inside a packaged app, such as
 an agent's desktop app, would store the profile's new files where the seat cannot see them, so
 `--sign-in` refuses to run there. You can also sign in through the viewer: `anode show`,
 **Take control**, and sign in in the seat's browser.

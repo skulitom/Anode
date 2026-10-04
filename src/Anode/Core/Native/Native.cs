@@ -61,6 +61,50 @@ internal static class Native
     [DllImport("kernel32.dll")]
     public static extern uint WTSGetActiveConsoleSessionId();
 
+    // ---------------------------------------------------------------- rstrtmgr
+
+    /// <summary>Characters in a Restart Manager session key, without its terminator.</summary>
+    public const int RmSessionKeyLength = 32;
+
+    /// <summary><c>RmGetList</c> result when the array is too small for the processes found.</summary>
+    public const int ErrorMoreData = 234;
+
+    /// <summary>Value <c>RM_PROCESS_INFO.TSSessionId</c> holds when a process's session could not be read.</summary>
+    public const uint RmInvalidSession = uint.MaxValue;
+
+    [DllImport("rstrtmgr.dll", CharSet = CharSet.Unicode)]
+    public static extern int RmStartSession(out uint session, int flags, System.Text.StringBuilder sessionKey);
+
+    [DllImport("rstrtmgr.dll")]
+    public static extern int RmEndSession(uint session);
+
+    [DllImport("rstrtmgr.dll", CharSet = CharSet.Unicode)]
+    public static extern int RmRegisterResources(uint session, uint fileCount, string[] files,
+        uint applicationCount, RmUniqueProcess[]? applications, uint serviceCount, string[]? services);
+
+    [DllImport("rstrtmgr.dll")]
+    public static extern int RmGetList(uint session, out uint needed, ref uint count,
+        [In, Out] RmProcessInfo[]? processes, ref uint rebootReasons);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RmUniqueProcess
+    {
+        public int ProcessId;
+        public System.Runtime.InteropServices.ComTypes.FILETIME StartTime;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct RmProcessInfo
+    {
+        public RmUniqueProcess Process;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)] public string AppName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)] public string ServiceShortName;
+        public int ApplicationType;
+        public uint AppStatus;
+        public uint SessionId;
+        [MarshalAs(UnmanagedType.Bool)] public bool Restartable;
+    }
+
     // ------------------------------------------------------------------ user32
 
     public const int WM_HOTKEY = 0x0312;

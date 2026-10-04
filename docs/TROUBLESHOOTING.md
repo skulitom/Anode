@@ -311,7 +311,10 @@ anode browser --sign-in https://play.google.com/console   # from your own termin
 
 Agents use `seat_browser`. For Firefox, pass `-no-remote -profile` with a folder of the seat's own.
 The seat profile opens on one desktop at a time: close the window `--sign-in` opened before agents
-use the seat's browser, and close the seat's browser before signing in again.
+use the seat's browser, and close the seat's browser before signing in again. While the other desktop
+has the profile open, `anode browser` (agents: `seat_browser`) and `--sign-in` refuse and name the
+browser process that has it. Chrome can keep running in the background with no window: end it with
+`Stop-Process -Id <pid>`, and the seat's only once no agent needs it.
 If `anode browser --sign-in` says the terminal runs inside a packaged app, run it from Windows
 Terminal or PowerShell opened from the Start menu. See [Android apps and web consoles](ANDROID.md).
 
