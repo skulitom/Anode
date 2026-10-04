@@ -193,7 +193,15 @@ internal static class DevelopmentChecks
         using (var jobs = new ExecutionJobs(() => Worker("$p = Start-Process powershell.exe -ArgumentList '-NoProfile -NonInteractive -Command Start-Sleep -Seconds 30' -WindowStyle Hidden -PassThru; [Console]::Out.WriteLine($p.Id); Start-Sleep -Seconds 30")))
         {
             var started = await jobs.StartAsync(new JsonObject { ["path"] = "unused-test-command", ["waitMs"] = 2000 }, "test-agent");
-            Require(int.TryParse(started.Str("stdout")?.Trim(), out int descendant), "descendant did not start");
+            // Two Windows PowerShell start-ups can outlast the first wait on a cold machine, so read until the
+            // worker's whole PID line has arrived; a partial line would name the wrong process.
+            var output = started;
+            for (var clock = Stopwatch.StartNew(); output.Str("stdout") is not { } line || !line.Contains('\n'); )
+            {
+                Require(clock.ElapsedMilliseconds < 15000 && output.Bool("finished") != true, "descendant did not start: " + output.Str("summary"));
+                output = await jobs.ReadAsync(new JsonObject { ["jobId"] = started.Str("jobId"), ["waitMs"] = 200 }, "test-agent");
+            }
+            Require(int.TryParse(output.Str("stdout")!.Trim(), out int descendant), "descendant did not start: " + output.Str("summary"));
             try
             {
                 await jobs.ReadAsync(new JsonObject { ["jobId"] = started.Str("jobId"), ["action"] = "cancel", ["after"] = "999999" }, "test-agent");
