@@ -70,7 +70,7 @@ internal sealed class SeatEmulators
     private readonly string _logFolder;
     private readonly ConcurrentDictionary<int, Started> _started = new();
 
-    private sealed record Started(string Avd, ILaunchedEmulator Process, string? Agent, string Log, DateTime StartedUtc);
+    private sealed record Started(string Avd, ILaunchedEmulator Process, string? Agent);
 
     public SeatEmulators(uint seat, string logFolder, Machine? machine = null)
     {
@@ -173,7 +173,7 @@ internal sealed class SeatEmulators
         {
             return JsonLine.Fail($"The emulator for {avd.Name} could not start: {ex.Message}");
         }
-        _started[console] = new Started(avd.Name, launched, request.Str("agentId"), log, DateTime.UtcNow);
+        _started[console] = new Started(avd.Name, launched, request.Str("agentId"));
         Log.Info($"seat started emulator {serial} for {avd.Name}: {string.Join(' ', args)}");
 
         // Reply before the daemon's forwarding deadline, which the caller extends with timeoutMs.
