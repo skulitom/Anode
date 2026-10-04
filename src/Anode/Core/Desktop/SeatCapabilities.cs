@@ -1,6 +1,5 @@
 using System.Text.Json.Nodes;
 using Anode.Core.Capture;
-using Anode.Core.Input;
 using Anode.Core.Session;
 
 namespace Anode.Core.Desktop;
