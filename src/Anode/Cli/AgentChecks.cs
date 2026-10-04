@@ -197,11 +197,17 @@ internal static class AgentChecks
                     Require(AgentAccess.Validate(bad)?.Contains(field) == true, $"invalid {field}={value} accepted");
                 }
             }
-            foreach (var (op, otherAction) in new[] { ("status", action), ("input.text", action), ("lease", "status"), ("lease", "release"), ("lease", "unknown"), ("lease", (string?)null) })
+            foreach (string op in new[] { "status", "input.text" })
             {
-                var bad = (JsonObject)request.DeepClone(); bad["op"] = op; bad["action"] = otherAction;
+                var bad = (JsonObject)request.DeepClone(); bad["op"] = op;
                 Require(AgentAccess.Validate(bad)?.Contains("only allowed") == true, "process fields accepted on the wrong operation/action");
             }
+        }
+        // Another lease action replaces acquire or renew outright, so each needs checking only once.
+        foreach (string? otherAction in new[] { "status", "release", "unknown", null })
+        {
+            var bad = Lease("A", "acquire", "token"); bad["clientPid"] = int.MaxValue; bad["clientStarted"] = long.MaxValue; bad["action"] = otherAction;
+            Require(AgentAccess.Validate(bad)?.Contains("only allowed") == true, "process fields accepted on the wrong operation/action");
         }
         return "optional paired positive int32/int64 process fields, malformed values, action restrictions and envelope stripping";
     }
