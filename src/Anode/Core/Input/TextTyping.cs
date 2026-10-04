@@ -118,22 +118,26 @@ internal static class TextTyping
         int pace = perCharMs ?? DefaultPerCharMs;
         var units = Units(text);
         double start = typist.Now(), previous = start;
+        string ranOut = string.Create(CultureInfo.InvariantCulture, $"typing would have run past {stop / 1000.0:0.#} seconds, the time this call has");
         for (int i = 0; i < units.Count; i++)
         {
-            if (typist.Cancel.IsCancellationRequested)
-                return Stopped(units, i, "the request was cancelled, because the seat is stopping or its time ran out");
             if (i > 0)
             {
                 // A reply doesn't prove the last character was read, since a sent message comes before queued input,
                 // but a thread busy in a long handler can't reply: typing waits for it, and gives up on a hung one.
-                if (typist.Responsive(BusyLimitMs) == false)
-                    return Stopped(units, i, $"the focused program did not respond for {BusyLimitMs / 1000} seconds");
+                // The wait never outlasts the call's own time.
+                double left = stop - (typist.Now() - start);
+                if (left <= 0) return Stopped(units, i, ranOut);
+                int limit = (int)Math.Min(BusyLimitMs, Math.Ceiling(left));
+                if (typist.Responsive(limit) == false)
+                    return Stopped(units, i, limit < BusyLimitMs ? ranOut : $"the focused program did not respond for {BusyLimitMs / 1000} seconds");
                 double wait = previous + pace - typist.Now();
                 if (wait > 0) typist.Wait(wait);
             }
-            if (typist.Now() - start + (units[i].Key is null ? 0 : KeyHoldMs) > stop)
-                return Stopped(units, i, string.Create(CultureInfo.InvariantCulture,
-                    $"typing would have run past {stop / 1000.0:0.#} seconds, the time this call has"));
+            // Checked last, so nothing goes out after a cancellation that came during the waits.
+            if (typist.Cancel.IsCancellationRequested)
+                return Stopped(units, i, "the request was cancelled, because the seat is stopping or its time ran out");
+            if (typist.Now() - start + (units[i].Key is null ? 0 : KeyHoldMs) > stop) return Stopped(units, i, ranOut);
             previous = typist.Now();
             typist.Send(units[i]);
         }

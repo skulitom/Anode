@@ -21,6 +21,7 @@ internal static class InputChecks
         public double Now;
         public readonly List<TextTyping.Unit> Sent = new();
         public readonly List<double> Waits = new();
+        public readonly List<int> Limits = new();
         public int Asked;
 
         /// <summary>How late each wait ends, as a real timer is by a fraction of a millisecond.</summary>
@@ -31,8 +32,11 @@ internal static class InputChecks
             Send = unit => { Sent.Add(unit); Now += sendMs; },
             Responsive = limit =>
             {
-                Require(limit == TextTyping.BusyLimitMs, "typing asked the program with another limit: " + limit);
-                return answer(++Asked);
+                Require(limit > 0 && limit <= TextTyping.BusyLimitMs, "typing asked the program with a limit out of range: " + limit);
+                Limits.Add(limit);
+                bool? responded = answer(++Asked);
+                if (responded == false) Now += limit; // A program that doesn't respond uses up the whole wait.
+                return responded;
             },
             Wait = milliseconds => { Waits.Add(milliseconds); Now += milliseconds + WaitLateMs; },
             Now = () => Now,
@@ -89,6 +93,29 @@ internal static class InputChecks
         Require(TextTyping.Type(new string('x', 251), null, shortDeadline.Typist(_ => true), timeoutMs: 5000).Bool("ok") == true
             && TextTyping.Type(new string('x', 252), null, new Recorder().Typist(_ => true), timeoutMs: 5000).Bool("ok") == false,
             "a request's own deadline did not bound the text one call types");
+
+        // With little time left, the busy check waits only that long, so the reply still beats the deadline.
+        var hung = new Recorder();
+        var cutShort = TextTyping.Type("ab", null, hung.Typist(_ => false), timeoutMs: 1000);
+        Require(cutShort.Bool("ok") == false && cutShort.Int("typed") == 1 && hung.Limits.Single() < TextTyping.BusyLimitMs
+            && hung.Now <= 1000 * 7 / 8 + 1 && (cutShort.Str("error") ?? "").Contains("time this call has", StringComparison.Ordinal),
+            $"a busy check outlasted a short request's time ({hung.Now} ms): " + cutShort.ToJsonString());
+        Require(new Recorder() is var busy && TextTyping.Type("ab", null, busy.Typist(_ => false)).Str("error") is { } busyError
+            && busyError.Contains("did not respond for 5 seconds", StringComparison.Ordinal) && busy.Limits.Single() == TextTyping.BusyLimitMs,
+            "a hung program was not given the full busy limit, or the stop message misnamed the cause");
+
+        using (var duringWait = new CancellationTokenSource())
+        {
+            var waiting = new Recorder();
+            var typist = waiting.Typist(_ => true, cancel: duringWait.Token);
+            var halted = TextTyping.Type("ab", null, new TextTyping.Typist
+            {
+                Send = typist.Send, Responsive = typist.Responsive, Now = typist.Now, Cancel = typist.Cancel,
+                Wait = milliseconds => { typist.Wait(milliseconds); duringWait.Cancel(); }
+            });
+            Require(halted.Bool("ok") == false && halted.Int("typed") == 1 && waiting.Sent.Count == 1,
+                "a request cancelled during the wait still sent the next character: " + halted.ToJsonString());
+        }
 
         using (var cancel = new CancellationTokenSource())
         {
