@@ -40,6 +40,19 @@ All of this lives in `%LOCALAPPDATA%\Anode`, or the folder you pass with `--stat
   `anode rendering --restore` can put it back.
 - `browser-sign-in.html`: the page `anode browser --sign-in` last showed, with the seat profile's
   folder and the addresses you gave it.
+- `android\`: one log per Android emulator the seat started, named after its serial, for example
+  `emulator-5554.log`. It holds the emulator's own output: the start time, the emulator's path and
+  arguments (the AVD name and its options), and its boot, adb and error messages.
+
+The seat also keeps profiles of its own in `%LOCALAPPDATA%`, apart from your own browser and
+Android Studio. `--state-dir` does not move them:
+
+- `AnodeChrome` and `AnodeEdge`: the seat's browser profiles. They hold what Chrome or Edge keeps
+  for any profile, including the sign-ins of the sites you signed in to there, cookies, history and
+  cache, and any password you chose to save. Agents use the sites signed in there, and the pages
+  they open add to the history and cache.
+- `AnodeAndroidStudio`: Android Studio's settings, caches, plugins and logs for Studio in the seat,
+  including any account you signed in to there.
 
 `anode configure` also leaves timestamped backups beside the client settings it changes.
 Command-job output is held only in the seat host's memory. Screenshots and inspection reports are
@@ -48,9 +61,14 @@ written to disk only when you ask for a file, for example `anode shot seat.png` 
 
 ## Retention and removal
 
-Anode never uploads or rotates its log; it grows until you delete it. Command-job output is
-discarded when the seat host exits or its bounded history evicts the job. To remove everything,
-follow [Remove](INSTALL.md#remove), then delete `%LOCALAPPDATA%\Anode`.
+Anode never uploads or rotates its log; it grows until you delete it. Each emulator log is
+replaced the next time an emulator starts with the same serial. Command-job output is discarded
+when the seat host exits or its bounded history evicts the job. The seat profiles stay, signed in,
+between seats and after Anode is removed, until you delete them. To sign a site out, open the
+profile with `anode browser --sign-in <the site's address>` (add `--edge` for Edge's) and sign out
+there. To remove everything, follow
+[Remove](INSTALL.md#remove), then delete `%LOCALAPPDATA%\Anode` and, with no seat browser or Android
+Studio open, `%LOCALAPPDATA%\AnodeChrome`, `AnodeEdge` and `AnodeAndroidStudio`.
 
 ## Contact
 
