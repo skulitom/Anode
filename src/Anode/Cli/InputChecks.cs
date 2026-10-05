@@ -106,6 +106,18 @@ internal static class InputChecks
         Require(beforeWait.Bool("ok") == false && beforeWait.Int("typed") == 2 && lateStart.Waits.Count == 0 && lateStart.Now <= 2000 * 7 / 8
             && (beforeWait.Str("error") ?? "").Contains("time this call has", StringComparison.Ordinal),
             $"a pause that would cross the stop was waited out ({lateStart.Now} ms of {2000 * 7 / 8}): " + beforeWait.ToJsonString());
+        using (var stopping = new CancellationTokenSource())
+        {
+            // The same stop, with the seat stopping during the busy check: the reply names the cancellation.
+            var lateCancel = new Recorder();
+            var named = TextTyping.Type("abc", 700, lateCancel.Typist(asked =>
+            {
+                if (asked == 1) lateCancel.Now += 1450; else stopping.Cancel();
+                return true;
+            }, cancel: stopping.Token), timeoutMs: 2000);
+            Require(named.Int("typed") == 2 && (named.Str("error") ?? "").Contains("cancelled", StringComparison.Ordinal),
+                "a cancellation before a pause that would cross the stop was reported as running out of time: " + named.ToJsonString());
+        }
         Require(new Recorder() is var busy && TextTyping.Type("ab", null, busy.Typist(_ => false)).Str("error") is { } busyError
             && busyError.Contains("did not respond for 5 seconds", StringComparison.Ordinal) && busy.Limits.Single() == TextTyping.BusyLimitMs,
             "a hung program was not given the full busy limit, or the stop message misnamed the cause");

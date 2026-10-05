@@ -119,6 +119,7 @@ internal static class TextTyping
         var units = Units(text);
         double start = typist.Now(), previous = start;
         string ranOut = string.Create(CultureInfo.InvariantCulture, $"typing would have run past {stop / 1000.0:0.#} seconds, the time this call has");
+        const string cancelled = "the request was cancelled, because the seat is stopping or its time ran out";
         for (int i = 0; i < units.Count; i++)
         {
             if (i > 0)
@@ -133,12 +134,13 @@ internal static class TextTyping
                     return Stopped(units, i, limit < BusyLimitMs ? ranOut : $"the focused program did not respond for {BusyLimitMs / 1000} seconds");
                 // A wait that would cross the stop ends the call before it, so the reply never comes later than the stop.
                 double now = typist.Now(), wait = previous + pace - now;
-                if (now - start + Math.Max(0, wait) + (units[i].Key is null ? 0 : KeyHoldMs) > stop) return Stopped(units, i, ranOut);
+                if (now - start + Math.Max(0, wait) + (units[i].Key is null ? 0 : KeyHoldMs) > stop)
+                    return Stopped(units, i, typist.Cancel.IsCancellationRequested ? cancelled : ranOut);
                 if (wait > 0) typist.Wait(wait);
             }
             // Checked last, so nothing goes out after a cancellation that came during the waits.
             if (typist.Cancel.IsCancellationRequested)
-                return Stopped(units, i, "the request was cancelled, because the seat is stopping or its time ran out");
+                return Stopped(units, i, cancelled);
             if (typist.Now() - start + (units[i].Key is null ? 0 : KeyHoldMs) > stop) return Stopped(units, i, ranOut);
             previous = typist.Now();
             typist.Send(units[i]);
