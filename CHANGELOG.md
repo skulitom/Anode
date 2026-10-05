@@ -11,6 +11,11 @@
   no address, with its guidance in the terminal behind it. Its first tab now says what the window is
   for and that it must be closed afterwards, and up to 8 addresses open in tabs of their own.
   `seat_browser` and the agent guide hand the user the whole command, address included.
+- **A seat profile open on the other desktop is reported.** `seat_browser` and `anode browser
+  --sign-in` reported a window while the other desktop had the seat profile open, though a browser
+  started there exits without one. Both now refuse, name the browser process that holds the profile's
+  lock, found through Restart Manager, and say how to close it, including a Chrome left running in the
+  background with no window.
 
 ## 0.11.1 — 2026-10-02
 

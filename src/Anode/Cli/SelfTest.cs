@@ -156,6 +156,7 @@ internal static class SelfTest
         Check(results, "Android Studio profile", AndroidChecks.Studio);
         Check(results, "seat browser profile", AndroidChecks.Browser);
         Check(results, "seat browser sign-in", AndroidChecks.BrowserSignIn);
+        Check(results, "seat browser profile in use", AndroidChecks.BrowserProfileInUse);
         Check(results, "Android on this machine", AndroidChecks.ThisMachine);
         Check(results, "audio clips", AudioChecks.Clips);
         Check(results, "audio isolation and validation", AudioChecks.IsolationAndValidation);

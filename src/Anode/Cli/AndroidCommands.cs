@@ -146,13 +146,15 @@ internal static partial class Cli
                 + "where the seat cannot see them. Run the same command from your own terminal, such as Windows Terminal opened from the Start menu.");
             return 1;
         }
-        int[] elsewhere = Core.Browser.SeatBrowser.Sessions(browser.Process).Where(session => session != Process.GetCurrentProcess().SessionId).ToArray();
+        if (Core.Browser.SeatBrowser.SignInRefusal(browser, Core.Browser.SeatBrowser.ProfileUsers(browser), Core.Session.ChildSession.CurrentSessionId(),
+                Core.Session.ChildSession.TryGetId()) is { } refusal)
+        {
+            Console.Error.WriteLine(refusal);
+            return 1;
+        }
         Core.Browser.SeatBrowser.OpenForSignIn(browser, addresses, Core.Util.Env.StateDirectory, Process.Start);
         Console.WriteLine($"{browser.Name} opened on this desktop with Anode's seat profile ({browser.ProfileFolder}). Sign in to the sites agents "
             + $"should use, such as Play Console, then close that {browser.Name} window: the seat can use the profile only once it is closed here.");
-        if (elsewhere.Length > 0)
-            Console.WriteLine($"{browser.Name} is also running in session {string.Join(", ", elsewhere)}. If that is the seat's browser on this profile, "
-                + "this window cannot open it; close the seat's browser first.");
         return 0;
     }
 

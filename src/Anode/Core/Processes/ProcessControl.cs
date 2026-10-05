@@ -109,6 +109,50 @@ internal static class ProcessControl
         return killed;
     }
 
+    /// <summary>A process that has a file open: its id, its Windows session and when it started.</summary>
+    internal sealed record FileUser(int Pid, int Session, DateTime? Started);
+
+    /// <summary>
+    /// The processes that have a file open, in any session, as Restart Manager reports them; null when it cannot tell.
+    /// It only reads: nothing is asked to close.
+    /// </summary>
+    public static IReadOnlyList<FileUser>? FileUsers(string path)
+    {
+        var key = new StringBuilder(Native.Native.RmSessionKeyLength + 1);
+        if (Native.Native.RmStartSession(out uint session, 0, key) != 0) return null;
+        try
+        {
+            if (Native.Native.RmRegisterResources(session, 1, new[] { path }, 0, null, 0, null) != 0) return null;
+            Native.Native.RmProcessInfo[]? found = null;
+            uint count = 0, reasons = 0;
+            // The list can grow between asking for its length and reading it.
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                int error = Native.Native.RmGetList(session, out uint needed, ref count, found, ref reasons);
+                if (error == 0)
+                    return (found ?? Array.Empty<Native.Native.RmProcessInfo>()).Take((int)count).Select(process => new FileUser(
+                        process.Process.ProcessId,
+                        process.SessionId != Native.Native.RmInvalidSession ? (int)process.SessionId
+                            : Native.Native.ProcessIdToSessionId((uint)process.Process.ProcessId, out uint id) ? (int)id : -1,
+                        StartTime(process.Process.StartTime))).ToArray();
+                if (error != Native.Native.ErrorMoreData) return null;
+                found = new Native.Native.RmProcessInfo[needed];
+                count = needed;
+            }
+            return null;
+        }
+        finally
+        {
+            Native.Native.RmEndSession(session);
+        }
+    }
+
+    private static DateTime? StartTime(System.Runtime.InteropServices.ComTypes.FILETIME time)
+    {
+        long ticks = ((long)(uint)time.dwHighDateTime << 32) | (uint)time.dwLowDateTime;
+        return ticks > 0 ? DateTime.FromFileTime(ticks) : null;
+    }
+
     private static DateTime? SafeStartTime(Process process)
     {
         try { return process.StartTime; } catch { return null; }

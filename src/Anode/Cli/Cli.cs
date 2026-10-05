@@ -890,7 +890,8 @@ internal static partial class Cli
             + "apart from your own browser, whose profile it keeps locked. Opening a page needs the lease. The profile persists, so sign "
             + "in to the sites agents need once: --sign-in opens the profile here on your desktop, from your own terminal (not one inside "
             + "an app), and needs no lease. Its first tab says what the window is for, and each address, up to 8, opens in a tab of "
-            + "its own. Close that window afterwards so the seat can use the profile.",
+            + "its own. Close that window afterwards so the seat can use the profile. Both forms refuse while the other desktop has the "
+            + "profile open, and name the browser process to close.",
             ("anode browser [url] [--edge] [--json]", "open a page in the seat's own browser profile"),
             ("anode browser --sign-in [url]... [--edge]", "open the seat's profile on your desktop to sign in for agents")),
         Row("Work in the seat", "windows", "query= pid# json", 0, null,
