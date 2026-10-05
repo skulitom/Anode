@@ -100,6 +100,12 @@ internal static class InputChecks
         Require(cutShort.Bool("ok") == false && cutShort.Int("typed") == 1 && hung.Limits.Single() < TextTyping.BusyLimitMs
             && hung.Now <= 1000 * 7 / 8 + 1 && (cutShort.Str("error") ?? "").Contains("time this call has", StringComparison.Ordinal),
             $"a busy check outlasted a short request's time ({hung.Now} ms): " + cutShort.ToJsonString());
+        // A slow first busy check leaves too little time for the next pause, so typing stops before it, not after it.
+        var lateStart = new Recorder();
+        var beforeWait = TextTyping.Type("abc", 700, lateStart.Typist(asked => { if (asked == 1) lateStart.Now += 1450; return true; }), timeoutMs: 2000);
+        Require(beforeWait.Bool("ok") == false && beforeWait.Int("typed") == 2 && lateStart.Waits.Count == 0 && lateStart.Now <= 2000 * 7 / 8
+            && (beforeWait.Str("error") ?? "").Contains("time this call has", StringComparison.Ordinal),
+            $"a pause that would cross the stop was waited out ({lateStart.Now} ms of {2000 * 7 / 8}): " + beforeWait.ToJsonString());
         Require(new Recorder() is var busy && TextTyping.Type("ab", null, busy.Typist(_ => false)).Str("error") is { } busyError
             && busyError.Contains("did not respond for 5 seconds", StringComparison.Ordinal) && busy.Limits.Single() == TextTyping.BusyLimitMs,
             "a hung program was not given the full busy limit, or the stop message misnamed the cause");

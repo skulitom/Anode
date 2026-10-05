@@ -131,7 +131,9 @@ internal static class TextTyping
                 int limit = (int)Math.Min(BusyLimitMs, Math.Ceiling(left));
                 if (typist.Responsive(limit) == false)
                     return Stopped(units, i, limit < BusyLimitMs ? ranOut : $"the focused program did not respond for {BusyLimitMs / 1000} seconds");
-                double wait = previous + pace - typist.Now();
+                // A wait that would cross the stop ends the call before it, so the reply never comes later than the stop.
+                double now = typist.Now(), wait = previous + pace - now;
+                if (now - start + Math.Max(0, wait) + (units[i].Key is null ? 0 : KeyHoldMs) > stop) return Stopped(units, i, ranOut);
                 if (wait > 0) typist.Wait(wait);
             }
             // Checked last, so nothing goes out after a cancellation that came during the waits.
