@@ -125,6 +125,7 @@ internal static class SelfTest
         Check(results, "desktop dispatch", () => DesktopChecks.Dispatch().GetAwaiter().GetResult());
         Check(results, "desktop worker deadline", () => DesktopChecks.WorkerTimeout().GetAwaiter().GetResult());
         Check(results, "desktop report escaping", DesktopChecks.Presentation);
+        Check(results, "desktop unknown control types", DesktopChecks.UnknownControlTypes);
         Check(results, "execution output", DevelopmentChecks.Output);
         Check(results, "execution jobs", () => DevelopmentChecks.Jobs().GetAwaiter().GetResult());
         Check(results, "cancelled execution", () => DevelopmentChecks.CancelledStart().GetAwaiter().GetResult());

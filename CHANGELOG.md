@@ -16,6 +16,10 @@
   started there exits without one. Both now refuse, name the browser process that holds the profile's
   lock, found through Restart Manager, and say how to close it, including a Chrome left running in the
   background with no window.
+- **File Explorer windows can be observed.** `seat_observe` failed on them with "Object reference not
+  set to an instance of an object": .NET's UI Automation client has no name for the AppBar control
+  type of Explorer's command bar, or for SemanticZoom. Such controls now have the role `Unknown`, and
+  `seat_element` acts on them as on any other control.
 
 ## 0.11.1 — 2026-10-02
 

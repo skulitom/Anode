@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json.Nodes;
+using System.Windows.Automation;
+using System.Windows.Automation.Provider;
 using Anode.Core.Bridge;
 using Anode.Core.Desktop;
 using Anode.Mcp;
@@ -115,5 +117,79 @@ internal static class DesktopChecks
         Require(summary.Contains("#Name Box @-5,20,300,24") && summary.Contains("Screenshot 640x360 (captured at 1920x1080)"),
             "Summary lost automation IDs, bounds or capture geometry.");
         return "HTML report escapes untrusted app text; text summary keeps automation IDs, bounds and capture geometry";
+    }
+
+    /// <summary>
+    /// A hidden window, never shown, whose accessibility provider says it is an AppBar (UIA control type 50040), as File
+    /// Explorer's command bar does. .NET's UI Automation client has no name for that type.
+    /// </summary>
+    private sealed class AppBarWindow : NativeWindow, IRawElementProviderSimple
+    {
+        private const int WmGetObject = 0x003D, UiaRootObjectId = -25, AppBarControlTypeId = 50040;
+        public const int Quit = 0x8002; // WM_APP + 2
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == WmGetObject && (int)(long)m.LParam == UiaRootObjectId)
+            {
+                m.Result = AutomationInteropProvider.ReturnRawElementProvider(Handle, m.WParam, m.LParam, this);
+                return;
+            }
+            if (m.Msg == Quit) { Application.ExitThread(); return; }
+            base.WndProc(ref m);
+        }
+
+        public ProviderOptions ProviderOptions => ProviderOptions.ServerSideProvider;
+        public object? GetPatternProvider(int patternId) => null;
+        public object? GetPropertyValue(int propertyId) =>
+            propertyId == AutomationElement.ControlTypeProperty.Id ? AppBarControlTypeId
+            : propertyId == AutomationElement.NameProperty.Id ? "Command bar" : null;
+        public IRawElementProviderSimple HostRawElementProvider => AutomationInteropProvider.HostProviderFromHandle(Handle);
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool PostMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
+
+    public static string UnknownControlTypes()
+    {
+        Require(AccessibilityReader.Role(ControlType.Button) == "Button", "a known control type lost its name");
+        var window = new AppBarWindow();
+        using var created = new ManualResetEventSlim();
+        var thread = new Thread(() =>
+        {
+            window.CreateHandle(new CreateParams { Caption = "Anode unknown control type check", Style = unchecked((int)0x80000000) }); // WS_POPUP, never visible
+            created.Set();
+            Application.Run();
+            window.DestroyHandle();
+        }) { IsBackground = true, Name = "unknown control type window" };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        Require(created.Wait(5000), "the check's hidden window was not created");
+        try
+        {
+            // UI Automation must not run on an STA thread, as in the seat's worker. The window is this process's, so it
+            // passes the seat's session checks.
+            var target = WindowAccess.Identify(window.Handle);
+            var observation = Task.Run(() => AccessibilityReader.Observe(target, new JsonObject { ["maxDepth"] = 1 })).GetAwaiter().GetResult();
+            var root = observation["elements"]?.AsArray().FirstOrDefault()?.AsObject()
+                ?? throw new InvalidOperationException("the observation has no elements: " + observation.ToJsonString());
+            string expected = AccessibilityReader.Role(ControlType.LookupById(50040));
+            Require(root.Str("role") == expected && root.Str("name") == "Command bar",
+                $"an AppBar control was described as {root.Str("role")} \"{root.Str("name")}\", not {expected} \"Command bar\"");
+            // Acting on it compares the role again; an action it doesn't offer must be refused after that comparison.
+            try
+            {
+                Task.Run(() => AccessibilityReader.Act(target, root, new JsonObject { ["action"] = "invoke" })).GetAwaiter().GetResult();
+                throw new InvalidOperationException("an action the control does not offer was performed");
+            }
+            catch (InvalidOperationException error) when (error.Message.Contains("not offered", StringComparison.Ordinal)) { }
+            return $"a control type .NET's client can't name (AppBar, as in File Explorer) is observed as {expected}, and actions on it reach their checks";
+        }
+        finally
+        {
+            PostMessage(window.Handle, AppBarWindow.Quit, IntPtr.Zero, IntPtr.Zero);
+            thread.Join(5000);
+        }
     }
 }
