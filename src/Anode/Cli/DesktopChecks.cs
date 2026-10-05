@@ -156,22 +156,25 @@ internal static class DesktopChecks
         Require(AccessibilityReader.Role(ControlType.Button) == "Button", "a known control type lost its name");
         var window = new AppBarWindow();
         using var created = new ManualResetEventSlim();
+        Exception? failed = null;
         var thread = new Thread(() =>
         {
-            window.CreateHandle(new CreateParams { Caption = "Anode unknown control type check", Style = unchecked((int)0x80000000) }); // WS_POPUP, never visible
+            try { window.CreateHandle(new CreateParams { Caption = "Anode unknown control type check", Style = unchecked((int)0x80000000) }); } // WS_POPUP, never visible
+            catch (Exception ex) { failed = ex; created.Set(); return; }
             created.Set();
             Application.Run();
             window.DestroyHandle();
         }) { IsBackground = true, Name = "unknown control type window" };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
-        Require(created.Wait(5000), "the check's hidden window was not created");
+        Require(created.Wait(5000) && failed is null, "the check's hidden window was not created: " + failed?.Message);
+        T Within<T>(Func<T> work) => Task.Run(work).WaitAsync(TimeSpan.FromSeconds(10)).GetAwaiter().GetResult();
         try
         {
             // UI Automation must not run on an STA thread, as in the seat's worker. The window is this process's, so it
             // passes the seat's session checks.
             var target = WindowAccess.Identify(window.Handle);
-            var observation = Task.Run(() => AccessibilityReader.Observe(target, new JsonObject { ["maxDepth"] = 1 })).GetAwaiter().GetResult();
+            var observation = Within(() => AccessibilityReader.Observe(target, new JsonObject { ["maxDepth"] = 1 }));
             var root = observation["elements"]?.AsArray().FirstOrDefault()?.AsObject()
                 ?? throw new InvalidOperationException("the observation has no elements: " + observation.ToJsonString());
             string expected = AccessibilityReader.Role(ControlType.LookupById(50040));
@@ -180,7 +183,7 @@ internal static class DesktopChecks
             // Acting on it compares the role again; an action it doesn't offer must be refused after that comparison.
             try
             {
-                Task.Run(() => AccessibilityReader.Act(target, root, new JsonObject { ["action"] = "invoke" })).GetAwaiter().GetResult();
+                Within(() => AccessibilityReader.Act(target, root, new JsonObject { ["action"] = "invoke" }));
                 throw new InvalidOperationException("an action the control does not offer was performed");
             }
             catch (InvalidOperationException error) when (error.Message.Contains("not offered", StringComparison.Ordinal)) { }

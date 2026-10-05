@@ -118,8 +118,9 @@ internal static class AccessibilityReader
             else if (textBudget > 0 && element.TryGetCurrentPattern(TextPattern.Pattern, out var document))
             {
                 var pattern = (TextPattern)document;
-                text = pattern.DocumentRange.GetText(Math.Min(textBudget, 3000));
-                var selected = pattern.GetSelection().FirstOrDefault()?.GetText(Math.Min(textBudget, 1000));
+                // The client hands back null for a range or a selection the app didn't provide.
+                text = pattern.DocumentRange?.GetText(Math.Min(textBudget, 3000));
+                var selected = pattern.GetSelection()?.FirstOrDefault()?.GetText(Math.Min(textBudget, 1000));
                 if (!string.IsNullOrEmpty(selected))
                 {
                     node["selectedText"] = Clip(selected, textBudget);
