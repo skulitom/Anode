@@ -249,6 +249,23 @@ The executable and docs are in `dist`; the downloadable bundle and checksums are
 Found a problem? [Report a bug](https://github.com/skulitom/Anode/issues/new?template=bug_report.yml)
 or [suggest an improvement](https://github.com/skulitom/Anode/issues/new?template=feature_request.yml).
 
+## Licensing
+
+Anode is free software under the [MIT license](LICENSE), and it stays that way. Every release and all the code in this
+repository can be used, changed and shipped by anyone, including inside companies, at no charge.
+
+**Using Anode at work?** The optional **Anode Business licence** costs £50 per developer per year. It doesn't unlock
+anything and it doesn't change the MIT terms: you never need it to use Anode. It gives you:
+
+- a licence record (the terms, your receipt with the number of seats) and an invoice, for procurement and compliance;
+- priority triage: issues whose title starts with `[business]` are looked at first once the licence is confirmed,
+  which you can do privately by email (best effort, no service level; the terms explain how).
+
+**It isn't on sale yet.** If your company would buy it, open an
+[issue](https://github.com/skulitom/Anode/issues/new) titled `[business] interest`. Issues are public, so leave out
+anything private. The [Business licence terms](docs/BUSINESS-LICENCE.md) are already published, and licensing
+questions are welcome as issues with "licensing" in the title.
+
 ## Credits and license
 
 Built on documented Windows [child sessions](https://learn.microsoft.com/en-us/windows/win32/termserv/child-sessions),
