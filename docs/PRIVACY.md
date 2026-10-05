@@ -44,8 +44,8 @@ All of this lives in `%LOCALAPPDATA%\Anode`, or the folder you pass with `--stat
   `emulator-5554.log`. It holds the emulator's own output: the start time, the emulator's path and
   arguments (the AVD name and its options), and its boot, adb and error messages.
 
-When a desktop app installed as an MSIX package starts Anode, for example the Claude or Codex
-desktop app, Windows gives the programs it starts a private view of AppData. Files they create,
+Some desktop apps installed as MSIX packages, such as the Claude desktop app, give the programs
+they start a private view of AppData. When such an app starts Anode, files its programs create,
 including the whole state folder of a daemon they start, can then be in
 `%LOCALAPPDATA%\Packages\<the app's package>\LocalCache\Local\Anode` instead. `anode status` shows
 which log the running daemon writes.

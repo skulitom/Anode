@@ -576,7 +576,12 @@ internal static class DiagnosticsChecks
             Require(Found() is [var first, var second] && first == claude && second == codex, "two packaged apps' backups were not both listed");
             string own = Save(state);
             Require(Found() is [var mine] && mine == own, "the state directory's own backup did not take precedence");
-            return "the state directory's backup first; without --state-dir, packaged apps' Anode folders (Claude, Codex); never another channel's";
+            // Inside a packaged app the state directory resolves into the app's folder; restoring from there is refused.
+            Require(BackgroundRendering.PackagedRefusal(Package("Claude_1"), false, local) is { } refusal
+                && refusal.Contains("your own terminal", StringComparison.Ordinal), "rendering --restore inside a packaged app was not refused");
+            Require(BackgroundRendering.PackagedRefusal(Package("Claude_1"), true, local) is null && BackgroundRendering.PackagedRefusal(state, false, local) is null,
+                "rendering --restore was refused in an ordinary terminal or with --state-dir");
+            return "the state directory's backup first; without --state-dir, packaged apps' Anode folders too, never another channel's; refused inside a packaged app";
         }
         finally
         {

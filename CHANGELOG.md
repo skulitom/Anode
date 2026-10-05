@@ -2,12 +2,13 @@
 
 ## Unreleased
 
-- **Packaged apps' Anode folders.** A daemon started by a desktop app installed as an MSIX package,
-  such as the Claude or Codex desktop app, keeps its log and state in that app's
+- **Packaged apps' Anode folders.** A daemon started by a desktop app that redirects AppData, such
+  as the Claude desktop app, keeps its log and state in that app's
   `%LOCALAPPDATA%\Packages\<app>\LocalCache\Local\Anode`, which the privacy, install and troubleshooting
   pages now say. `anode rendering --restore`, which the uninstaller runs, looked only in
   `%LOCALAPPDATA%\Anode` and reported no backup. Without `--state-dir` it now also restores a backup
-  saved there, and lists them, changing nothing, when several apps saved one.
+  saved there, and lists them with their values, changing nothing, when several apps saved one.
+  Inside such an app it refuses and asks for your own terminal.
 - **Faster desktop startup.** CLI and MCP skip their initial connection wait when no daemon is
   present, while still waiting for one that is starting. Reconnects retain their existing host
   reuse window.

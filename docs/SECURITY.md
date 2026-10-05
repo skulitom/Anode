@@ -61,8 +61,9 @@ It changes rendering behavior, not authentication or firewall settings. Anode sa
 the previous value in `rdp-rendering-backup.json` in its state directory. Unexpected
 registry types are left unchanged and logged. To restore the saved value after
 stopping Anode, run `anode rendering --restore` with the same `--state-dir` if used.
-Without `--state-dir` it also finds the backup of a daemon that a packaged app, such as the
-Claude or Codex desktop app, started, in `%LOCALAPPDATA%\Packages\<app>\LocalCache\Local\Anode`.
+Run from your own terminal without `--state-dir`, it also finds the backup of a daemon that a
+packaged app, such as the Claude desktop app, started, in `%LOCALAPPDATA%\Packages\<app>\LocalCache\Local\Anode`;
+inside such an app it refuses, because the app may keep its file and registry changes to itself.
 The next daemon startup configures rendering again unless `--no-background-rendering`
 is supplied. A configured value alone does not prove that capture works.
 

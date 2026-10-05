@@ -23,11 +23,11 @@ The log is at `%LOCALAPPDATA%\Anode\anode.log`. Every role writes to it with a t
 Detached launches pass the resolved state directory to the daemon and seat host. `anode status --json`
 includes `logPath` and `logError`; a non-null `logError` gives the actual write failure. The first write
 failure also goes to stderr. A diagnostic path can be selected with `anode start --state-dir C:\AnodeLogs`.
-A desktop app installed as an MSIX package, such as the Claude or Codex desktop app, redirects
-AppData for the programs it starts, so a daemon it starts keeps its log and state in
+Some desktop apps installed as MSIX packages, such as the Claude desktop app, redirect AppData for
+the programs they start, so a daemon such an app starts keeps its log and state in
 `%LOCALAPPDATA%\Packages\<app>\LocalCache\Local\Anode`. Anode resolves that physical directory before handing it to
-Task Scheduler, so the daemon and the seat host use the same file. Use the `logPath` reported by
-status when locating a scheduled daemon's log.
+Task Scheduler, so the app's own Anode processes and the scheduled daemon write to the same file.
+Use the `logPath` reported by status when locating a scheduled daemon's log.
 
 ---
 
@@ -576,8 +576,8 @@ enabled, because other software may now depend on it. Turn it off in
 **Settings → System → Remote Desktop** if you want it off.
 
 Anode leaves more than a log. Logs and the rendering backup stay in `%LOCALAPPDATA%\Anode`, or for a
-daemon a packaged app started, in `%LOCALAPPDATA%\Packages\<app>\LocalCache\Local\Anode`; without
-`--state-dir`, `anode rendering --restore` finds a backup in either. Also,
+daemon a packaged app started, in `%LOCALAPPDATA%\Packages\<app>\LocalCache\Local\Anode`. Run from your
+own terminal without `--state-dir`, `anode rendering --restore` finds a backup in either. Also,
 `setup --undo` does not remove the optional `--fps 60` and `--gpu` values
 ([how to remove them](SECURITY.md#what-anode-setup-changes)). The installer adds a user PATH entry,
 a Start menu shortcut and an Installed apps entry, and `anode configure` adds agent registrations and
