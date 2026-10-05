@@ -64,13 +64,24 @@ internal static class Env
     public static string StateDirectory { get; private set; } = DefaultStateDirectory();
     private static bool _stateDirectoryResolved, _stateDirectoryChosen;
 
-    private static string DefaultStateDirectory()
+    /// <summary>True when --state-dir named the state directory.</summary>
+    public static bool StateDirectoryChosen => _stateDirectoryChosen;
+
+    /// <summary>The state directory's name inside %LOCALAPPDATA%: Anode, or Anode-dev for the dev channel.</summary>
+    public static string StateFolderName => IsMainChannel ? "Anode" : "Anode-" + Channel;
+
+    public static string LocalAppData
     {
-        string local = System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData);
-        if (string.IsNullOrWhiteSpace(local))
-            local = Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), "AppData", "Local");
-        return Path.GetFullPath(Path.Combine(local, IsMainChannel ? "Anode" : "Anode-" + Channel));
+        get
+        {
+            string local = System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData);
+            return string.IsNullOrWhiteSpace(local)
+                ? Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), "AppData", "Local")
+                : local;
+        }
     }
+
+    private static string DefaultStateDirectory() => Path.GetFullPath(Path.Combine(LocalAppData, StateFolderName));
 
     public static void SetStateDirectory(string path)
     {
