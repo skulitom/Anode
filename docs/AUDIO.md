@@ -3,10 +3,12 @@
 Agents can listen to the mixed output of apps inside Anode, including games, browsers and
 their own audio playback. They can also play a short WAV clip through the seat's output.
 
-**Not fully tested yet:** builds, quick self-tests and documentation checks pass, but live
-playback/recording and browser/game audio have not been verified in a running seat. Live
-testing was deferred to avoid disturbing the active session. The opt-in smoke test below
-still needs to be run when a seat is available for testing.
+**Tested live for 0.11.1** (2 October 2026, Windows 11 build 26200, see the
+[release validation](RELEASE-READINESS.md)): the opt-in smoke test below played an 880 Hz tone and
+recorded three seconds of 48 kHz stereo PCM from Remote Audio, and MCP clients on protocols
+`2024-11-05` and `2025-03-26` each recorded a 300 ms WAV from the running seat. Browser and game audio
+were not tested separately, and audio that an app protects or sends to another output may not be
+recorded.
 
 ## Enable at a planned restart
 
