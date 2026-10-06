@@ -446,8 +446,8 @@ If text still arrives wrong:
   `partlySent` is `true`, part of the character at `nextIndex` went out before the refusal: an Enter may
   have been pressed and not released, so it may already have taken effect, and Anode releases the key
   when the lease ends. Check the field before you send the rest; Anode never sends it again by itself.
-- **Windows doesn't report every refusal.** Input an elevated window doesn't accept is dropped without
-  an error, so check the field after typing into one.
+- **Windows may not report every refusal.** Input an elevated window doesn't accept may be dropped
+  without an error, so check the field after typing into one.
 - **The seat stopped during a call.** The call ends with a lost connection or `typing_stopped`. Either
   way, stopping signs the seat out, which closes the program you were typing into, so don't send the
   rest.

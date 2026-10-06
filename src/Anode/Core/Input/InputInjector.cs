@@ -130,7 +130,8 @@ internal static class InputInjector
 
     /// <summary>
     /// Sends one step of typing. A refusal says whether part of the step went out: an earlier part, or some of these
-    /// events. Windows doesn't report every refusal, though: input an elevated window doesn't take is dropped silently.
+    /// events. Windows may not report every refusal, though: input an elevated window doesn't take may be dropped
+    /// without an error.
     /// </summary>
     private static void TypingStep(Input[] events, bool earlierPartSent)
     {

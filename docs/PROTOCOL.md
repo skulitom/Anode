@@ -256,8 +256,8 @@ shorter `timeoutMs`), the request is cancelled, or Windows refuses the input par
 `errorCode` `typing_stopped`, `typed` and `total` (a newline or a surrogate pair counts as one
 character) and `nextIndex`, the UTF-16 index where the untyped rest starts. `partlySent` is `true`
 when part of the character at `nextIndex` went out before a refusal, such as an Enter pressed but not
-released. Windows doesn't report every refusal: input an elevated window doesn't accept is dropped
-silently.
+released. Windows may not report every refusal: input an elevated window doesn't accept may be
+dropped without an error.
 
 Buttons: `left`, `right`, `middle`, `x1`, `x2`. Key names: letters, digits, `f1`–`f24`, `num0`–`num9`,
 `enter`, `esc`, `space`, `tab`, `backspace`, `del`, `ins`, `home`, `end`, `pgup`, `pgdn`, arrows,

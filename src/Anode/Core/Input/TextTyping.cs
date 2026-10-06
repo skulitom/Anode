@@ -128,7 +128,7 @@ internal static class TextTyping
         var units = Units(text);
         double start = typist.Now(), previous = start;
         string ranOut = string.Create(CultureInfo.InvariantCulture, $"typing would have run past {stop / 1000.0:0.#} seconds, the time this call has");
-        const string cancelled = "the request was cancelled because its time ran out (time spent waiting for the desktop counts)";
+        const string cancelled = "the request was cancelled because its time ran out (time spent waiting for the desktop counts) or the seat is stopping";
         for (int i = 0; i < units.Count; i++)
         {
             if (i > 0)
@@ -181,7 +181,7 @@ internal static class TextTyping
         string sent = partlySent
             ? $"Part of character {typed + 1} went out first, so it may already have taken effect, as a pressed Enter does; "
                 + "nothing after it was sent."
-            : $"Nothing after character {typed} was sent.";
+            : typed == 0 ? "Nothing was sent." : $"Nothing after character {typed} was sent.";
         var failure = JsonLine.Fail($"Typed the first {typed} of {units.Count} characters, then stopped: {reason}. {sent} "
             + $"Check what reached the field before you send the rest (from UTF-16 index {units[typed].Index}).");
         failure["errorCode"] = "typing_stopped";

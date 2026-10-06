@@ -167,7 +167,8 @@ internal static class InputChecks
                 && partway.Int("total") == 7 && partway.Int("nextIndex") == next && blocked.Sent.Count == at
                 && (partway["partlySent"] is null) != partly
                 && why.Contains("Windows refused the input (stand-in refusal: SendInput accepted 0 of 2 events)", StringComparison.Ordinal)
-                && why.Contains(partly ? $"Part of character {at + 1} went out first" : $"Nothing after character {at} was sent.", StringComparison.Ordinal)
+                && why.Contains(partly ? $"Part of character {at + 1} went out first" : at == 0 ? "Nothing was sent." : $"Nothing after character {at} was sent.",
+                    StringComparison.Ordinal)
                 && !why.Contains("ab\n", StringComparison.Ordinal) && !why.Contains("\U0001F600", StringComparison.Ordinal),
                 $"a refusal at character {at + 1} (partly sent: {partly}) did not end typing with the exact count: " + partway.ToJsonString());
         }
