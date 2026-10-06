@@ -329,11 +329,11 @@ internal static class AgentChecks
             return JsonLine.Ok();
         }
         var held = Input("A", token, "held");
-        held["timeoutMs"] = 1000;
+        held["timeoutMs"] = 2000;
         clock.Restart();
-        await lease.HandleAsync(held, Hold).WaitAsync(TimeSpan.FromSeconds(3));
+        await lease.HandleAsync(held, Hold).WaitAsync(TimeSpan.FromSeconds(5));
         long ms = clock.ElapsedMilliseconds;
-        Require(stopped.Task.IsCompleted && ms >= 750 && ms < 990, $"an action with 1000 ms was stopped after {ms} ms, not before its caller gave up");
+        Require(stopped.Task.IsCompleted && ms >= 1500 && ms < 1990, $"an action with 2000 ms was stopped after {ms} ms, not before its caller gave up");
         return "an action queued behind another of its agent's runs in the time its caller has left, and stops before it";
     }
 

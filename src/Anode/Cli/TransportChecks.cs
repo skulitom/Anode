@@ -94,6 +94,22 @@ internal static class TransportChecks
             && (await queued.WaitAsync(TimeSpan.FromSeconds(3))).Bool("ok") == true, "a request lost its reply");
         Require(given["queued"] is int left && left <= 8000 - 1400 && left > 8000 - 4500,
             $"a request queued about 1.5 s behind another was forwarded with {given["queued"]} ms of 8000, not the time it had left");
+
+        // A request left with almost no time isn't sent: its reply would come too late and cost the connection.
+        entered = Signal();
+        release = Signal();
+        first = seat.RequestAsync("slow", timeoutMs: 10_000);
+        Task<JsonObject> starved;
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            starved = Daemon.AnodeDaemon.SendOnAsync(seat, "starved", new JsonObject(), 1000);
+            await Task.Delay(960);
+        }
+        finally { release.TrySetResult(); }
+        var unsent = await starved.WaitAsync(TimeSpan.FromSeconds(3));
+        Require((await first.WaitAsync(TimeSpan.FromSeconds(3))).Bool("ok") == true && unsent.Bool("ok") == false
+            && !given.ContainsKey("starved") && seat.IsConnected, "a request with almost no time left was sent, or cost the connection: " + unsent.ToJsonString());
         return "the daemon forwards each request with its caller's time left, so time queued behind another isn't counted twice";
     }
 
