@@ -292,7 +292,13 @@ internal sealed class JsonPipeClient : IDisposable
             await _oneAtATime.WaitAsync(deadline.Token).ConfigureAwait(false);
             entered = true;
             if (!IsConnected) return JsonLine.Fail("connection is closed; reconnect before sending another request");
-            if (sendTimeLeft) request["timeoutMs"] = (int)Math.Max(1, timeoutMs - (Environment.TickCount64 - started));
+            if (sendTimeLeft)
+            {
+                long waited = Environment.TickCount64 - started;
+                // With no time left, any reply would come too late, and a late reply costs the connection.
+                if (waited >= timeoutMs) return JsonLine.Fail($"'{op}' timed out after {timeoutMs} ms");
+                request["timeoutMs"] = TimeLeft(timeoutMs, waited);
+            }
             sent = true;
             await _writer.WriteLineAsync(JsonLine.Serialize(request).AsMemory(), deadline.Token).ConfigureAwait(false);
             string? line = await _reader.ReadLineAsync(deadline.Token).ConfigureAwait(false);
@@ -325,6 +331,14 @@ internal sealed class JsonPipeClient : IDisposable
             if (entered) _oneAtATime.Release();
         }
     }
+
+    /// <summary>
+    /// What is left of a request's time after a wait. Waits under 100 ms are the ordinary cost of passing a request
+    /// on and aren't counted, so limits derived from the time, such as how much one call may type, don't depend on
+    /// clock ticks.
+    /// </summary>
+    internal static int TimeLeft(int timeoutMs, long waitedMs) =>
+        waitedMs < 100 ? timeoutMs : (int)Math.Max(1, timeoutMs - waitedMs);
 
     private void Close()
     {

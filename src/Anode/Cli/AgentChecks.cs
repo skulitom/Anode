@@ -306,7 +306,35 @@ internal static class AgentChecks
         Require(given["first"] is null && given["plain"] == 53_000 && given["own deadline"] == 13_000,
             $"queued actions were not given the time left: {given["first"]}, {given["plain"]} and {given["own deadline"]} ms, "
             + "expected none, 53000 and 13000");
-        return "an action queued behind another of its agent's runs in the time its caller has left";
+
+        // Waits under 100 ms are the cost of passing a request on, and don't shrink limits such as typing's.
+        var tick = new JsonObject { ["timeoutMs"] = 5000 };
+        AgentAccess.Spend(tick, 99);
+        var counted = new JsonObject();
+        AgentAccess.Spend(counted, 100);
+        var over = new JsonObject { ["timeoutMs"] = 5000 };
+        AgentAccess.Spend(over, 9000);
+        Require(tick.Int("timeoutMs") == 5000 && counted.Int("timeoutMs") == 59_900 && over.Int("timeoutMs") == 1,
+            $"waits were counted wrongly: 99 ms left {tick.Int("timeoutMs")}, 100 ms left {counted.Int("timeoutMs")}, too long left {over.Int("timeoutMs")}");
+
+        // An action is stopped before its caller gives up, so its reply, even a cancellation, arrives in time.
+        Require(DesktopLease.StopAfterMs(60_000) == 59_000 && DesktopLease.StopAfterMs(8000) == 7000
+            && DesktopLease.StopAfterMs(1000) == 875 && DesktopLease.StopAfterMs(1) == 1, "the stop before the caller's deadline is miscounted");
+        var stopped = Signal();
+        var clock = Stopwatch.StartNew();
+        async Task<JsonObject> Hold(JsonObject request, CancellationToken cancel)
+        {
+            try { await Task.Delay(Timeout.Infinite, cancel); }
+            catch (OperationCanceledException) { stopped.TrySetResult(); }
+            return JsonLine.Ok();
+        }
+        var held = Input("A", token, "held");
+        held["timeoutMs"] = 1000;
+        clock.Restart();
+        await lease.HandleAsync(held, Hold).WaitAsync(TimeSpan.FromSeconds(3));
+        long ms = clock.ElapsedMilliseconds;
+        Require(stopped.Task.IsCompleted && ms >= 750 && ms < 990, $"an action with 1000 ms was stopped after {ms} ms, not before its caller gave up");
+        return "an action queued behind another of its agent's runs in the time its caller has left, and stops before it";
     }
 
     public static async Task<string> Line()

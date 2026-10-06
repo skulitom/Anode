@@ -77,6 +77,8 @@ internal static class TransportChecks
             "an ordinary request gained a timeoutMs it was not given");
         Require((await Daemon.AnodeDaemon.SendOnAsync(seat, "fresh", new JsonObject(), 5000)).Bool("ok") == true
             && given["fresh"] is > 4000 and <= 5000, $"a forwarded request that waited for nothing was given {given["fresh"]} ms of 5000");
+        Require(JsonPipeClient.TimeLeft(5000, 99) == 5000 && JsonPipeClient.TimeLeft(5000, 100) == 4900 && JsonPipeClient.TimeLeft(5000, 6000) == 1,
+            "time left after a wait is miscounted");
 
         // The daemon has one connection to the seat host; a request queued behind a long one has only what is left.
         Task<JsonObject> first = seat.RequestAsync("slow", timeoutMs: 10_000);
