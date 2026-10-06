@@ -177,7 +177,8 @@ internal static class SeatHost
         bool changesUi = op.StartsWith("input.", StringComparison.Ordinal) || op is "run" or "steam.launch" or "ps.kill" or "android.studio" or "browser.open";
         if (!desktop && !changesUi) return Dispatch(op, request);
         if (changesUi) Desktop.InvalidateObservations();
-        // Typing can take most of a request's time, so it stops for the lease's deadline and for a stopping seat.
+        // Typing can take most of a request's time, so it stops at the lease's deadline, or at a shutdown sent on
+        // another connection. The daemon's own shutdown waits behind it, and the sign-out that follows ends it.
         if (op == "input.text")
             return InputInjector.TypeText(request.Str("text") ?? throw new ArgumentException("text needs 'text'."),
                 request.Int("perCharMs"), request.Int("timeoutMs") ?? 60_000, cancel);

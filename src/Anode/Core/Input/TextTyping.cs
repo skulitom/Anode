@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
@@ -143,7 +144,13 @@ internal static class TextTyping
                 return Stopped(units, i, cancelled);
             if (typist.Now() - start + (units[i].Key is null ? 0 : KeyHoldMs) > stop) return Stopped(units, i, ranOut);
             previous = typist.Now();
-            typist.Send(units[i]);
+            try { typist.Send(units[i]); }
+            catch (Exception ex) when (ex is InvalidOperationException or Win32Exception)
+            {
+                // Windows refused the input, for example once an Enter typed earlier opened a prompt or an elevated
+                // window. The count still matters: the caller mustn't send again what already arrived.
+                return Stopped(units, i, $"Windows refused the input ({ex.Message.TrimEnd('.')})", partlySent: true);
+            }
         }
         double elapsed = typist.Now() - start;
         string how = pace > 0 ? $"{pace} ms apart" : "without a pause";
@@ -159,16 +166,21 @@ internal static class TextTyping
 
     /// <summary>
     /// Ends a call partway, saying exactly how far it got. The reply gives counts only and never repeats the text,
-    /// which may be a secret.
+    /// which may be a secret. <paramref name="partlySent"/> means Windows refused character <paramref name="typed"/>
+    /// partway through sending it, so part of it, such as the press of an Enter, may have arrived.
     /// </summary>
-    private static JsonObject Stopped(List<Unit> units, int typed, string reason)
+    private static JsonObject Stopped(List<Unit> units, int typed, string reason, bool partlySent = false)
     {
-        var failure = JsonLine.Fail($"Typed the first {typed} of {units.Count} characters, then stopped: {reason}. Nothing after "
-            + $"character {typed} was sent. Check what reached the field before you send the rest (from UTF-16 index {units[typed].Index}).");
+        string sent = partlySent
+            ? $"Character {typed + 1} may have been partly sent; nothing after it was."
+            : $"Nothing after character {typed} was sent.";
+        var failure = JsonLine.Fail($"Typed the first {typed} of {units.Count} characters, then stopped: {reason}. {sent} "
+            + $"Check what reached the field before you send the rest (from UTF-16 index {units[typed].Index}).");
         failure["errorCode"] = "typing_stopped";
         failure["typed"] = typed;
         failure["total"] = units.Count;
         failure["nextIndex"] = units[typed].Index;
+        if (partlySent) failure["partlySent"] = true;
         return failure;
     }
 

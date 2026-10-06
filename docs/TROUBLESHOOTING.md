@@ -441,9 +441,13 @@ If text still arrives wrong:
 - **Skip the keyboard.** For a form field, `seat_element` `set_value` on the observed control sets the
   whole value at once.
 - **`typing_stopped`.** The focused program stopped responding for 5 seconds, typing ran out of the
-  call's time, or the seat stopped. The error gives `typed` and `total` (a newline or an emoji counts as one character)
-  and `nextIndex`, the UTF-16 index where the untyped rest starts. Check the field before you send the
-  rest; Anode never sends it again by itself.
+  call's time, or Windows refused the input partway, for example once a typed Enter opened a UAC prompt
+  or an elevated window. The error gives `typed` and `total` (a newline or an emoji counts as one character)
+  and `nextIndex`, the UTF-16 index where the untyped rest starts. After a refusal, `partlySent` is
+  `true`: the character at `nextIndex` may have arrived in part, such as an Enter pressed but not
+  released. Check the field before you send the rest; Anode never sends it again by itself. A seat that
+  stops during a call ends it with a lost connection instead: stopping signs the seat out, which closes
+  the program you were typing into.
 
 ### A display change fails or looks wrong
 
