@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text.Json.Nodes;
 
 namespace Anode.Core.Input;
 
@@ -285,29 +287,47 @@ internal static class InputInjector
         }
     }
 
-    /// <summary>Types literal text as Unicode, so layout and dead keys do not interfere.</summary>
-    public static void TypeText(string text, int perCharMs = 0)
+    /// <summary>
+    /// Types literal text as Unicode, so layout and dead keys do not interfere. <see cref="TextTyping"/> paces it so
+    /// the focused program keeps up, and says how far it got when it can't.
+    /// </summary>
+    public static JsonObject TypeText(string text, int? perCharMs, int timeoutMs, CancellationToken cancel)
     {
-        foreach (char character in text)
+        using var timer = new TextTyping.PreciseTimer();
+        var clock = Stopwatch.StartNew();
+        return TextTyping.Type(text, perCharMs, new TextTyping.Typist
         {
-            if (character == '\n')
-            {
-                Press("enter", 20);
-                continue;
-            }
-            if (character == '\t')
-            {
-                Press("tab", 20);
-                continue;
-            }
-            if (character == '\r') continue;
+            Send = unit => TypeUnit(unit, timer.Wait),
+            Responsive = TextTyping.FocusResponsive,
+            Wait = timer.Wait,
+            Now = () => clock.Elapsed.TotalMilliseconds,
+            Cancel = cancel
+        }, timeoutMs);
+    }
 
-            Send(
-                new Input { Type = InputKeyboard, Union = { Keyboard = new KeyboardInput { Scan = character, Flags = KeyEventUnicode } } },
-                new Input { Type = InputKeyboard, Union = { Keyboard = new KeyboardInput { Scan = character, Flags = KeyEventUnicode | KeyEventKeyUp } } });
-
-            if (perCharMs > 0) Thread.Sleep(perCharMs);
+    private static void TypeUnit(TextTyping.Unit unit, Action<double> wait)
+    {
+        if (unit.Key is { } key)
+        {
+            // As Press does, with the hold timed precisely.
+            ushort vk = KeyCodes.Resolve(key);
+            HeldKeys.Add((vk, true));
+            try { Send(KeyEvent(vk, false, true)); wait(TextTyping.KeyHoldMs); }
+            finally
+            {
+                Send(KeyEvent(vk, true, true));
+                HeldKeys.Remove((vk, true));
+            }
+            return;
         }
+        // A surrogate pair goes out in one call, so nothing lands between its halves.
+        var events = new List<Input>(unit.Text.Length * 2);
+        foreach (char character in unit.Text)
+        {
+            events.Add(new Input { Type = InputKeyboard, Union = { Keyboard = new KeyboardInput { Scan = character, Flags = KeyEventUnicode } } });
+            events.Add(new Input { Type = InputKeyboard, Union = { Keyboard = new KeyboardInput { Scan = character, Flags = KeyEventUnicode | KeyEventKeyUp } } });
+        }
+        Send(events.ToArray());
     }
 
     private static bool IsExtendedKey(ushort vk) => vk switch

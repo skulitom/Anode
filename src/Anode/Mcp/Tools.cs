@@ -333,10 +333,14 @@ internal static class Tools
 
         new("seat_type", "Anode: type text", "input.text", false, Effect.Action,
             "Type literal text with the keyboard into the focused control of an app on Anode's background Windows desktop (the seat). "
+            + "Characters go out at a steady pace, 15 ms apart by default, and typing pauses while the app is busy, so a browser "
+            + "editing a long field keeps up. One call types at most about 3,000 characters at the default pace: split longer "
+            + "text across calls, or set a field's whole value with seat_element set_value. "
             + "The user's own keyboard focus is unaffected.",
             Schema(
-                ("text", "string", "The text to type.", true),
-                ("perCharMs", "integer", "Delay between characters, for programs that drop fast input.", false))),
+                ("text", "string", "The text to type. A newline presses Enter and a tab presses Tab.", true),
+                ("perCharMs", "integer", "Milliseconds between characters. Default 15, a pace browsers keep up with; "
+                    + "0 sends without a pause, for apps known to keep up.", false))),
 
         new("gamepad_attach", "Anode: plug in a virtual Xbox controller", "gamepad.attach", false, Effect.Action,
             "Plug a virtual Xbox 360 controller into the machine. Games in the seat see it as a real controller. "
@@ -501,6 +505,7 @@ internal static class Tools
                 return "Provide either x and y or dx and dy.";
         }
         if (name == "seat_kill_process" && Has("pid") == Has("name")) return "Provide exactly one of pid or name.";
+        if (name == "seat_type" && Core.Input.TextTyping.Problem(arguments.Str("text")!, arguments.Int("perCharMs")) is { } typing) return typing;
         if (name == "android_emulator" && EmulatorProblem(arguments) is { } emulator) return emulator;
         if (name == "android_studio" && arguments.Str("project") is { } project
             && (project.Contains('\0') || !Path.IsPathFullyQualified(project) || !Directory.Exists(project)))

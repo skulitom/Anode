@@ -248,6 +248,14 @@ schema, so its row lists every argument it accepts.
 | `input.keydown` / `input.keyup` | `key`, `scanCode` |
 | `input.text` | `text`, `perCharMs` |
 
+`input.text` sends characters `perCharMs` apart (default 15), pausing while the program with the
+keyboard focus is busy, and answers with `typed`, `perCharMs` and `elapsedMs`. Text that can't be typed
+in 45 seconds at that pace (three quarters of a shorter `timeoutMs`) is refused before anything is
+typed. If the program stops responding for 5 seconds, typing would pass 52 seconds (seven eighths of a
+shorter `timeoutMs`), or the request is cancelled, it fails with `errorCode` `typing_stopped`, `typed`
+and `total` (a newline or a surrogate pair counts as one character) and `nextIndex`, the UTF-16 index
+where the untyped rest starts.
+
 Buttons: `left`, `right`, `middle`, `x1`, `x2`. Key names: letters, digits, `f1`–`f24`, `num0`–`num9`,
 `enter`, `esc`, `space`, `tab`, `backspace`, `del`, `ins`, `home`, `end`, `pgup`, `pgdn`, arrows,
 `ctrl`, `shift`, `alt`, `win`, `apps`, punctuation by name or by symbol, and `vk<hex>` for anything else.
