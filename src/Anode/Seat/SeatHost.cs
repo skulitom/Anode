@@ -159,12 +159,7 @@ internal static class SeatHost
     {
         string op = request.Str("op") ?? string.Empty;
         // The display a previous lease changed is put back before the next owner looks or acts, in the action's time.
-        if (AgentAccess.RequiresLease(op))
-        {
-            long waiting = Environment.TickCount64;
-            if (await Display.RestoredAsync(cancel).ConfigureAwait(false) is { } restoring) return restoring;
-            AgentAccess.Spend(request, Environment.TickCount64 - waiting);
-        }
+        if (AgentAccess.RequiresLease(op) && await Display.RestoredAsync(cancel, request).ConfigureAwait(false) is { } restoring) return restoring;
         if (op == "display.set") return await ChangeDisplayAsync(request, cancel).ConfigureAwait(false);
         if (op == "android.status") return JsonLine.Ok(await Emulators.Value.StatusAsync(cancel).ConfigureAwait(false));
         if (op == "android.emulator") return await EmulatorAsync(request, cancel).ConfigureAwait(false);
