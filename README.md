@@ -51,7 +51,7 @@ See [Install](#install) for custom locations and offline installs, or
 <!-- Remove this section in the release that ships #18 and #20. -->
 ### Known issues in 0.11.1
 
-Two bugs in 0.11.1 are fixed for the next release. Until then:
+Two bugs in 0.11.1 have fixes waiting for the next release. Until then:
 
 - **`seat_observe` fails on Windows 11 File Explorer windows** with "Object reference not set to an
   instance of an object", and so does `seat_wait`. Use `seat_screenshot` and `seat_click` on those
@@ -59,8 +59,8 @@ Two bugs in 0.11.1 are fixed for the next release. Until then:
   [fix](https://github.com/skulitom/Anode/pull/20)).
 - **A long `seat_type` text can arrive garbled in Chrome** while the call reports success: of one
   7,938-character text, only about the first 5,500 characters arrived intact. Send long text in
-  several calls of at most about 2,500 characters each, with `perCharMs` 3
-  ([details](docs/TROUBLESHOOTING.md#typed-text-arrives-incomplete-or-out-of-order),
+  several `seat_type` calls of at most about 2,500 characters each, with `perCharMs` 3, and check the
+  field after each ([details](docs/TROUBLESHOOTING.md#typed-text-arrives-incomplete-or-out-of-order),
   [fix](https://github.com/skulitom/Anode/pull/18)).
 
 ## What can you do with it?
