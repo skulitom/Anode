@@ -178,7 +178,7 @@ internal static class SeatHost
         if (!desktop && !changesUi) return Dispatch(op, request);
         if (changesUi) Desktop.InvalidateObservations();
         // Typing can take most of a request's time, so it stops at the lease's deadline, or at a shutdown sent on
-        // another connection. The daemon's own shutdown waits behind it, and the sign-out that follows ends it.
+        // another connection. The daemon's own shutdown waits behind it; the sign-out that follows ends it.
         if (op == "input.text")
             return InputInjector.TypeText(request.Str("text") ?? throw new ArgumentException("text needs 'text'."),
                 request.Int("perCharMs"), request.Int("timeoutMs") ?? 60_000, cancel);

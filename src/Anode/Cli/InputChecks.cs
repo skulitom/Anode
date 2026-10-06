@@ -149,41 +149,45 @@ internal static class InputChecks
                 "typing went on after its request was cancelled: " + halted.ToJsonString());
         }
 
-        // Windows refusing the input partway, as it does once a prompt or an elevated window takes the focus, still
-        // ends the call with the count, and says the refused character may have been partly sent.
-        Require(stopped["partlySent"] is null, "a stop before a character went out said it may have been partly sent: " + stopped.ToJsonString());
-        foreach (Exception refusal in new Exception[]
-            {
-                new InvalidOperationException("The foreground helper is blocking input in this seat."),
-                new System.ComponentModel.Win32Exception(5, "SendInput accepted 0 of 2 events (Win32 error 5: Access is denied.)")
-            })
+        // Windows refusing a character still ends the call with the exact count. partlySent says part of that character
+        // went out first, as when an Enter's press went through and its release was refused.
+        foreach (var (at, partly) in new[] { (0, false), (3, true), (4, false) })
         {
             var blocked = new Recorder();
             var typist = blocked.Typist(_ => true);
+            var refusal = new TextTyping.Refused("stand-in refusal: SendInput accepted 0 of 2 events.", partly);
             var partway = TextTyping.Type(Sample, null, new TextTyping.Typist
             {
-                Send = unit => { if (blocked.Sent.Count == 3) throw refusal; typist.Send(unit); },
+                Send = unit => { if (blocked.Sent.Count == at) throw refusal; typist.Send(unit); },
                 Responsive = typist.Responsive, Wait = typist.Wait, Now = typist.Now
             });
             string why = partway.Str("error") ?? "";
-            Require(partway.Bool("ok") == false && partway.Str("errorCode") == "typing_stopped" && partway.Int("typed") == 3
-                && partway.Int("total") == 7 && partway.Int("nextIndex") == 4 && partway.Bool("partlySent") == true && blocked.Sent.Count == 3
-                && why.Contains(refusal.Message.TrimEnd('.'), StringComparison.Ordinal)
-                && why.Contains("Character 4 may have been partly sent; nothing after it was.", StringComparison.Ordinal),
-                $"input Windows refused partway ({refusal.GetType().Name}) did not end typing with the exact count: " + partway.ToJsonString());
+            int next = TextTyping.Units(Sample)[at].Index;
+            Require(partway.Bool("ok") == false && partway.Str("errorCode") == "typing_stopped" && partway.Int("typed") == at
+                && partway.Int("total") == 7 && partway.Int("nextIndex") == next && blocked.Sent.Count == at
+                && (partway["partlySent"] is null) != partly
+                && why.Contains("Windows refused the input (stand-in refusal: SendInput accepted 0 of 2 events)", StringComparison.Ordinal)
+                && why.Contains(partly ? $"Part of character {at + 1} went out first" : $"Nothing after character {at} was sent.", StringComparison.Ordinal)
+                && !why.Contains("ab\n", StringComparison.Ordinal) && !why.Contains("\U0001F600", StringComparison.Ordinal),
+                $"a refusal at character {at + 1} (partly sent: {partly}) did not end typing with the exact count: " + partway.ToJsonString());
         }
-        // A fault in Anode itself still fails loudly instead of passing for a refusal.
-        var faulty = new Recorder().Typist(_ => true);
-        bool surfaced = false;
-        try
+        Require(stopped["partlySent"] is null && late["partlySent"] is null,
+            "a stop before a character went out said part of it was sent: " + stopped.ToJsonString());
+        // Any other exception is a fault in Anode itself, and fails loudly instead of passing for a refusal.
+        foreach (Exception fault in new Exception[] { new InvalidOperationException("stand-in fault"), new ObjectDisposedException("stand-in") })
         {
-            TextTyping.Type("ab", null, new TextTyping.Typist
+            var faulty = new Recorder().Typist(_ => true);
+            bool surfaced = false;
+            try
             {
-                Send = _ => throw new ArgumentException("not a refusal"), Responsive = faulty.Responsive, Wait = faulty.Wait, Now = faulty.Now
-            });
+                TextTyping.Type("ab", null, new TextTyping.Typist
+                {
+                    Send = _ => throw fault, Responsive = faulty.Responsive, Wait = faulty.Wait, Now = faulty.Now
+                });
+            }
+            catch (Exception caught) when (ReferenceEquals(caught, fault)) { surfaced = true; }
+            Require(surfaced, $"typing turned a fault in Anode's own code ({fault.GetType().Name}) into a typing_stopped reply");
         }
-        catch (ArgumentException) { surfaced = true; }
-        Require(surfaced, "typing turned a fault in Anode's own code into a typing_stopped reply");
 
         var refused = new Recorder();
         Require(TextTyping.Type(new string('x', 3002), null, refused.Typist(_ => true)).Bool("ok") == false && refused.Sent.Count == 0,

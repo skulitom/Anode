@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
@@ -69,6 +68,15 @@ internal static class TextTyping
         public CancellationToken Cancel { get; init; }
     }
 
+    /// <summary>
+    /// Windows refused a step of typing. <see cref="PartlySent"/> when part of the step went out before the refusal,
+    /// such as the press of an Enter whose release was refused.
+    /// </summary>
+    internal sealed class Refused(string message, bool partlySent) : Exception(message)
+    {
+        public bool PartlySent { get; } = partlySent;
+    }
+
     internal static List<Unit> Units(string text)
     {
         var units = new List<Unit>(text.Length);
@@ -120,7 +128,7 @@ internal static class TextTyping
         var units = Units(text);
         double start = typist.Now(), previous = start;
         string ranOut = string.Create(CultureInfo.InvariantCulture, $"typing would have run past {stop / 1000.0:0.#} seconds, the time this call has");
-        const string cancelled = "the request was cancelled, because the seat is stopping or its time ran out";
+        const string cancelled = "the request was cancelled because its time ran out (time spent waiting for the desktop counts)";
         for (int i = 0; i < units.Count; i++)
         {
             if (i > 0)
@@ -145,11 +153,10 @@ internal static class TextTyping
             if (typist.Now() - start + (units[i].Key is null ? 0 : KeyHoldMs) > stop) return Stopped(units, i, ranOut);
             previous = typist.Now();
             try { typist.Send(units[i]); }
-            catch (Exception ex) when (ex is InvalidOperationException or Win32Exception)
+            catch (Refused refused)
             {
-                // Windows refused the input, for example once an Enter typed earlier opened a prompt or an elevated
-                // window. The count still matters: the caller mustn't send again what already arrived.
-                return Stopped(units, i, $"Windows refused the input ({ex.Message.TrimEnd('.')})", partlySent: true);
+                // The count still matters: the caller mustn't send again what already arrived.
+                return Stopped(units, i, $"Windows refused the input ({refused.Message.TrimEnd('.')})", refused.PartlySent);
             }
         }
         double elapsed = typist.Now() - start;
@@ -166,13 +173,14 @@ internal static class TextTyping
 
     /// <summary>
     /// Ends a call partway, saying exactly how far it got. The reply gives counts only and never repeats the text,
-    /// which may be a secret. <paramref name="partlySent"/> means Windows refused character <paramref name="typed"/>
-    /// partway through sending it, so part of it, such as the press of an Enter, may have arrived.
+    /// which may be a secret. <paramref name="partlySent"/> means part of the next character, the one at index
+    /// <paramref name="typed"/> of <paramref name="units"/>, went out before Windows refused the rest.
     /// </summary>
     private static JsonObject Stopped(List<Unit> units, int typed, string reason, bool partlySent = false)
     {
         string sent = partlySent
-            ? $"Character {typed + 1} may have been partly sent; nothing after it was."
+            ? $"Part of character {typed + 1} went out first, so it may already have taken effect, as a pressed Enter does; "
+                + "nothing after it was sent."
             : $"Nothing after character {typed} was sent.";
         var failure = JsonLine.Fail($"Typed the first {typed} of {units.Count} characters, then stopped: {reason}. {sent} "
             + $"Check what reached the field before you send the rest (from UTF-16 index {units[typed].Index}).");
