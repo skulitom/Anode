@@ -103,6 +103,7 @@ internal static class SelfTest
         });
 
         Check(results, "pipe queue deadline", () => TransportChecks.QueueDeadline().GetAwaiter().GetResult());
+        Check(results, "pipe forwarded time left", () => TransportChecks.ForwardTimeLeft().GetAwaiter().GetResult());
         Check(results, "pipe late reply", () => TransportChecks.LateReply().GetAwaiter().GetResult());
         Check(results, "pipe reply identity", () => TransportChecks.ReplyId().GetAwaiter().GetResult());
         Check(results, "pipe close during request", () => TransportChecks.CloseDuringRequest().GetAwaiter().GetResult());
@@ -139,6 +140,7 @@ internal static class SelfTest
         Check(results, "agent client validation", AgentChecks.ClientValidation);
         Check(results, "MCP lease client process", () => McpChecks.LeaseClientProcess().GetAwaiter().GetResult());
         Check(results, "agent queue and disconnect", () => AgentChecks.QueueAndDisconnect().GetAwaiter().GetResult());
+        Check(results, "agent queue time", () => AgentChecks.QueueTime().GetAwaiter().GetResult());
         Check(results, "agent line", () => AgentChecks.Line().GetAwaiter().GetResult());
         Check(results, "agent names", () => AgentChecks.Names().GetAwaiter().GetResult());
         Check(results, "MCP ownership", () => AgentChecks.McpOwnership().GetAwaiter().GetResult());

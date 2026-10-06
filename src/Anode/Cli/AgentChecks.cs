@@ -271,6 +271,44 @@ internal static class AgentChecks
         return "private clients contend, expired queued input is fenced, disconnect recovers by expiry, and Stop bypasses ownership";
     }
 
+    public static async Task<string> QueueTime()
+    {
+        long now = 0;
+        var entered = Signal(); var finish = Signal();
+        var lease = new DesktopLease(milliseconds: () => Interlocked.Read(ref now));
+        var given = new System.Collections.Concurrent.ConcurrentDictionary<string, int?>();
+        async Task<JsonObject> Dispatch(JsonObject request, CancellationToken cancel)
+        {
+            given[request.Str("text")!] = request.Int("timeoutMs");
+            if (request.Str("text") == "first")
+            {
+                entered.TrySetResult();
+                await finish.Task.WaitAsync(cancel);
+            }
+            return JsonLine.Ok();
+        }
+        string token = (await lease.HandleAsync(Lease("A", "acquire"), Dispatch)).Obj("result")!.Str("leaseToken")!;
+        Task<JsonObject> active = lease.HandleAsync(Input("A", token, "first"), Dispatch);
+        Task<JsonObject> plain, own;
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            // HandleAsync runs synchronously up to its occupied gate, so these two are known to be queued.
+            plain = lease.HandleAsync(Input("A", token, "plain"), Dispatch);
+            var deadline = Input("A", token, "own deadline");
+            deadline["timeoutMs"] = 20_000;
+            own = lease.HandleAsync(deadline, Dispatch);
+            Interlocked.Exchange(ref now, 7_000);
+        }
+        finally { finish.TrySetResult(); }
+        foreach (var call in new[] { active, plain, own })
+            Require((await call.WaitAsync(TimeSpan.FromSeconds(2))).Bool("ok") == true, "a queued action failed");
+        Require(given["first"] is null && given["plain"] == 53_000 && given["own deadline"] == 13_000,
+            $"queued actions were not given the time left: {given["first"]}, {given["plain"]} and {given["own deadline"]} ms, "
+            + "expected none, 53000 and 13000");
+        return "an action queued behind another of its agent's runs in the time its caller has left";
+    }
+
     public static async Task<string> Line()
     {
         long now = 0;

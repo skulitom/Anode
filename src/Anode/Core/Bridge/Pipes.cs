@@ -268,7 +268,12 @@ internal sealed class JsonPipeClient : IDisposable
         }
     }
 
-    public async Task<JsonObject> RequestAsync(string op, JsonObject? args = null, int timeoutMs = 60_000, CancellationToken cancel = default)
+    /// <param name="sendTimeLeft">
+    /// Sets the request's <c>timeoutMs</c> to the time left when it goes out. The receiver then bounds its work by
+    /// what this deadline still allows after the queue here, instead of starting a full clock of its own.
+    /// </param>
+    public async Task<JsonObject> RequestAsync(string op, JsonObject? args = null, int timeoutMs = 60_000, CancellationToken cancel = default,
+        bool sendTimeLeft = false)
     {
         var request = args is null ? new JsonObject() : (JsonObject)args.DeepClone();
         request["op"] = op;
@@ -277,6 +282,7 @@ internal sealed class JsonPipeClient : IDisposable
 
         // Include queueing and writes in the deadline. In particular, a stop request
         // must not wait indefinitely behind a long-running operation.
+        long started = Environment.TickCount64;
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancel);
         deadline.CancelAfter(timeoutMs);
         bool entered = false;
@@ -286,6 +292,7 @@ internal sealed class JsonPipeClient : IDisposable
             await _oneAtATime.WaitAsync(deadline.Token).ConfigureAwait(false);
             entered = true;
             if (!IsConnected) return JsonLine.Fail("connection is closed; reconnect before sending another request");
+            if (sendTimeLeft) request["timeoutMs"] = (int)Math.Max(1, timeoutMs - (Environment.TickCount64 - started));
             sent = true;
             await _writer.WriteLineAsync(JsonLine.Serialize(request).AsMemory(), deadline.Token).ConfigureAwait(false);
             string? line = await _reader.ReadLineAsync(deadline.Token).ConfigureAwait(false);

@@ -21,7 +21,10 @@ remains usable for the next request.
 flat on the same object. `timeoutMs` on a request bound for the seat overrides the daemon's default
 60 second forwarding timeout. Client deadlines include queueing, writing and reading. A timeout
 after sending closes that connection, because a late reply must not become the next command's
-result. Reconnect for subsequent requests; a timed-out command may already have executed.
+result. Reconnect for subsequent requests; a timed-out command may already have executed. The
+daemon forwards a request with `timeoutMs` set to the time it has left after waiting behind other
+operations on its one connection to the seat host, and the seat host takes its own waits off as well,
+so an operation queued behind another, such as a long `input.text`, still answers in time.
 
 Desktop operations additionally require an `agentId` and live `leaseToken`, acquired through
 `lease` with `action: "acquire"`, and may carry an `agentName` for status and the viewer. `lease`

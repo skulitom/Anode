@@ -61,6 +61,15 @@ internal static class AgentAccess
         return null;
     }
 
+    /// <summary>
+    /// Takes time a request spent waiting off its <c>timeoutMs</c>. Operations bound their work by that value, so they
+    /// then still answer before the deadline their caller counts from when it sent the request.
+    /// </summary>
+    public static void Spend(JsonObject request, long waitedMs)
+    {
+        if (waitedMs > 0) request["timeoutMs"] = (int)Math.Max(1, (request.Int("timeoutMs") ?? 60_000) - waitedMs);
+    }
+
     public static JsonObject Attach(JsonObject? arguments, string? agentId, string? leaseToken)
     {
         var args = arguments is null ? new JsonObject() : (JsonObject)arguments.DeepClone();
