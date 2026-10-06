@@ -427,6 +427,15 @@ the services and main desktop. It is not an automatic service change, and the he
 may return. From a source checkout, retest with `scripts/test-development.ps1 -VerifyInput`
 to prove delivery.
 
+### `seat_observe` fails with "Object reference not set to an instance of an object"
+
+In 0.11.1 and earlier, `seat_observe` and `seat_wait` fail this way on Windows 11 File Explorer
+windows. Explorer's command bar reports UI Automation's AppBar control type, which .NET's UI
+Automation client has no name for, and one such control fails the whole observation. A SemanticZoom
+control does the same, so other apps with either control can fail too. Use `seat_screenshot` and
+`seat_click` on those windows. The fix ([#20](https://github.com/skulitom/Anode/pull/20)) gives such
+controls the role `Unknown`; it comes with the next release.
+
 ### Typed text arrives incomplete or out of order
 
 A program reads typed characters at its own speed. `seat_type` (CLI: `anode type`) sends them 15 ms
@@ -444,6 +453,14 @@ If text still arrives wrong:
   call's time, or the seat stopped. The error gives `typed` and `total` (a newline or an emoji counts as one character)
   and `nextIndex`, the UTF-16 index where the untyped rest starts. Check the field before you send the
   rest; Anode never sends it again by itself.
+
+**In 0.11.1 and earlier,** `seat_type` sends characters without a pause unless you pass `perCharMs`,
+and it reports success even when the program lost some. In Chrome, of one 7,938-character text, about
+the first 5,500 characters arrived intact; the rest had characters missing and out of order. Send long
+text in several calls of at most about 2,500 characters each, with `perCharMs` 3. On the PC where this
+was measured, Windows stretched each 3 ms pause to about 15.5 ms, so such a call takes about
+40 seconds, inside the 60-second request deadline. The pacing described above comes with the next
+release ([#18](https://github.com/skulitom/Anode/pull/18)).
 
 ### A display change fails or looks wrong
 
