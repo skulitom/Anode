@@ -446,9 +446,11 @@ text in several `seat_type` calls of at most about 2,500 characters each, with `
 time, and check the field before you send the next piece. On the PC where this was measured, Windows
 stretched each 3 ms pause to about 15.5 ms, so such a call takes about 40 seconds. Don't send more at
 once: a call that runs past the 60-second request deadline reports a timeout while the seat goes on
-typing, and Anode then shows the seat as `detached`; never resend such a call. The CLI can't do this
-in 0.11.1: `anode type` has no pacing option and types every word after `type` as text. The pacing
-described below comes with the next release ([#18](https://github.com/skulitom/Anode/pull/18)).
+typing, and Anode then shows the seat as `detached`
+([what to do](#a-command-timed-out-and-the-viewer-is-still-connected)); never resend such a call. The
+CLI can't do this in 0.11.1: `anode type` has no pacing option and types every word after `type` as
+text. The pacing described below comes with the next release
+([#18](https://github.com/skulitom/Anode/pull/18)).
 
 A program reads typed characters at its own speed. `seat_type` (CLI: `anode type`) sends them 15 ms
 apart and pauses while the focused program is busy, a pace Chrome keeps up with even in a long field.
