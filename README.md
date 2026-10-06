@@ -8,7 +8,10 @@ Codex or another local (stdio) MCP client gets a hidden Windows session with its
 called the *seat*. The agent drives native apps and headed browsers and takes screenshots while you
 keep working in yours.
 
-<!-- DEMO GIF: record assets/demo.gif (under 8 MB), then replace this comment with: ![An agent testing an app in Anode's background seat while the user keeps working](assets/demo.gif) -->
+![An agent clicking through Calculator and ticking off a task in a sample web app, inside Anode's background seat](assets/demo.gif)
+
+<sub>Recorded inside the seat with Anode 0.11.0, from real MCP tool calls. Idle time between calls is
+cut, and the nine clicks, which took 0.4 s, are shown four times slower.</sub>
 
 [![Release](https://img.shields.io/github/v/release/skulitom/Anode)](https://github.com/skulitom/Anode/releases/latest)
 [![Windows build](https://github.com/skulitom/Anode/actions/workflows/build.yml/badge.svg)](https://github.com/skulitom/Anode/actions/workflows/build.yml)
