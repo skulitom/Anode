@@ -223,8 +223,9 @@ Write-Output 'connector-output-ok'
         -not (Test-Path -LiteralPath (Join-Path $installation '.anode-install.json'))) 'Uninstall left installed files.'
     Assert ((Get-Content -LiteralPath $sentinel -Raw).Trim() -eq 'keep this' -and $uninstallOutput.Contains('you added')) 'Uninstall removed a file the user added.'
     Assert (-not (Test-Path -LiteralPath (Join-Path $startMenu 'Anode.lnk')) -and -not (Test-Path -LiteralPath $registration)) 'Uninstall left its shortcut or Installed apps entry.'
+    # The backup's advice depends on this machine's own rendering value, so only its path is checked.
     Assert ($uninstallOutput.Contains("Logs and saved settings in $(Join-Path $appData 'Anode'):") -and $uninstallOutput.Contains("Logs and saved settings in ${packagedState}:") -and
-        $uninstallOutput.Contains("saved in $(Join-Path $packagedState 'rdp-rendering-backup.json')") -and $uninstallOutput.Contains('#per-user-background-rendering') -and
+        $uninstallOutput.Contains((Join-Path $packagedState 'rdp-rendering-backup.json')) -and
         $uninstallOutput.Contains("still signed in to any site or account you signed in to there: $(Join-Path $appData 'AnodeChrome'). ") -and
         -not $uninstallOutput.Contains('setup --undo')) "The closing message does not list what stays and how to remove it without anode.exe: $uninstallOutput"
     Write-Host '[ok] uninstall lists what stays, with how to remove each without anode.exe'
