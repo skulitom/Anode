@@ -93,7 +93,7 @@ internal static class AccessibilityReader
         var node = new JsonObject
         {
             ["parent"] = parent, ["depth"] = path.Length,
-            ["role"] = data.ControlType.ProgrammaticName.Replace("ControlType.", ""),
+            ["role"] = Role(data.ControlType),
             ["name"] = Clip(data.Name, 500), ["automationId"] = Clip(data.AutomationId, 256),
             ["className"] = Clip(data.ClassName, 128), ["enabled"] = data.IsEnabled,
             ["offscreen"] = data.IsOffscreen, ["focused"] = data.HasKeyboardFocus, ["password"] = password,
@@ -118,8 +118,9 @@ internal static class AccessibilityReader
             else if (textBudget > 0 && element.TryGetCurrentPattern(TextPattern.Pattern, out var document))
             {
                 var pattern = (TextPattern)document;
-                text = pattern.DocumentRange.GetText(Math.Min(textBudget, 3000));
-                var selected = pattern.GetSelection().FirstOrDefault()?.GetText(Math.Min(textBudget, 1000));
+                // The client hands back null for a range or a selection the app didn't provide.
+                text = pattern.DocumentRange?.GetText(Math.Min(textBudget, 3000));
+                var selected = pattern.GetSelection()?.FirstOrDefault()?.GetText(Math.Min(textBudget, 1000));
                 if (!string.IsNullOrEmpty(selected))
                 {
                     node["selectedText"] = Clip(selected, textBudget);
@@ -177,7 +178,7 @@ internal static class AccessibilityReader
         var state = element.Current;
         VerifyElementSession(state.ProcessId);
         if (state.ProcessId != reference.Int("processId") || Clip(state.Name, 500) != reference.Str("name")
-            || state.ControlType.ProgrammaticName.Replace("ControlType.", "") != reference.Str("role")
+            || Role(state.ControlType) != reference.Str("role")
             || Clip(state.AutomationId, 256) != reference.Str("automationId")) throw Stale();
         if (state.IsPassword) throw new InvalidOperationException("Password controls require the user's direct interaction.");
         if (!state.IsEnabled) throw new InvalidOperationException("The control is disabled. Inspect again.");
@@ -209,6 +210,15 @@ internal static class AccessibilityReader
         }
         return new JsonObject { ["performed"] = action, ["note"] = "Observation consumed. Inspect again before the next action." };
     }
+
+    /// <summary>The role of a control whose type .NET's UI Automation client can't name.</summary>
+    internal const string UnknownRole = "Unknown";
+
+    /// <summary>
+    /// The control type's programmatic name without its prefix, such as Button. .NET's client names only the types up to
+    /// Separator and returns no type at all for later ones, SemanticZoom and AppBar, which File Explorer's command bar is.
+    /// </summary>
+    internal static string Role(ControlType? type) => type?.ProgrammaticName.Replace("ControlType.", "") ?? UnknownRole;
 
     private static InvalidOperationException Stale() => new("The control changed since observation. Inspect again; the action was not replayed.");
     private static void VerifyElementSession(int pid)
