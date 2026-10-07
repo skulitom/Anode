@@ -82,19 +82,20 @@ is supplied. A configured value alone does not prove that capture works.
 
 Without `anode.exe`, for example after an uninstall, set the value back from the backup in your own
 PowerShell, naming the backup the uninstaller listed. Like `anode rendering --restore`, it changes
-the value only while it is still Anode's `2`, since anything else means something changed it
-later. If the uninstaller listed several backups, each saved by a different app's Anode, use the
+the value, and deletes the backup, only while the value is still Anode's `2`. Anything else means
+something changed it later, so the backup is out of date: delete it yourself. A wrong path changes
+nothing. If the uninstaller listed several backups, each saved by a different app's Anode, use the
 one with the earlier value you want and delete the others.
 
 ```powershell
 $backup = "$env:LOCALAPPDATA\Anode\rdp-rendering-backup.json"
-$previous = (Get-Content -LiteralPath $backup -Raw | ConvertFrom-Json).PreviousValue
 $key = 'HKCU:\Software\Microsoft\Terminal Server Client'
-if ((Get-ItemProperty -LiteralPath $key).RemoteDesktop_SuppressWhenMinimized -eq 2) {
-    if ($null -eq $previous) { Remove-ItemProperty -LiteralPath $key -Name RemoteDesktop_SuppressWhenMinimized }
-    else { Set-ItemProperty -LiteralPath $key -Name RemoteDesktop_SuppressWhenMinimized -Value $previous -Type DWord }
+$saved = Get-Content -LiteralPath $backup -Raw | ConvertFrom-Json
+if ($saved -and (Get-ItemProperty -LiteralPath $key).RemoteDesktop_SuppressWhenMinimized -eq 2) {
+    if ($null -eq $saved.PreviousValue) { Remove-ItemProperty -LiteralPath $key -Name RemoteDesktop_SuppressWhenMinimized }
+    else { Set-ItemProperty -LiteralPath $key -Name RemoteDesktop_SuppressWhenMinimized -Value $saved.PreviousValue -Type DWord }
+    Remove-Item -LiteralPath $backup
 }
-Remove-Item -LiteralPath $backup
 ```
 
 ## Desktop inspection

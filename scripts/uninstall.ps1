@@ -49,9 +49,11 @@ function Get-Leftovers {
             $backup = Join-Path $folder 'rdp-rendering-backup.json'
             if (-not (Test-Path -LiteralPath $backup -PathType Leaf)) { }
             elseif ($rendering -eq 2) {
-                $saved = try { (Get-Content -LiteralPath $backup -Raw | ConvertFrom-Json).PreviousValue } catch { 'unreadable' }
-                "The Remote Desktop rendering preference Anode changed is not restored. Its earlier value, $(if ($null -eq $saved) { 'none' } else { $saved }), " +
-                    "is saved in $backup; set it back by hand before deleting that folder: $securityGuide#per-user-background-rendering"
+                $saved = try { Get-Content -LiteralPath $backup -Raw | ConvertFrom-Json } catch { $null }
+                $value = if (-not $saved -or 'PreviousValue' -notin $saved.PSObject.Properties.Name) { 'unreadable' }
+                    elseif ($null -eq $saved.PreviousValue) { 'none (the value was absent)' } else { $saved.PreviousValue }
+                "The Remote Desktop rendering preference Anode changed is not restored. Its backup, $backup, holds the earlier " +
+                    "value: $value. Set it back by hand before deleting that folder: $securityGuide#per-user-background-rendering"
             } else {
                 "$backup is out of date: the Remote Desktop rendering preference no longer has the value Anode set, so leave the preference as it is."
             }
@@ -217,7 +219,7 @@ try {
     $leftovers = @(try { Get-Leftovers } catch { "Could not check what stays on this machine ($($_.Exception.Message)); see $securityGuide." })
     if ($leftovers.Count) {
         $other = try { Get-OtherAnode } catch { $null }
-        Write-Host $(if ($other) { "These stay on this machine and are shared with another Anode, ${other}: keep them while you use it. Without Anode, each goes like this:" }
+        Write-Host $(if ($other) { "These stay on this machine. Another Anode, $other, still uses the logs, profiles and machine settings among them, so keep those while you use it. Without Anode, each goes like this:" }
             else { 'These stay on this machine. anode.exe is gone, so each says how to remove it without Anode:' })
         foreach ($line in $leftovers) { Write-Host "- $line" }
     }
