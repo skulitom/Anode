@@ -203,10 +203,17 @@ Write-Output 'connector-output-ok'
     # Uninstall with no agent CLI visible, so no real client configuration is read or changed, and
     # -Quiet, so nothing asks, quits Anode or undoes machine setup.
     function Get-Command { param([string]$Name, [string]$ErrorAction) if ($Name -notin @('codex', 'claude')) { Microsoft.PowerShell.Core\Get-Command @PSBoundParameters } }
+    # A stand-in %LOCALAPPDATA% holds leftovers the closing message must name, with how to remove them without anode.exe.
+    $appData = Join-Path $workspace 'LocalAppData'
+    $packagedState = Join-Path $appData 'Packages\Test.App_x\LocalCache\Local\Anode'
+    foreach ($folder in @((Join-Path $appData 'Anode'), $packagedState, (Join-Path $appData 'AnodeChrome'))) { $null = New-Item -ItemType Directory -Path $folder }
+    Set-Content -LiteralPath (Join-Path $packagedState 'rdp-rendering-backup.json') -Value '{"PreviousValue":null}'
+    $originalAppData = $env:LOCALAPPDATA
     try {
+        $env:LOCALAPPDATA = $appData
         $uninstallOutput = @(& (Join-Path $installation 'uninstall.ps1') -Quiet 6>&1 | ForEach-Object { "$_" }) -join "`n"
         $uninstallCode = $LASTEXITCODE
-    } finally { Remove-Item -LiteralPath Function:\Get-Command }
+    } finally { Remove-Item -LiteralPath Function:\Get-Command; $env:LOCALAPPDATA = $originalAppData }
     Write-Host $uninstallOutput
     Assert ($uninstallCode -eq 0 -and $uninstallOutput.Contains('Anode is uninstalled.')) "Uninstall failed: $uninstallOutput"
     Assert (-not (Test-Path -LiteralPath $exe) -and -not (Test-Path -LiteralPath (Join-Path $installation 'docs')) -and
@@ -214,6 +221,11 @@ Write-Output 'connector-output-ok'
         -not (Test-Path -LiteralPath (Join-Path $installation '.anode-install.json'))) 'Uninstall left installed files.'
     Assert ((Get-Content -LiteralPath $sentinel -Raw).Trim() -eq 'keep this' -and $uninstallOutput.Contains('you added')) 'Uninstall removed a file the user added.'
     Assert (-not (Test-Path -LiteralPath (Join-Path $startMenu 'Anode.lnk')) -and -not (Test-Path -LiteralPath $registration)) 'Uninstall left its shortcut or Installed apps entry.'
+    Assert ($uninstallOutput.Contains("Logs and saved settings in $(Join-Path $appData 'Anode'):") -and $uninstallOutput.Contains("Logs and saved settings in ${packagedState}:") -and
+        $uninstallOutput.Contains("saved in $(Join-Path $packagedState 'rdp-rendering-backup.json')") -and $uninstallOutput.Contains('#per-user-background-rendering') -and
+        $uninstallOutput.Contains("still signed in to any site or account you signed in to there: $(Join-Path $appData 'AnodeChrome'). ") -and
+        -not $uninstallOutput.Contains('setup --undo')) "The closing message does not list what stays and how to remove it without anode.exe: $uninstallOutput"
+    Write-Host '[ok] uninstall lists what stays, with how to remove each without anode.exe'
     $stray = Join-Path $workspace 'not installed'
     $null = New-Item -ItemType Directory -Path $stray
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'uninstall.ps1') -Destination $stray

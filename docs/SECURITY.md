@@ -52,6 +52,16 @@ Remove-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Servi
 
 Leave `bEnumerateHWBeforeSW` alone if your organization's Group Policy sets it.
 
+### Turning child sessions off without Anode
+
+`anode setup --undo` needs `anode.exe`. After an uninstall that left child sessions on, run this
+from an administrator PowerShell while no Anode runs. It prints `True` once they are off:
+
+```powershell
+Add-Type -Namespace Wts -Name ChildSessions -MemberDefinition '[DllImport("wtsapi32.dll")] public static extern bool WTSEnableChildSessions(bool enable);'
+[Wts.ChildSessions]::WTSEnableChildSessions($false)
+```
+
 ## Per-user background rendering
 
 Before creating its RDP viewer, the daemon sets the DWORD
@@ -66,6 +76,19 @@ packaged app, such as the Claude desktop app, started, in `%LOCALAPPDATA%\Packag
 inside such an app it refuses, because the app may keep its file and registry changes to itself.
 The next daemon startup configures rendering again unless `--no-background-rendering`
 is supplied. A configured value alone does not prove that capture works.
+
+Without `anode.exe`, for example after an uninstall, set the value back from the backup in your own
+PowerShell, naming the backup the uninstaller listed. If the value is no longer `2`, something
+changed it after Anode did; leave it, and only delete the backup.
+
+```powershell
+$backup = "$env:LOCALAPPDATA\Anode\rdp-rendering-backup.json"
+$previous = (Get-Content -LiteralPath $backup -Raw | ConvertFrom-Json).PreviousValue
+$key = 'HKCU:\Software\Microsoft\Terminal Server Client'
+if ($null -eq $previous) { Remove-ItemProperty -LiteralPath $key -Name RemoteDesktop_SuppressWhenMinimized }
+else { Set-ItemProperty -LiteralPath $key -Name RemoteDesktop_SuppressWhenMinimized -Value $previous -Type DWord }
+Remove-Item -LiteralPath $backup
+```
 
 ## Desktop inspection
 

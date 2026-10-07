@@ -193,7 +193,9 @@ started, in that app's `%LOCALAPPDATA%\Packages\<app>\LocalCache\Local\Anode`. T
 `%LOCALAPPDATA%\AnodeEdge`, and Android Studio's seat profile, `%LOCALAPPDATA%\AnodeAndroidStudio`,
 also remain, still signed in to any site or account you signed in to there; delete them to sign
 those out. To turn child sessions off, do it during removal (answer yes, or pass
-`-UndoSetup`): once `anode.exe` is gone, `anode setup --undo` is no longer available.
+`-UndoSetup`): once `anode.exe` is gone, `anode setup --undo` is no longer available, and
+[a PowerShell command](SECURITY.md#turning-child-sessions-off-without-anode) does it instead. The
+uninstaller ends by listing what stays on this machine and how to remove each without Anode.
 
 For portable, Scoop and plugin installs, or to remove Anode by hand:
 
