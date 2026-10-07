@@ -429,7 +429,30 @@ the services and main desktop. It is not an automatic service change, and the he
 may return. From a source checkout, retest with `scripts/test-development.ps1 -VerifyInput`
 to prove delivery.
 
+### `seat_observe` fails with "Object reference not set to an instance of an object"
+
+In 0.11.1 and earlier, `seat_observe` and `seat_wait` (CLI: `anode inspect` and `anode wait`) fail
+this way on Windows 11 File Explorer windows. Explorer's command bar reports UI Automation's AppBar
+control type, which .NET's UI Automation client has no name for, and one such control fails the whole
+observation. A SemanticZoom control does the same, so other apps with either control can fail too. Use
+`seat_screenshot` and `seat_click` (CLI: `anode shot` and `anode click`) on those windows. A fix for
+the next release ([#20](https://github.com/skulitom/Anode/pull/20)) gives such controls the role
+`Unknown`.
+
 ### Typed text arrives incomplete or out of order
+
+**In 0.11.1 and earlier,** `seat_type` sends characters without a pause unless you pass `perCharMs`,
+and it reports success even when the program lost some. In Chrome, of one 7,938-character text, about
+the first 5,500 characters arrived intact; the rest had characters missing and out of order. Send long
+text in several `seat_type` calls of at most about 2,500 characters each, with `perCharMs` 3, one at a
+time, and check the field before you send the next piece. On the PC where this was measured, Windows
+stretched each 3 ms pause to about 15.5 ms, so such a call takes about 40 seconds. Don't send more at
+once: a call that runs past the 60-second request deadline reports a timeout while the seat goes on
+typing, and Anode then shows the seat as `detached`
+([what to do](#a-command-timed-out-and-the-viewer-is-still-connected)); never resend such a call. The
+CLI can't do this in 0.11.1: `anode type` has no pacing option and types every word after `type` as
+text. The pacing described below comes with the next release
+([#18](https://github.com/skulitom/Anode/pull/18)).
 
 A program reads typed characters at its own speed. `seat_type` (CLI: `anode type`) sends them 15 ms
 apart and pauses while the focused program is busy, a pace Chrome keeps up with even in a long field.
