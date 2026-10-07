@@ -148,9 +148,18 @@ internal static class DevelopmentChecks
                 Convert.ToBase64String(Encoding.Unicode.GetBytes("$null = [Console]::In.ReadLine(); " + code)) }) info.ArgumentList.Add(arg);
             return info;
         }
+        // Windows PowerShell can take longer than one wait (10 s at most) to start on a cold machine, so read a job
+        // that should finish until it does, for up to 30 s, before judging its result.
+        static async Task<JsonObject> Finished(ExecutionJobs jobs, JsonObject reply)
+        {
+            for (var clock = Stopwatch.StartNew(); reply.Bool("finished") != true && clock.ElapsedMilliseconds < 30000; )
+                reply = await jobs.ReadAsync(new JsonObject { ["jobId"] = reply.Str("jobId"),
+                    ["waitMs"] = (int)Math.Clamp(30000 - clock.ElapsedMilliseconds, 1, 10000) }, reply.Str("agentId")!);
+            return reply;
+        }
         using (var jobs = new ExecutionJobs(() => Worker("[Console]::Out.Write('hello'); [Console]::Error.Write('problem'); exit 7")))
         {
-            var done = await jobs.StartAsync(new JsonObject { ["path"] = "unused-test-command", ["waitMs"] = 10000 }, "test-agent");
+            var done = await Finished(jobs, await jobs.StartAsync(new JsonObject { ["path"] = "unused-test-command", ["waitMs"] = 10000 }, "test-agent"));
             Require(done.Bool("finished") == true && done.Int("exitCode") == 7 && done.Str("stdout") == "hello" && done.Str("stderr") == "problem", "exit code or streams missing: " + done);
             var listed = await jobs.ReadAsync(new JsonObject { ["action"] = "list" }, "test-agent");
             Require(listed["jobs"] is JsonArray { Count: 1 }, "interrupted-call job recovery unavailable");
@@ -163,7 +172,7 @@ internal static class DevelopmentChecks
             return info;
         }))
         {
-            var done = await jobs.StartAsync(new JsonObject { ["path"] = "unused-test-command", ["waitMs"] = 10000 }, "test-agent");
+            var done = await Finished(jobs, await jobs.StartAsync(new JsonObject { ["path"] = "unused-test-command", ["waitMs"] = 10000 }, "test-agent"));
             Require(done.Bool("finished") == true && done.Int("exitCode") == 0
                 && done.Str("stdout") == "caf\u00e9 \u6771\u4eac \U0001F680" && done.Str("stderr") == "caf\u00e9 \u6771\u4eac \U0001F680",
                 "UTF-8 output depends on the host console encoding: " + done);
@@ -186,7 +195,7 @@ internal static class DevelopmentChecks
             Require(rejected, "the cancelled client call still waited for its command");
             var listed = await jobs.ReadAsync(new JsonObject { ["action"] = "list" }, "test-agent");
             Require(listed["jobs"] is JsonArray { Count: 1 }, "interrupted start was not recoverable or created more than one job");
-            var recovered = await jobs.ReadAsync(new JsonObject { ["jobId"] = listed["jobs"]![0]!["jobId"]!.DeepClone(), ["waitMs"] = 10000 }, "test-agent");
+            var recovered = await Finished(jobs, await jobs.ReadAsync(new JsonObject { ["jobId"] = listed["jobs"]![0]!["jobId"]!.DeepClone(), ["waitMs"] = 10000 }, "test-agent"));
             Require(recovered.Bool("finished") == true && recovered.Str("state") == "completed" && recovered.Str("stdout") == "survived",
                 "client cancellation killed an already started command");
         }
