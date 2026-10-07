@@ -38,20 +38,42 @@ function Get-Running {
 # What stays on this machine once anode.exe is gone, each with how to remove it without Anode. Read after
 # removal, so it names only what is really left; a probe that fails is skipped rather than failing the removal.
 function Get-Leftovers {
+    function Read-Value([string]$Key, [string]$Name) { try { (Get-ItemProperty -LiteralPath $Key -Name $Name -ErrorAction Stop).$Name } catch { $null } }
     $local = $env:LOCALAPPDATA
-    $folders = @(Join-Path $local 'Anode') + @(Get-Item -Path (Join-Path $local 'Packages\*\LocalCache\Local\Anode') -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
-    foreach ($folder in @($folders | Where-Object { Test-Path -LiteralPath $_ -PathType Container })) {
-        $backup = Join-Path $folder 'rdp-rendering-backup.json'
-        if (Test-Path -LiteralPath $backup -PathType Leaf) {
-            "The Remote Desktop rendering preference Anode changed. Its earlier value is saved in $backup; " +
-                "set it back by hand before deleting that folder: $securityGuide#per-user-background-rendering"
+    if ($local) {
+        # Where 'anode rendering --restore' looks: Anode's own folder, then each packaged app's.
+        $folders = @(Join-Path $local 'Anode') + @(Get-ChildItem -LiteralPath (Join-Path $local 'Packages') -Directory -ErrorAction SilentlyContinue |
+            ForEach-Object { Join-Path $_.FullName 'LocalCache\Local\Anode' })
+        $rendering = Read-Value 'HKCU:\Software\Microsoft\Terminal Server Client' 'RemoteDesktop_SuppressWhenMinimized'
+        foreach ($folder in @($folders | Where-Object { Test-Path -LiteralPath $_ -PathType Container })) {
+            $backup = Join-Path $folder 'rdp-rendering-backup.json'
+            if (-not (Test-Path -LiteralPath $backup -PathType Leaf)) { }
+            elseif ($rendering -eq 2) {
+                $saved = try { (Get-Content -LiteralPath $backup -Raw | ConvertFrom-Json).PreviousValue } catch { 'unreadable' }
+                "The Remote Desktop rendering preference Anode changed is not restored. Its earlier value, $(if ($null -eq $saved) { 'none' } else { $saved }), " +
+                    "is saved in $backup; set it back by hand before deleting that folder: $securityGuide#per-user-background-rendering"
+            } else {
+                "$backup is out of date: the Remote Desktop rendering preference no longer has the value Anode set, so leave the preference as it is."
+            }
+            "Logs and saved settings in ${folder}: delete the folder when you no longer need them."
         }
-        "Logs and saved settings in ${folder}: delete the folder when you no longer need them."
+        $profiles = @('AnodeChrome', 'AnodeEdge', 'AnodeAndroidStudio' | ForEach-Object { Join-Path $local $_ } | Where-Object { Test-Path -LiteralPath $_ -PathType Container })
+        if ($profiles.Count) {
+            "The seat's browser and Android Studio profiles, still signed in to any site or account you signed in to there: " +
+                "$($profiles -join ', '). Delete them to sign those out."
+        }
     }
-    $profiles = @('AnodeChrome', 'AnodeEdge', 'AnodeAndroidStudio' | ForEach-Object { Join-Path $local $_ } | Where-Object { Test-Path -LiteralPath $_ -PathType Container })
-    if ($profiles.Count) {
-        "The seat's browser and Android Studio profiles, still signed in to any site or account you signed in to there: " +
-            "$($profiles -join ', '). Delete them to sign those out."
+    # The copies connect-agents.ps1 made before changing a client's settings, this removal's included.
+    $copies = @(try {
+        foreach ($config in @((Join-Path $(if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USERPROFILE '.codex' }) 'config.toml'),
+            (Join-Path $(if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { $env:USERPROFILE }) '.claude.json'))) {
+            Get-ChildItem -LiteralPath (Split-Path -Parent $config) -Filter ((Split-Path -Leaf $config) + '.anode-backup-*') -File -ErrorAction SilentlyContinue |
+                ForEach-Object { $_.FullName }
+        }
+    } catch { })
+    if ($copies.Count) {
+        "Copies of agent client settings, saved before Anode changed them, which can hold other servers' settings and tokens: " +
+            "$($copies -join ', '). Delete them once those clients work as you want."
     }
     $childSessions = $null
     try {
@@ -63,19 +85,29 @@ function Get-Leftovers {
     } catch { }
     if ($childSessions -ne $false) {
         $state = if ($childSessions) { 'Windows child sessions are on.' } else { "If you ran 'anode setup', Windows child sessions are on." }
-        "$state To turn them off, run the commands in $securityGuide#turning-child-sessions-off-without-anode from an administrator PowerShell."
+        "$state To turn them off, with no Anode running, run the commands in $securityGuide#turning-child-sessions-off-without-anode " +
+            'from an administrator PowerShell.'
     }
     $terminalServer = 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server'
-    function Read-Dword([string]$Key, [string]$Name) { try { (Get-ItemProperty -LiteralPath $Key -Name $Name -ErrorAction Stop).$Name } catch { $null } }
-    if ((Read-Dword $terminalServer 'fDenyTSConnections') -eq 0) {
-        "The Remote Desktop host is on: 'anode setup' turns it on, and nothing in Anode turns it off. If nothing else needs it, " +
-            'turn it off in Settings > System > Remote Desktop.'
+    if ((Read-Value $terminalServer 'fDenyTSConnections') -eq 0) {
+        "The Remote Desktop host is on, and nothing in Anode turns it off. If it was off before 'anode setup' and nothing else " +
+            'needs it, turn it off in Settings > System > Remote Desktop.'
     }
-    if ((Read-Dword "$terminalServer\WinStations" 'DWMFRAMEINTERVAL') -eq 15 -or
-        (Read-Dword 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' 'bEnumerateHWBeforeSW') -eq 1) {
-        "The seat's 60 fps frame cap or hardware graphics setting ('anode setup --fps 60' or '--gpu') is set; unless your " +
-            "organization set it, remove it as $securityGuide#what-anode-setup-changes shows."
+    $tuning = @()
+    if ((Read-Value "$terminalServer\WinStations" 'DWMFRAMEINTERVAL') -eq 15) { $tuning += "the 60 fps frame cap (DWMFRAMEINTERVAL, from --fps 60)" }
+    if ((Read-Value 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' 'bEnumerateHWBeforeSW') -eq 1) {
+        $tuning += 'the hardware graphics setting (bEnumerateHWBeforeSW, from --gpu)'
     }
+    if ($tuning.Count) {
+        "Remote Desktop settings 'anode setup' can make are set: $($tuning -join ' and '). Unless your organization set them, " +
+            "remove them as $securityGuide#what-anode-setup-changes shows."
+    }
+}
+# Another Anode on this machine (a portable, Scoop or plugin copy) shares that log folder, the seat profiles and machine setup.
+function Get-OtherAnode {
+    $paths = @(Get-Process -Name anode -ErrorAction SilentlyContinue | ForEach-Object { try { $_.Path } catch { } }) +
+        @(Get-Command -Name anode.exe -ErrorAction SilentlyContinue | ForEach-Object { $_.Source })
+    @($paths | Where-Object { $_ -and -not $_.StartsWith($InstallDirectory + '\', [StringComparison]::OrdinalIgnoreCase) })[0]
 }
 
 try {
@@ -184,7 +216,9 @@ try {
     Write-Host "`nAnode is uninstalled." -ForegroundColor Green
     $leftovers = @(try { Get-Leftovers } catch { "Could not check what stays on this machine ($($_.Exception.Message)); see $securityGuide." })
     if ($leftovers.Count) {
-        Write-Host 'These stay on this machine. anode.exe is gone, so each says how to remove it without Anode:'
+        $other = try { Get-OtherAnode } catch { $null }
+        Write-Host $(if ($other) { "These stay on this machine and are shared with another Anode, ${other}: keep them while you use it. Without Anode, each goes like this:" }
+            else { 'These stay on this machine. anode.exe is gone, so each says how to remove it without Anode:' })
         foreach ($line in $leftovers) { Write-Host "- $line" }
     }
     Finish 0

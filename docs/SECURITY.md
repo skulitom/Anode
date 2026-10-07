@@ -55,7 +55,10 @@ Leave `bEnumerateHWBeforeSW` alone if your organization's Group Policy sets it.
 ### Turning child sessions off without Anode
 
 `anode setup --undo` needs `anode.exe`. After an uninstall that left child sessions on, run this
-from an administrator PowerShell while no Anode runs. It prints `True` once they are off:
+from an administrator PowerShell while no Anode runs. It prints `True` once they are off; `False`
+usually means the PowerShell wasn't run as administrator. `setup --undo` signs out the seat first,
+which this doesn't, so if a seat may still be signed in, for example after Anode was ended by
+force, restart Windows first.
 
 ```powershell
 Add-Type -Namespace Wts -Name ChildSessions -MemberDefinition '[DllImport("wtsapi32.dll")] public static extern bool WTSEnableChildSessions(bool enable);'
@@ -78,15 +81,19 @@ The next daemon startup configures rendering again unless `--no-background-rende
 is supplied. A configured value alone does not prove that capture works.
 
 Without `anode.exe`, for example after an uninstall, set the value back from the backup in your own
-PowerShell, naming the backup the uninstaller listed. If the value is no longer `2`, something
-changed it after Anode did; leave it, and only delete the backup.
+PowerShell, naming the backup the uninstaller listed. Like `anode rendering --restore`, it changes
+the value only while it is still Anode's `2`, since anything else means something changed it
+later. If the uninstaller listed several backups, each saved by a different app's Anode, use the
+one with the earlier value you want and delete the others.
 
 ```powershell
 $backup = "$env:LOCALAPPDATA\Anode\rdp-rendering-backup.json"
 $previous = (Get-Content -LiteralPath $backup -Raw | ConvertFrom-Json).PreviousValue
 $key = 'HKCU:\Software\Microsoft\Terminal Server Client'
-if ($null -eq $previous) { Remove-ItemProperty -LiteralPath $key -Name RemoteDesktop_SuppressWhenMinimized }
-else { Set-ItemProperty -LiteralPath $key -Name RemoteDesktop_SuppressWhenMinimized -Value $previous -Type DWord }
+if ((Get-ItemProperty -LiteralPath $key).RemoteDesktop_SuppressWhenMinimized -eq 2) {
+    if ($null -eq $previous) { Remove-ItemProperty -LiteralPath $key -Name RemoteDesktop_SuppressWhenMinimized }
+    else { Set-ItemProperty -LiteralPath $key -Name RemoteDesktop_SuppressWhenMinimized -Value $previous -Type DWord }
+}
 Remove-Item -LiteralPath $backup
 ```
 

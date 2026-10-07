@@ -207,8 +207,8 @@ Write-Output 'connector-output-ok'
     $appData = Join-Path $workspace 'LocalAppData'
     $packagedState = Join-Path $appData 'Packages\Test.App_x\LocalCache\Local\Anode'
     foreach ($folder in @((Join-Path $appData 'Anode'), $packagedState, (Join-Path $appData 'AnodeChrome'))) { $null = [IO.Directory]::CreateDirectory($folder) }
-    # The uninstaller finds packaged folders through a wildcard, which spells out an 8.3 TEMP such as RUNNER~1; expect the same.
-    $packagedState = (Get-Item -Path (Join-Path $appData 'Packages\*\LocalCache\Local\Anode')).FullName
+    # The uninstaller lists packaged folders with Get-ChildItem, which spells out an 8.3 TEMP such as RUNNER~1; expect the same.
+    $packagedState = Join-Path (Get-ChildItem -LiteralPath (Join-Path $appData 'Packages') -Directory).FullName 'LocalCache\Local\Anode'
     Set-Content -LiteralPath (Join-Path $packagedState 'rdp-rendering-backup.json') -Value '{"PreviousValue":null}'
     $originalAppData = $env:LOCALAPPDATA
     try {
