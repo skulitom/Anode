@@ -44,6 +44,12 @@ All of this lives in `%LOCALAPPDATA%\Anode`, or the folder you pass with `--stat
   `emulator-5554.log`. It holds the emulator's own output: the start time, the emulator's path and
   arguments (the AVD name and its options), and its boot, adb and error messages.
 
+Some desktop apps installed as MSIX packages, such as the Claude desktop app, give the programs
+they start a private view of AppData. When such an app starts Anode, files its programs create,
+including the whole state folder of a daemon they start, can then be in
+`%LOCALAPPDATA%\Packages\<the app's package>\LocalCache\Local\Anode` instead. `anode status` shows
+which log the running daemon writes.
+
 The seat also keeps profiles of its own in `%LOCALAPPDATA%`, apart from your own browser and
 Android Studio. `--state-dir` does not move them:
 
@@ -67,8 +73,9 @@ when the seat host exits or its bounded history evicts the job. The seat profile
 between seats and after Anode is removed, until you delete them. To sign a site out, open the
 profile with `anode browser --sign-in <the site's address>` (add `--edge` for Edge's) and sign out
 there. To remove everything, follow
-[Remove](INSTALL.md#remove), then delete `%LOCALAPPDATA%\Anode` and, with no seat browser or Android
-Studio open, `%LOCALAPPDATA%\AnodeChrome`, `AnodeEdge` and `AnodeAndroidStudio`.
+[Remove](INSTALL.md#remove), then delete `%LOCALAPPDATA%\Anode`, any `Anode` folder under
+`%LOCALAPPDATA%\Packages\<app>\LocalCache\Local`, and, with no seat browser or Android Studio open,
+`%LOCALAPPDATA%\AnodeChrome`, `AnodeEdge` and `AnodeAndroidStudio`.
 
 ## Contact
 

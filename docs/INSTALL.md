@@ -188,7 +188,8 @@ skill. It asks before undoing machine setup: turning child sessions off and rest
 rendering value, with one administrator prompt, and only while no Anode runs, because turning child
 sessions off signs out any seat. `-UndoSetup` does that without asking; `-Quiet` asks nothing and
 leaves a running Anode and machine setup alone. Remote Desktop stays enabled, and logs remain in
-`%LOCALAPPDATA%\Anode`. The seat's browser profiles, `%LOCALAPPDATA%\AnodeChrome` and
+`%LOCALAPPDATA%\Anode`, or, for an Anode that a packaged app such as the Claude desktop app
+started, in that app's `%LOCALAPPDATA%\Packages\<app>\LocalCache\Local\Anode`. The seat's browser profiles, `%LOCALAPPDATA%\AnodeChrome` and
 `%LOCALAPPDATA%\AnodeEdge`, and Android Studio's seat profile, `%LOCALAPPDATA%\AnodeAndroidStudio`,
 also remain, still signed in to any site or account you signed in to there; delete them to sign
 those out. To turn child sessions off, do it during removal (answer yes, or pass
@@ -202,7 +203,8 @@ For portable, Scoop and plugin installs, or to remove Anode by hand:
    you used the plugin. For other clients, remove only their Anode entry.
    Remove the `anode-desktop` skill folder from the [client skill locations](FOR-AGENTS.md#skill-installation-and-control)
    if installed; MCP registration and skills are independent.
-3. Optionally run `anode rendering --restore` to restore the saved per-user RDP rendering value,
+3. Optionally run `anode rendering --restore` from your own terminal to restore the saved per-user
+   RDP rendering value,
    and `anode setup --undo` to disable child sessions. Remote Desktop remains enabled;
    [security documentation](SECURITY.md) explains why and how to disable it separately.
    If you ran `setup` with `--fps 60` or `--gpu`, also remove the values they set
@@ -211,8 +213,10 @@ For portable, Scoop and plugin installs, or to remove Anode by hand:
    environment variables for your account**, and delete `Anode.lnk` from
    `%APPDATA%\Microsoft\Windows\Start Menu\Programs` if present.
    Scoop users run `scoop uninstall anode` instead.
-5. Logs and saved rendering state remain in `%LOCALAPPDATA%\Anode`. Keep them for troubleshooting
-   or delete them after restoring settings. Client config backups remain beside the originals.
+5. Logs and saved rendering state remain in `%LOCALAPPDATA%\Anode`, and for an Anode that a packaged
+   app such as the Claude desktop app started, in that app's
+   `%LOCALAPPDATA%\Packages\<app>\LocalCache\Local\Anode`. Keep them for troubleshooting or delete them after
+   restoring settings. Client config backups remain beside the originals.
    The seat browser profiles in `%LOCALAPPDATA%\AnodeChrome` and `%LOCALAPPDATA%\AnodeEdge`, and
    Android Studio's seat profile in `%LOCALAPPDATA%\AnodeAndroidStudio`, keep their sign-ins until
    you delete them.

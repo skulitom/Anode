@@ -548,6 +548,47 @@ internal static class DiagnosticsChecks
         return (process.ExitCode, await error);
     }
 
+    /// <summary>Where <c>rendering --restore</c> looks for its backup, in a disposable folder. The registry is not touched.</summary>
+    public static string RenderingBackups()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "anode-rendering-check-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            string local = Path.Combine(root, "Local"), state = Path.Combine(local, "Anode");
+            string Package(string name) => Path.Combine(local, "Packages", name, "LocalCache", "Local", "Anode");
+            string Save(string folder)
+            {
+                Directory.CreateDirectory(folder);
+                string file = Path.Combine(folder, "rdp-rendering-backup.json");
+                File.WriteAllText(file, "{\"PreviousValue\":null}");
+                return file;
+            }
+            List<string> Found(bool chosen = false, string folder = "Anode") => BackgroundRendering.Backups(state, chosen, local, folder);
+
+            Directory.CreateDirectory(state);
+            Require(Found().Count == 0, "a backup was found with no Packages folder");
+            Directory.CreateDirectory(Path.Combine(local, "Packages", "Other.App_1", "LocalCache", "Local"));
+            string claude = Save(Package("Claude_1"));
+            Require(Found() is [var one] && one == claude, "the backup a packaged app's daemon saved was missed: " + string.Join(", ", Found()));
+            Require(Found(chosen: true).Count == 0, "--state-dir did not limit the search to its own folder");
+            Require(Found(folder: "Anode-dev").Count == 0, "another channel's backup was used");
+            string codex = Save(Package("OpenAI.Codex_1"));
+            Require(Found() is [var first, var second] && first == claude && second == codex, "two packaged apps' backups were not both listed");
+            string own = Save(state);
+            Require(Found() is [var mine] && mine == own, "the state directory's own backup did not take precedence");
+            // Inside a packaged app the state directory resolves into the app's folder; restoring from there is refused.
+            Require(BackgroundRendering.PackagedRefusal(Package("Claude_1"), false, local) is { } refusal
+                && refusal.Contains("your own terminal", StringComparison.Ordinal), "rendering --restore inside a packaged app was not refused");
+            Require(BackgroundRendering.PackagedRefusal(Package("Claude_1"), true, local) is null && BackgroundRendering.PackagedRefusal(state, false, local) is null,
+                "rendering --restore was refused in an ordinary terminal or with --state-dir");
+            return "the state directory's backup first; without --state-dir, packaged apps' Anode folders too, never another channel's; refused inside a packaged app";
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        }
+    }
+
     public static string ScheduledLogging()
     {
         string directory = Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData),
