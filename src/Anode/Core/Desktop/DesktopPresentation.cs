@@ -69,7 +69,7 @@ internal static class DesktopPresentation
         else
         {
             text.Append(result.Str("note") ?? "ok");
-            if (result.Str("value") is { } value) text.Append(" It now reads: " + Line(value));
+            if (result.Str("value") is { } value) text.Append(" It now reads: " + (value.Length == 0 ? "(empty)" : "\"" + Line(value) + "\""));
         }
         return text.ToString().TrimEnd();
     }

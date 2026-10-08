@@ -153,21 +153,23 @@ internal static class DesktopChecks
     }
 
     /// <summary>
-    /// A drop-down list that takes set_value the way it is told to: applies it, ignores it as Chrome's &lt;select&gt;
-    /// does, applies it a moment later as Chrome's text fields do, or reformats it.
+    /// A drop-down list, or a text field, that takes set_value the way it is told to: applies it, ignores it as Chrome's
+    /// &lt;select&gt; does, applies it a moment later as Chrome's text fields do, reformats it, or goes away.
     /// </summary>
     private sealed class ValueWindow : HiddenWindow, IValueProvider
     {
         private volatile string _mode = "apply", _value = "Free";
-        public void Use(string mode) { _mode = mode; _value = "Free"; }
+        private volatile bool _sent, _field;
+        public void Use(string mode, bool field = false) { _mode = mode; _field = field; _value = "Free"; _sent = false; }
         public override object? GetPatternProvider(int patternId) => patternId == ValuePattern.Pattern.Id ? this : null;
         public override object? GetPropertyValue(int propertyId) =>
-            propertyId == AutomationElement.ControlTypeProperty.Id ? ControlType.ComboBox.Id
+            propertyId == AutomationElement.ControlTypeProperty.Id ? (_field ? ControlType.Edit.Id : ControlType.ComboBox.Id)
             : propertyId == AutomationElement.NameProperty.Id ? "Plan" : null;
         public bool IsReadOnly => false;
-        public string Value => _value;
+        public string Value => _mode == "vanish" && _sent ? throw new ElementNotAvailableException() : _value;
         public void SetValue(string value)
         {
+            _sent = true;
             switch (_mode)
             {
                 case "ignore": break;
@@ -244,10 +246,10 @@ internal static class DesktopChecks
         {
             var list = Root(AccessibilityReader.Observe(target, new JsonObject { ["maxDepth"] = 0 }));
             Require(list["actions"]!.AsArray().Any(action => action?.GetValue<string>() == "set_value"), "the list does not offer set_value");
-            JsonObject Set(string mode)
+            JsonObject Set(string mode, JsonObject? control = null)
             {
-                window.Use(mode);
-                return AccessibilityReader.Act(target, list, new JsonObject { ["action"] = "set_value", ["value"] = "Team" });
+                window.Use(mode, field: control is not null);
+                return AccessibilityReader.Act(target, control ?? list, new JsonObject { ["action"] = "set_value", ["value"] = "Team" });
             }
             foreach (string mode in new[] { "apply", "late" })
             {
@@ -257,7 +259,7 @@ internal static class DesktopChecks
             }
             var reformatted = Set("reformat");
             Require(reformatted.Str("performed") == "set_value" && reformatted.Str("value") == "TEAM"
-                && DesktopPresentation.Summary(reformatted).EndsWith("It now reads: TEAM", StringComparison.Ordinal),
+                && DesktopPresentation.Summary(reformatted).EndsWith("It now reads: \"TEAM\"", StringComparison.Ordinal),
                 "a value the control reformatted was not reported as it now reads: " + reformatted.ToJsonString());
             var watch = Stopwatch.StartNew();
             try
@@ -273,6 +275,21 @@ internal static class DesktopChecks
             }
             Require(window.Value == "Free" && watch.ElapsedMilliseconds >= AccessibilityReader.SetValueSettleMs - 100,
                 "an ignored value was refused before the control had time to apply it");
+            // The value went out before the control went away, so that must not read as "nothing happened".
+            var unread = Set("vanish");
+            Require(unread.Str("performed") == "set_value" && unread.Str("note")!.Contains("could not be read back", StringComparison.Ordinal),
+                "a control that went away after set_value was reported as " + unread.ToJsonString());
+            window.Use("ignore", field: true);
+            var field = Root(AccessibilityReader.Observe(target, new JsonObject { ["maxDepth"] = 0 }));
+            try
+            {
+                var ignored = Set("ignore", field);
+                throw new InvalidOperationException("a value the text field ignored was reported as " + ignored.ToJsonString());
+            }
+            catch (InvalidOperationException error) when (error.Message.Contains("still showed its old value", StringComparison.Ordinal))
+            {
+                Require(!error.Message.Contains("expand the list", StringComparison.Ordinal), "a text field was told to expand a list: " + error.Message);
+            }
             return "set_value reads the control back: an ignored value (as Chrome's <select>) fails instead of reporting performed; applied, late and reformatted values pass";
         });
     }
