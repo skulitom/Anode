@@ -295,20 +295,23 @@ internal static class DesktopChecks
     }
 
     /// <summary>
-    /// A window whose tree repeats controls, as Chrome's does: C lists A, its own ancestor, as a child (a loop, like
-    /// Chrome's window below itself while a &lt;select&gt; list is open), and D lists B, which is A's (like Chrome's
-    /// toolbar appearing twice).
+    /// A window whose tree repeats controls. The window lists A and D; A lists B and C; C lists A, its own parent, so
+    /// its children are A and D again (a loop, as Chrome's window appeared below itself while a &lt;select&gt; list
+    /// was open); D lists a second provider with B's runtime ID, then E.
     /// </summary>
     private sealed class LoopWindow : HiddenWindow, IRawElementProviderFragmentRoot
     {
-        public readonly LoopNode A, B, C, D;
+        public readonly LoopNode A, B, C, D, B2, E;
         public LoopWindow()
         {
             A = new(this, 1, "A"); B = new(this, 2, "B"); C = new(this, 3, "C"); D = new(this, 4, "D");
+            B2 = new(this, 2, "B"); E = new(this, 5, "E");
             (A.Parent, A.Next, A.FirstChild, A.LastChild) = (this, D, B, C);
-            (D.Parent, D.Previous, D.FirstChild, D.LastChild) = (this, A, B, B);
+            (D.Parent, D.Previous, D.FirstChild, D.LastChild) = (this, A, B2, E);
             (B.Parent, B.Next) = (A, C);
             (C.Parent, C.Previous, C.FirstChild, C.LastChild) = (A, B, A, A);
+            (B2.Parent, B2.Next) = (D, E);
+            (E.Parent, E.Previous) = (D, B2);
         }
         public override object? GetPatternProvider(int patternId) => null;
         public override object? GetPropertyValue(int propertyId) => null;
@@ -352,18 +355,24 @@ internal static class DesktopChecks
         var window = new LoopWindow();
         return Hosted(window, "Anode repeated elements check", target =>
         {
-            var observation = AccessibilityReader.Observe(target, new JsonObject { ["maxDepth"] = 6, ["includeOffscreen"] = true });
+            // Six controls, and a budget of seven: repeats must not use it up.
+            var observation = AccessibilityReader.Observe(target, new JsonObject { ["maxDepth"] = 6, ["maxElements"] = 7, ["includeOffscreen"] = true });
             var elements = observation["elements"]!.AsArray().OfType<JsonObject>().ToList();
             string names = string.Join(",", elements.Skip(1).Select(element => element.Str("name")));
-            Require(names == "A,D,B,C" && observation.Bool("truncated") == false,
-                $"a tree that repeats controls was observed as {names} (truncated: {observation.Bool("truncated")}), not A,D,B,C once each");
-            Require(observation["warnings"]!.AsArray().Any(warning => warning?.GetValue<string>().StartsWith("Skipped 4 controls", StringComparison.Ordinal) == true),
-                "the observation did not say it skipped the 4 repeats: " + observation["warnings"]!.ToJsonString());
-            // A control's path counts the skipped repeats, so actions still reach the control that was observed.
-            var c = elements.Single(element => element.Str("name") == "C");
-            AccessibilityReader.Act(target, c, new JsonObject { ["action"] = "invoke" });
-            Require(window.C.Invoked == 1 && window.A.Invoked + window.B.Invoked + window.D.Invoked == 0, "an action reached the wrong control");
-            return "a control the app reports again, below itself (Chrome with a <select> open) or under a second parent, is observed once; actions still reach it";
+            Require(names == "A,D,B,C,E" && observation.Bool("truncated") == false,
+                $"a tree that repeats controls was observed as {names} (truncated: {observation.Bool("truncated")}), not A,D,B,C,E once each");
+            Require(observation.Int("skippedRepeats") == 3 && DesktopPresentation.Summary(observation).Contains("Skipped 3 control(s)", StringComparison.Ordinal),
+                "the observation did not report the 3 repeats it skipped: " + observation.ToJsonString());
+            // Nothing was hidden, so a wait for a control to go away still matches.
+            Require(observation["warnings"]!.AsArray().Count == 0
+                && DesktopWait.Matches(observation, new JsonObject { ["name"] = "Spinner", ["state"] = "missing" }),
+                "skipped repeats stopped a wait for a missing control from matching");
+            // E's path counts the repeat before it, so an action still reaches the control that was observed.
+            var e = elements.Single(element => element.Str("name") == "E");
+            AccessibilityReader.Act(target, e, new JsonObject { ["action"] = "invoke" });
+            Require(window.E.Invoked == 1 && new[] { window.A, window.B, window.B2, window.C, window.D }.All(node => node.Invoked == 0),
+                "an action reached the wrong control");
+            return "a control the app lists again, below itself (Chrome with a <select> open) or under a second parent, is observed once, without using the budget; waits and actions still work";
         });
     }
 }

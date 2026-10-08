@@ -176,7 +176,7 @@ is still restoring when the operation's deadline passes, it fails with `errorCod
 | `op` | Arguments | Result |
 | --- | --- | --- |
 | `desktop.windows` | `query`, `pid` | `{windows: [{windowId, pid, process, title, bounds, foreground, minimized, maximized}], summary}` |
-| `desktop.observe` | `windowId`, `maxElements`, `maxDepth`, `maxTextChars`, `includeOffscreen`, `includeScreenshot`, `maxWidth` | `{windowId, snapshotId, expiresInSeconds, window, elements, observedAt, truncated, warnings, screenshot?, screenshotError?, summary}` |
+| `desktop.observe` | `windowId`, `maxElements`, `maxDepth`, `maxTextChars`, `includeOffscreen`, `includeScreenshot`, `maxWidth` | `{windowId, snapshotId, expiresInSeconds, window, elements, observedAt, truncated, warnings, skippedRepeats?, screenshot?, screenshotError?, summary}` |
 | `desktop.window` | `windowId`, `action`, optional move geometry `x`, `y`, `width`, `height` | `{requested, note, summary}` |
 | `desktop.element` | `snapshotId`, `elementId`, `action`, optional `value`, `number`, `direction`, `amount` | `{performed, note, value?, summary}`; `value` is what the control reads after a `set_value` it reformatted |
 | `desktop.capabilities` | `probeCapture` (default true) | `{version, session, workingDirectory, screen, capture, input, supported, limitations, summary}` |
