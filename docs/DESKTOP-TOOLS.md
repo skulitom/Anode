@@ -63,6 +63,11 @@ by `--`, for example `--direction down --amount large` or `--number 50`.
 
 Only use actions listed on that control. Read-only fields do not offer value
 changes. Password controls omit their values and offer no element actions.
+`set_value` reads the control back. If it still shows its old value 1.5 seconds
+later, the action fails instead of reporting success: some controls accept the
+change and ignore it. Chrome's drop-down lists (`<select>`) do, so expand the list
+and select the option, or click it. A control that reformats the value succeeds,
+and its result's `value` is what the control now reads.
 Successful action submission is not proof that an application completed its work;
 inspect again to confirm the result, including possible modal dialogs.
 

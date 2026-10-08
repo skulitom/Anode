@@ -144,6 +144,7 @@ internal static class Tools
             "Act on one control from a fresh seat_observe result. Use only an action listed on that control. "
             + "Supports invoke, focus, set_value, toggle, select, expand, collapse, scroll_into_view, scroll and set_range. "
             + "Verifies the window process and control identity again before acting. Password controls are refused. "
+            + "set_value reads the control back and fails if it still shows its old value; Chrome's drop-down lists ignore it, so expand one and select the option. "
             + "The observation is consumed even if the app times out. Never blindly replay a timed-out action; observe again.",
             Schema(("snapshotId", "string", "Observation ID returned by seat_observe.", true),
                 ("elementId", "string", "Control ID from that observation, for example e7.", true),

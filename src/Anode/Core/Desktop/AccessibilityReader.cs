@@ -192,7 +192,7 @@ internal static class AccessibilityReader
         {
             case "invoke": Pattern<InvokePattern>(InvokePattern.Pattern).Invoke(); break;
             case "focus": element.SetFocus(); break;
-            case "set_value": Pattern<ValuePattern>(ValuePattern.Pattern).SetValue(request.Str("value")!); break;
+            case "set_value": return SetValue(Pattern<ValuePattern>(ValuePattern.Pattern), request.Str("value")!);
             case "toggle": Pattern<TogglePattern>(TogglePattern.Pattern).Toggle(); break;
             case "select": Pattern<SelectionItemPattern>(SelectionItemPattern.Pattern).Select(); break;
             case "expand": Pattern<ExpandCollapsePattern>(ExpandCollapsePattern.Pattern).Expand(); break;
@@ -208,7 +208,53 @@ internal static class AccessibilityReader
             case "set_range": Pattern<RangeValuePattern>(RangeValuePattern.Pattern).SetValue(request["number"]!.GetValue<double>()); break;
             default: throw new ArgumentException("Unknown element action.");
         }
-        return new JsonObject { ["performed"] = action, ["note"] = "Observation consumed. Inspect again before the next action." };
+        return Performed(action);
+    }
+
+    private static JsonObject Performed(string action) =>
+        new() { ["performed"] = action, ["note"] = "Observation consumed. Inspect again before the next action." };
+
+    /// <summary>How long set_value watches for the control to take its new value. Chrome shows a change a moment later.</summary>
+    internal const int SetValueSettleMs = 1500;
+
+    /// <summary>
+    /// Sets a value and reads it back. Some controls accept the call and ignore it, as Chrome's drop-down lists
+    /// (&lt;select&gt;) do, and "performed" would then let an agent submit a form with the old choice.
+    /// </summary>
+    private static JsonObject SetValue(ValuePattern pattern, string value)
+    {
+        string before = pattern.Current.Value ?? "";
+        pattern.SetValue(value);
+        string now;
+        var watch = Stopwatch.StartNew();
+        try
+        {
+            now = pattern.Current.Value ?? "";
+            while (now == before && now != value && watch.ElapsedMilliseconds < SetValueSettleMs)
+            {
+                Thread.Sleep(50);
+                now = pattern.Current.Value ?? "";
+            }
+        }
+        catch (ElementNotAvailableException)
+        {
+            var gone = Performed("set_value");
+            gone["note"] = "The control went away after the change, so its new value wasn't read back. Inspect again before the next action.";
+            return gone;
+        }
+        if (now == value) return Performed("set_value");
+        if (now != before)
+        {
+            // An app may reformat what it was given, for example a number field that adds its separators.
+            var changed = Performed("set_value");
+            changed["value"] = Clip(now, 500);
+            changed["note"] = "The control changed the value it was given; value is what it reads now. Observation consumed. Inspect again before the next action.";
+            return changed;
+        }
+        throw new InvalidOperationException(
+            $"The control accepted set_value but still read \"{Clip(before, 200)}\" after {SetValueSettleMs} ms, so the new value "
+            + "wasn't applied, or the control doesn't show it. Some controls ignore set_value, as Chrome's drop-down lists do: "
+            + "expand the list and select the option, or click it. Inspect again before you retry.");
     }
 
     /// <summary>The role of a control whose type .NET's UI Automation client can't name.</summary>

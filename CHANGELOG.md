@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **`set_value` checks that the value took.** On a Chrome drop-down list (`<select>`), `seat_element`
+  `set_value` reported `performed` while the list kept its old choice, so an agent could submit a
+  form with the wrong option. Anode now reads the control back: if it still shows its old value 1.5
+  seconds later, the action fails and says to expand the list and select the option. A control that
+  reformats the value succeeds and returns what it now reads.
 - **Packaged apps' Anode folders.** A daemon started by a desktop app that redirects AppData, such
   as the Claude desktop app, keeps its log and state in that app's
   `%LOCALAPPDATA%\Packages\<app>\LocalCache\Local\Anode`, which the privacy, install and troubleshooting
