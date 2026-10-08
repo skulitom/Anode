@@ -52,6 +52,19 @@ Remove-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Servi
 
 Leave `bEnumerateHWBeforeSW` alone if your organization's Group Policy sets it.
 
+### Turning child sessions off without Anode
+
+`anode setup --undo` needs `anode.exe`. After an uninstall that left child sessions on, run this
+from an administrator PowerShell while no Anode runs. It prints `True` once they are off; `False`
+usually means the PowerShell wasn't run as administrator. `setup --undo` signs out the seat first,
+which this doesn't, so if a seat may still be signed in, for example after Anode was ended by
+force, restart Windows first.
+
+```powershell
+Add-Type -Namespace Wts -Name ChildSessions -MemberDefinition '[DllImport("wtsapi32.dll")] public static extern bool WTSEnableChildSessions(bool enable);'
+[Wts.ChildSessions]::WTSEnableChildSessions($false)
+```
+
 ## Per-user background rendering
 
 Before creating its RDP viewer, the daemon sets the DWORD
@@ -66,6 +79,24 @@ packaged app, such as the Claude desktop app, started, in `%LOCALAPPDATA%\Packag
 inside such an app it refuses, because the app may keep its file and registry changes to itself.
 The next daemon startup configures rendering again unless `--no-background-rendering`
 is supplied. A configured value alone does not prove that capture works.
+
+Without `anode.exe`, for example after an uninstall, set the value back from the backup in your own
+PowerShell, naming the backup the uninstaller listed. Like `anode rendering --restore`, it changes
+the value, and deletes the backup, only while the value is still Anode's `2`. Anything else means
+something changed it later, so the backup is out of date: delete it yourself. A wrong path changes
+nothing. If the uninstaller listed several backups, each saved by a different app's Anode, use the
+one with the earlier value you want and delete the others.
+
+```powershell
+$backup = "$env:LOCALAPPDATA\Anode\rdp-rendering-backup.json"
+$key = 'HKCU:\Software\Microsoft\Terminal Server Client'
+$saved = Get-Content -LiteralPath $backup -Raw | ConvertFrom-Json
+if ($saved -and (Get-ItemProperty -LiteralPath $key).RemoteDesktop_SuppressWhenMinimized -eq 2) {
+    if ($null -eq $saved.PreviousValue) { Remove-ItemProperty -LiteralPath $key -Name RemoteDesktop_SuppressWhenMinimized }
+    else { Set-ItemProperty -LiteralPath $key -Name RemoteDesktop_SuppressWhenMinimized -Value $saved.PreviousValue -Type DWord }
+    Remove-Item -LiteralPath $backup
+}
+```
 
 ## Desktop inspection
 

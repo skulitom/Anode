@@ -6,8 +6,9 @@
     Windows Settings runs this from Installed apps. It removes the files install.ps1 copied, its
     PATH entry, Start menu shortcut and Installed apps entry, and unregisters Codex and Claude Code
     servers that run this installation's anode.exe, with their unmodified anode-desktop skill.
-    Files you added to the folder, logs in %LOCALAPPDATA%\Anode and machine setup stay. It asks
-    before quitting a running Anode or undoing machine setup; -Quiet never asks and does neither.
+    Files you added to the folder, logs in %LOCALAPPDATA%\Anode and machine setup stay; it ends by
+    listing what stays and how to remove each without Anode. It asks before quitting a running Anode
+    or undoing machine setup; -Quiet never asks and does neither.
 .EXAMPLE
     powershell -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\Anode\uninstall.ps1"
 #>
@@ -22,7 +23,7 @@ $ErrorActionPreference = 'Stop'
 $InstallDirectory = $PSScriptRoot.TrimEnd('\')
 $exe = Join-Path $InstallDirectory 'anode.exe'
 $markerPath = Join-Path $InstallDirectory '.anode-install.json'
-$setupGuide = 'https://github.com/skulitom/Anode/blob/main/docs/SECURITY.md#what-anode-setup-changes'
+$securityGuide = 'https://github.com/skulitom/Anode/blob/main/docs/SECURITY.md'
 $interactive = -not $Quiet -and [Environment]::UserInteractive -and -not [Console]::IsInputRedirected
 function Ask([string]$Question) { $interactive -and ((Read-Host "$Question [y/N]") -match '^\s*y(es)?\s*$') }
 # Settings opens a console for this script; keep it open long enough to read the outcome.
@@ -33,6 +34,82 @@ function Finish([int]$Code) {
 function Get-Running {
     @(Get-CimInstance Win32_Process -Filter "Name = 'anode.exe'" | Where-Object {
         $_.ExecutablePath -and $_.ExecutablePath.StartsWith($InstallDirectory + '\', [StringComparison]::OrdinalIgnoreCase) })
+}
+# What stays on this machine once anode.exe is gone, each with how to remove it without Anode. Read after
+# removal, so it names only what is really left; a probe that fails is skipped rather than failing the removal.
+function Get-Leftovers {
+    function Read-Value([string]$Key, [string]$Name) { try { (Get-ItemProperty -LiteralPath $Key -Name $Name -ErrorAction Stop).$Name } catch { $null } }
+    $local = $env:LOCALAPPDATA
+    if ($local) {
+        # Where 'anode rendering --restore' looks: Anode's own folder, then each packaged app's.
+        $folders = @(Join-Path $local 'Anode') + @(Get-ChildItem -LiteralPath (Join-Path $local 'Packages') -Directory -ErrorAction SilentlyContinue |
+            ForEach-Object { Join-Path $_.FullName 'LocalCache\Local\Anode' })
+        $rendering = Read-Value 'HKCU:\Software\Microsoft\Terminal Server Client' 'RemoteDesktop_SuppressWhenMinimized'
+        foreach ($folder in @($folders | Where-Object { Test-Path -LiteralPath $_ -PathType Container })) {
+            $backup = Join-Path $folder 'rdp-rendering-backup.json'
+            if (-not (Test-Path -LiteralPath $backup -PathType Leaf)) { }
+            elseif ($rendering -eq 2) {
+                $saved = try { Get-Content -LiteralPath $backup -Raw | ConvertFrom-Json } catch { $null }
+                $value = if (-not $saved -or 'PreviousValue' -notin $saved.PSObject.Properties.Name) { 'unreadable' }
+                    elseif ($null -eq $saved.PreviousValue) { 'none (the value was absent)' } else { $saved.PreviousValue }
+                "The Remote Desktop rendering preference Anode changed is not restored. Its backup, $backup, holds the earlier " +
+                    "value: $value. Set it back by hand before deleting that folder: $securityGuide#per-user-background-rendering"
+            } else {
+                "$backup is out of date: the Remote Desktop rendering preference no longer has the value Anode set, so leave the preference as it is."
+            }
+            "Logs and saved settings in ${folder}: delete the folder when you no longer need them."
+        }
+        $profiles = @('AnodeChrome', 'AnodeEdge', 'AnodeAndroidStudio' | ForEach-Object { Join-Path $local $_ } | Where-Object { Test-Path -LiteralPath $_ -PathType Container })
+        if ($profiles.Count) {
+            "The seat's browser and Android Studio profiles, still signed in to any site or account you signed in to there: " +
+                "$($profiles -join ', '). Delete them to sign those out."
+        }
+    }
+    # The copies connect-agents.ps1 made before changing a client's settings, this removal's included.
+    $copies = @(try {
+        foreach ($config in @((Join-Path $(if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USERPROFILE '.codex' }) 'config.toml'),
+            (Join-Path $(if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { $env:USERPROFILE }) '.claude.json'))) {
+            Get-ChildItem -LiteralPath (Split-Path -Parent $config) -Filter ((Split-Path -Leaf $config) + '.anode-backup-*') -File -ErrorAction SilentlyContinue |
+                ForEach-Object { $_.FullName }
+        }
+    } catch { })
+    if ($copies.Count) {
+        "Copies of agent client settings, saved before Anode changed them, which can hold other servers' settings and tokens: " +
+            "$($copies -join ', '). Delete them once those clients work as you want."
+    }
+    $childSessions = $null
+    try {
+        if (-not ('AnodeUninstall.ChildSessions' -as [type])) {
+            Add-Type -Namespace AnodeUninstall -Name ChildSessions -MemberDefinition '[DllImport("wtsapi32.dll")] public static extern bool WTSIsChildSessionsEnabled(out bool enabled);'
+        }
+        $enabled = $false
+        if ([AnodeUninstall.ChildSessions]::WTSIsChildSessionsEnabled([ref]$enabled)) { $childSessions = $enabled }
+    } catch { }
+    if ($childSessions -ne $false) {
+        $state = if ($childSessions) { 'Windows child sessions are on.' } else { "If you ran 'anode setup', Windows child sessions are on." }
+        "$state To turn them off, with no Anode running, run the commands in $securityGuide#turning-child-sessions-off-without-anode " +
+            'from an administrator PowerShell.'
+    }
+    $terminalServer = 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server'
+    if ((Read-Value $terminalServer 'fDenyTSConnections') -eq 0) {
+        "The Remote Desktop host is on, and nothing in Anode turns it off. If it was off before 'anode setup' and nothing else " +
+            'needs it, turn it off in Settings > System > Remote Desktop.'
+    }
+    $tuning = @()
+    if ((Read-Value "$terminalServer\WinStations" 'DWMFRAMEINTERVAL') -eq 15) { $tuning += "the 60 fps frame cap (DWMFRAMEINTERVAL, from --fps 60)" }
+    if ((Read-Value 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' 'bEnumerateHWBeforeSW') -eq 1) {
+        $tuning += 'the hardware graphics setting (bEnumerateHWBeforeSW, from --gpu)'
+    }
+    if ($tuning.Count) {
+        "Remote Desktop settings 'anode setup' can make are set: $($tuning -join ' and '). Unless your organization set them, " +
+            "remove them as $securityGuide#what-anode-setup-changes shows."
+    }
+}
+# Another Anode on this machine (a portable, Scoop or plugin copy) shares that log folder, the seat profiles and machine setup.
+function Get-OtherAnode {
+    $paths = @(Get-Process -Name anode -ErrorAction SilentlyContinue | ForEach-Object { try { $_.Path } catch { } }) +
+        @(Get-Command -Name anode.exe -ErrorAction SilentlyContinue | ForEach-Object { $_.Source })
+    @($paths | Where-Object { $_ -and -not $_.StartsWith($InstallDirectory + '\', [StringComparison]::OrdinalIgnoreCase) })[0]
 }
 
 try {
@@ -77,6 +154,7 @@ try {
             Write-Warning 'Another Anode is running, so machine setup was left on; undoing it would sign out that seat.'
         } else {
             & $exe rendering --restore | Out-Host
+            if ($LASTEXITCODE -ne 0) { Write-Warning 'The Remote Desktop rendering preference was not restored; see the message above.' }
             & $exe setup --undo | Out-Host
             if ($LASTEXITCODE -ne 0) { $undo = $false; Write-Warning 'Child sessions were not turned off; see the messages above.' }
         }
@@ -138,8 +216,13 @@ try {
     else { Remove-Item -LiteralPath $InstallDirectory }
 
     Write-Host "`nAnode is uninstalled." -ForegroundColor Green
-    Write-Host "Logs and saved settings remain in $(Join-Path $env:LOCALAPPDATA 'Anode'); delete that folder if you no longer need them."
-    if (-not $undo) { Write-Host "If you ran 'anode setup', child sessions stay on; to turn them off, see $setupGuide" }
+    $leftovers = @(try { Get-Leftovers } catch { "Could not check what stays on this machine ($($_.Exception.Message)); see $securityGuide." })
+    if ($leftovers.Count) {
+        $other = try { Get-OtherAnode } catch { $null }
+        Write-Host $(if ($other) { "These stay on this machine. Another Anode, $other, still uses the logs, profiles and machine settings among them, so keep those while you use it. Without Anode, each goes like this:" }
+            else { 'These stay on this machine. anode.exe is gone, so each says how to remove it without Anode:' })
+        foreach ($line in $leftovers) { Write-Host "- $line" }
+    }
     Finish 0
 } catch {
     Write-Host $_.Exception.Message -ForegroundColor Red

@@ -41,6 +41,15 @@
   client has no name for the AppBar control type of Explorer's command bar, or for SemanticZoom. Such
   controls now have the role `Unknown`, and `seat_element` acts on them as on any other control. A text
   control that provides no document range or selection is read without them.
+- **The uninstaller lists what it leaves.** After removing `anode.exe`, it pointed at `anode setup
+  --undo` to turn child sessions off, and named only the logs. It now ends with what really stays on
+  the machine, each with how to remove it without Anode: logs and settings (a packaged app's too), a
+  Remote Desktop rendering preference not yet restored, the seat's browser and Android Studio
+  profiles, still signed in, the copies of agent client settings saved before Anode changed them,
+  child sessions, the Remote Desktop host, and the `--fps 60` and `--gpu` values. It says when
+  another Anode on the machine shares them. The security page shows how to turn child sessions off
+  and restore the rendering preference without `anode.exe`, and a rendering restore that fails
+  during removal is reported.
 
 ## 0.11.1 — 2026-10-02
 
