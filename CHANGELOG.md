@@ -7,6 +7,10 @@
   form with the wrong option. Anode now reads the control back: if it still shows its old value 1.5
   seconds later, the action fails and says to expand the list and select the option. A control that
   reformats the value succeeds and returns what it now reads.
+- **`seat_observe` lists each control once.** While a Chrome drop-down list was open, Chrome reported
+  the window again below itself, and `seat_observe` walked the copy over and over until its element
+  budget ran out. A control the app reports again anywhere in the window is now skipped, and a
+  warning says how many were.
 - **Packaged apps' Anode folders.** A daemon started by a desktop app that redirects AppData, such
   as the Claude desktop app, keeps its log and state in that app's
   `%LOCALAPPDATA%\Packages\<app>\LocalCache\Local\Anode`, which the privacy, install and troubleshooting

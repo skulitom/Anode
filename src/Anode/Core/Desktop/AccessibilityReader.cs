@@ -30,6 +30,10 @@ internal static class AccessibilityReader
         var watch = Stopwatch.StartNew();
         var queue = new Queue<(AutomationElement Element, int[] Path, string? Parent)>();
         queue.Enqueue((root, Array.Empty<int>(), null));
+        // Some apps report an element again further down, Chrome even below itself while a <select> list is open; walking it
+        // again would repeat its whole subtree until the budget ran out.
+        var seen = new HashSet<string>();
+        int repeated = 0;
         bool truncated = false;
         int visited = 0;
         while (queue.Count > 0 && visited < maximum && watch.ElapsedMilliseconds < 4000)
@@ -38,7 +42,15 @@ internal static class AccessibilityReader
             visited++;
             try
             {
-                var node = Describe(current.Element, current.Path, current.Parent, ref textBudget);
+                int[] runtimeId = current.Element.GetRuntimeId();
+                if (runtimeId.Length > 0 && !seen.Add(string.Join(".", runtimeId)))
+                {
+                    // A repeat is neither described nor walked, so it doesn't use the element budget.
+                    visited--;
+                    repeated++;
+                    continue;
+                }
+                var node = Describe(current.Element, runtimeId, current.Path, current.Parent, ref textBudget);
                 string? parent = current.Parent;
                 if (offscreen || node.Bool("offscreen") != true || current.Path.Length == 0)
                 {
@@ -62,6 +74,8 @@ internal static class AccessibilityReader
             }
         }
         truncated |= queue.Count > 0;
+        if (repeated > 0)
+            warnings.Add($"Skipped {repeated} control{(repeated == 1 ? "" : "s")} the app reported again elsewhere in this window's tree.");
         return new JsonObject
         {
             ["window"] = WindowAccess.Describe(target), ["elements"] = elements,
@@ -70,7 +84,7 @@ internal static class AccessibilityReader
         };
     }
 
-    private static JsonObject Describe(AutomationElement element, int[] path, string? parent, ref int textBudget)
+    private static JsonObject Describe(AutomationElement element, int[] runtimeId, int[] path, string? parent, ref int textBudget)
     {
         var cache = new CacheRequest { TreeScope = TreeScope.Element };
         foreach (var property in new[]
@@ -102,7 +116,7 @@ internal static class AccessibilityReader
             ["actions"] = new JsonArray(actions.Select(value => (JsonNode)value).ToArray()),
             // Private references are retained by the host and removed from public results.
             ["path"] = new JsonArray(path.Select(value => (JsonNode)value).ToArray()),
-            ["runtimeId"] = new JsonArray(element.GetRuntimeId().Select(value => (JsonNode)value).ToArray()),
+            ["runtimeId"] = new JsonArray(runtimeId.Select(value => (JsonNode)value).ToArray()),
             ["processId"] = data.ProcessId
         };
         if (!password)

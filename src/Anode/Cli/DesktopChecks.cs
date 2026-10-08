@@ -293,4 +293,77 @@ internal static class DesktopChecks
             return "set_value reads the control back: an ignored value (as Chrome's <select>) fails instead of reporting performed; applied, late and reformatted values pass";
         });
     }
+
+    /// <summary>
+    /// A window whose tree repeats controls, as Chrome's does: C lists A, its own ancestor, as a child (a loop, like
+    /// Chrome's window below itself while a &lt;select&gt; list is open), and D lists B, which is A's (like Chrome's
+    /// toolbar appearing twice).
+    /// </summary>
+    private sealed class LoopWindow : HiddenWindow, IRawElementProviderFragmentRoot
+    {
+        public readonly LoopNode A, B, C, D;
+        public LoopWindow()
+        {
+            A = new(this, 1, "A"); B = new(this, 2, "B"); C = new(this, 3, "C"); D = new(this, 4, "D");
+            (A.Parent, A.Next, A.FirstChild, A.LastChild) = (this, D, B, C);
+            (D.Parent, D.Previous, D.FirstChild, D.LastChild) = (this, A, B, B);
+            (B.Parent, B.Next) = (A, C);
+            (C.Parent, C.Previous, C.FirstChild, C.LastChild) = (A, B, A, A);
+        }
+        public override object? GetPatternProvider(int patternId) => null;
+        public override object? GetPropertyValue(int propertyId) => null;
+        public System.Windows.Rect BoundingRectangle => System.Windows.Rect.Empty;
+        public IRawElementProviderFragmentRoot FragmentRoot => this;
+        public IRawElementProviderSimple[]? GetEmbeddedFragmentRoots() => null;
+        public int[]? GetRuntimeId() => null; // the window's own, from its handle
+        public IRawElementProviderFragment? Navigate(NavigateDirection direction) =>
+            direction == NavigateDirection.FirstChild ? A : direction == NavigateDirection.LastChild ? D : null;
+        public void SetFocus() { }
+        public IRawElementProviderFragment? ElementProviderFromPoint(double x, double y) => null;
+        public IRawElementProviderFragment? GetFocus() => null;
+    }
+
+    private sealed class LoopNode(LoopWindow window, int id, string name) : IRawElementProviderFragment, IInvokeProvider
+    {
+        public IRawElementProviderFragment? Parent, FirstChild, LastChild, Next, Previous;
+        public int Invoked;
+        public ProviderOptions ProviderOptions => ProviderOptions.ServerSideProvider;
+        public object? GetPatternProvider(int patternId) => patternId == InvokePattern.Pattern.Id ? this : null;
+        public object? GetPropertyValue(int propertyId) =>
+            propertyId == AutomationElement.ControlTypeProperty.Id ? ControlType.Button.Id
+            : propertyId == AutomationElement.NameProperty.Id ? name
+            : propertyId == AutomationElement.IsEnabledProperty.Id ? true : null;
+        public IRawElementProviderSimple? HostRawElementProvider => null;
+        public System.Windows.Rect BoundingRectangle => System.Windows.Rect.Empty;
+        public IRawElementProviderFragmentRoot FragmentRoot => window;
+        public IRawElementProviderSimple[]? GetEmbeddedFragmentRoots() => null;
+        public int[] GetRuntimeId() => new[] { AutomationInteropProvider.AppendRuntimeId, id };
+        public IRawElementProviderFragment? Navigate(NavigateDirection direction) => direction switch
+        {
+            NavigateDirection.Parent => Parent, NavigateDirection.FirstChild => FirstChild, NavigateDirection.LastChild => LastChild,
+            NavigateDirection.NextSibling => Next, NavigateDirection.PreviousSibling => Previous, _ => null
+        };
+        public void SetFocus() { }
+        public void Invoke() => Interlocked.Increment(ref Invoked);
+    }
+
+    public static string RepeatedElements()
+    {
+        var window = new LoopWindow();
+        return Hosted(window, "Anode repeated elements check", target =>
+        {
+            var observation = AccessibilityReader.Observe(target, new JsonObject { ["maxDepth"] = 6, ["includeOffscreen"] = true });
+            var elements = observation["elements"]!.AsArray().OfType<JsonObject>().ToList();
+            string names = string.Join(",", elements.Skip(1).Select(element => element.Str("name")));
+            Require(names == "A,D,B,C" && observation.Bool("truncated") == false,
+                $"a tree that repeats controls was observed as {names} (truncated: {observation.Bool("truncated")}), not A,D,B,C once each");
+            Require(observation["warnings"]!.AsArray().Any(warning => warning?.GetValue<string>().StartsWith("Skipped 4 controls", StringComparison.Ordinal) == true),
+                "the observation did not say it skipped the 4 repeats: " + observation["warnings"]!.ToJsonString());
+            // A control's path counts the skipped repeats, so actions still reach the control that was observed.
+            var c = elements.Single(element => element.Str("name") == "C");
+            AccessibilityReader.Act(target, c, new JsonObject { ["action"] = "invoke" });
+            Require(window.C.Invoked == 1 && window.A.Invoked + window.B.Invoked + window.D.Invoked == 0, "an action reached the wrong control");
+            return "a control the app reports again, below itself (Chrome with a <select> open) or under a second parent, is observed once; actions still reach it";
+        });
+    }
 }
