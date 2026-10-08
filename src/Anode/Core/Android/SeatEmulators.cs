@@ -127,7 +127,8 @@ internal sealed class SeatEmulators
     public async Task<JsonObject> StartAsync(JsonObject request, CancellationToken cancel)
     {
         long entry = _machine.Milliseconds();
-        // Leave time to build and forward the reply; the pipe deadline includes queue time and adb startup.
+        // Leave time to build and forward the reply. timeoutMs is what the caller has left after any queue; adb may
+        // still have to start.
         const int ReplyReserveMs = 10_000;
         long replyBy = entry + Math.Max(0, (request.Int("timeoutMs") ?? 60_000) - ReplyReserveMs);
         var sdk = AndroidSdk.Find(_machine.Environment);

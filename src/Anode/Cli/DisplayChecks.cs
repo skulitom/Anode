@@ -272,9 +272,12 @@ internal static class DisplayChecks
             var busy = await display.RestoredAsync(impatient.Token);
             Require(busy?.Str("errorCode") == "display_restoring" && busy.Str("error")!.Contains("Nothing was done"), "a pending restore did not hold the next action");
         }
-        Require(await display.RestoredAsync(CancellationToken.None) is null && seat.Screen == Hd
+        // The wait comes off the action's own time, so it still answers before its caller's deadline.
+        var action = new JsonObject { ["op"] = "input.click", ["timeoutMs"] = 10_000 };
+        Require(await display.RestoredAsync(CancellationToken.None, action) is null && seat.Screen == Hd
             && seat.Changes().SequenceEqual(new[] { "live 1920x1080 at 150%", "live 1280x720 at 100%" })
             && record.Any(line => line.Contains("restored the startup display 1280x720 at 100%")), "the lease's end did not restore the startup display");
+        Require(action.Int("timeoutMs") is < 10_000 and > 5_000, $"an action that waited for the restore kept {action.Int("timeoutMs")} ms of 10000");
         display.EndLease();
         await display.RestoredAsync(CancellationToken.None);
         Require(seat.Changes().Length == 2, "a restored display was restored again");

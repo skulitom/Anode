@@ -26,13 +26,14 @@ internal static class TextTyping
 
     /// <summary>
     /// Typing time a call may plan for; longer text is refused before anything is typed. MCP, the CLI and the daemon
-    /// wait 60 seconds for the reply. A request that sets a shorter <c>timeoutMs</c> plans for three quarters of it.
+    /// wait 60 seconds for the reply. A request with a shorter <c>timeoutMs</c>, set by its caller or shortened by
+    /// waiting behind another operation, plans for three quarters of it.
     /// </summary>
     public const int BudgetMs = 45_000;
 
     /// <summary>
     /// When a call stops, however far it got: timer lateness and a busy program stretch the plan, and the reply must
-    /// still arrive in time. A request that sets a shorter <c>timeoutMs</c> stops at seven eighths of it.
+    /// still arrive in time. A request with a shorter <c>timeoutMs</c> stops at seven eighths of it.
     /// </summary>
     public const int StopMs = 52_000;
 
@@ -123,7 +124,9 @@ internal static class TextTyping
     public static JsonObject Type(string text, int? perCharMs, Typist typist, int timeoutMs = 60_000)
     {
         int plan = (int)Math.Min(BudgetMs, timeoutMs * 3L / 4), stop = (int)Math.Min(StopMs, timeoutMs * 7L / 8);
-        if (Problem(text, perCharMs, plan) is { } problem) return JsonLine.Fail(problem);
+        if (Problem(text, perCharMs, plan) is { } problem)
+            return JsonLine.Fail(timeoutMs >= 60_000 ? problem : problem + string.Create(CultureInfo.InvariantCulture,
+                $" This call had {timeoutMs / 1000.0:0.#} s, less than the usual 60, because it waited behind another operation or asked for less."));
         int pace = perCharMs ?? DefaultPerCharMs;
         var units = Units(text);
         double start = typist.Now(), previous = start;

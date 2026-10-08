@@ -61,6 +61,17 @@ internal static class AgentAccess
         return null;
     }
 
+    /// <summary>
+    /// Takes time a request spent waiting off its <c>timeoutMs</c>. Typing, emulator start and Steam launch size their
+    /// work by it, and the lease's deadline, which falls a little before it, stops the rest, so the reply still comes
+    /// before the deadline its caller counts from when it sent the request.
+    /// </summary>
+    public static void Spend(JsonObject request, long waitedMs)
+    {
+        int timeout = request.Int("timeoutMs") ?? 60_000, left = JsonPipeClient.TimeLeft(timeout, waitedMs);
+        if (left != timeout) request["timeoutMs"] = left;
+    }
+
     public static JsonObject Attach(JsonObject? arguments, string? agentId, string? leaseToken)
     {
         var args = arguments is null ? new JsonObject() : (JsonObject)arguments.DeepClone();

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
+using Anode.Core.Agents;
 using Anode.Core.Bridge;
 
 namespace Anode.Core.Display;
@@ -117,13 +118,15 @@ internal sealed class SeatDisplay
 
     /// <summary>
     /// Null once no restore is pending; otherwise waits for it, so the next owner acts on the startup display.
-    /// A failure explains why the action was not attempted.
+    /// A failure explains why the action was not attempted. The wait comes off <paramref name="request"/>'s
+    /// <c>timeoutMs</c>, so the action that follows still answers in its caller's time.
     /// </summary>
-    public async Task<JsonObject?> RestoredAsync(CancellationToken cancel)
+    public async Task<JsonObject?> RestoredAsync(CancellationToken cancel, JsonObject? request = null)
     {
         Task pending;
         lock (_gate) pending = _restoring;
         if (pending.IsCompleted) return null;
+        long waiting = Environment.TickCount64;
         try { await pending.WaitAsync(cancel).ConfigureAwait(false); }
         catch (OperationCanceledException) when (cancel.IsCancellationRequested)
         {
@@ -131,6 +134,7 @@ internal sealed class SeatDisplay
             busy["errorCode"] = "display_restoring";
             return busy;
         }
+        if (request is not null) AgentAccess.Spend(request, Environment.TickCount64 - waiting);
         return null;
     }
 

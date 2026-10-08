@@ -158,8 +158,8 @@ internal static class SeatHost
     private static async Task<JsonObject> HandleOwnedAsync(JsonObject request, CancellationToken cancel)
     {
         string op = request.Str("op") ?? string.Empty;
-        // The display a previous lease changed is put back before the next owner looks or acts.
-        if (AgentAccess.RequiresLease(op) && await Display.RestoredAsync(cancel).ConfigureAwait(false) is { } restoring) return restoring;
+        // The display a previous lease changed is put back before the next owner looks or acts, in the action's time.
+        if (AgentAccess.RequiresLease(op) && await Display.RestoredAsync(cancel, request).ConfigureAwait(false) is { } restoring) return restoring;
         if (op == "display.set") return await ChangeDisplayAsync(request, cancel).ConfigureAwait(false);
         if (op == "android.status") return JsonLine.Ok(await Emulators.Value.StatusAsync(cancel).ConfigureAwait(false));
         if (op == "android.emulator") return await EmulatorAsync(request, cancel).ConfigureAwait(false);

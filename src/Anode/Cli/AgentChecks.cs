@@ -271,6 +271,72 @@ internal static class AgentChecks
         return "private clients contend, expired queued input is fenced, disconnect recovers by expiry, and Stop bypasses ownership";
     }
 
+    public static async Task<string> QueueTime()
+    {
+        long now = 0;
+        var entered = Signal(); var finish = Signal();
+        var lease = new DesktopLease(milliseconds: () => Interlocked.Read(ref now));
+        var given = new System.Collections.Concurrent.ConcurrentDictionary<string, int?>();
+        async Task<JsonObject> Dispatch(JsonObject request, CancellationToken cancel)
+        {
+            given[request.Str("text")!] = request.Int("timeoutMs");
+            if (request.Str("text") == "first")
+            {
+                entered.TrySetResult();
+                await finish.Task.WaitAsync(cancel);
+            }
+            return JsonLine.Ok();
+        }
+        string token = (await lease.HandleAsync(Lease("A", "acquire"), Dispatch)).Obj("result")!.Str("leaseToken")!;
+        Task<JsonObject> active = lease.HandleAsync(Input("A", token, "first"), Dispatch);
+        Task<JsonObject> plain, own;
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            // HandleAsync runs synchronously up to its occupied gate, so these two are known to be queued.
+            plain = lease.HandleAsync(Input("A", token, "plain"), Dispatch);
+            var deadline = Input("A", token, "own deadline");
+            deadline["timeoutMs"] = 20_000;
+            own = lease.HandleAsync(deadline, Dispatch);
+            Interlocked.Exchange(ref now, 7_000);
+        }
+        finally { finish.TrySetResult(); }
+        foreach (var call in new[] { active, plain, own })
+            Require((await call.WaitAsync(TimeSpan.FromSeconds(2))).Bool("ok") == true, "a queued action failed");
+        Require(given["first"] is null && given["plain"] == 53_000 && given["own deadline"] == 13_000,
+            $"queued actions were not given the time left: {given["first"]}, {given["plain"]} and {given["own deadline"]} ms, "
+            + "expected none, 53000 and 13000");
+
+        // Waits under 100 ms are the cost of passing a request on, and don't shrink limits such as typing's.
+        var tick = new JsonObject { ["timeoutMs"] = 5000 };
+        AgentAccess.Spend(tick, 99);
+        var counted = new JsonObject();
+        AgentAccess.Spend(counted, 100);
+        var over = new JsonObject { ["timeoutMs"] = 5000 };
+        AgentAccess.Spend(over, 9000);
+        Require(tick.Int("timeoutMs") == 5000 && counted.Int("timeoutMs") == 59_900 && over.Int("timeoutMs") == 1,
+            $"waits were counted wrongly: 99 ms left {tick.Int("timeoutMs")}, 100 ms left {counted.Int("timeoutMs")}, too long left {over.Int("timeoutMs")}");
+
+        // An action is stopped before its caller gives up, so its reply, even a cancellation, arrives in time.
+        Require(DesktopLease.StopAfterMs(60_000) == 59_000 && DesktopLease.StopAfterMs(8000) == 7000
+            && DesktopLease.StopAfterMs(1000) == 875 && DesktopLease.StopAfterMs(1) == 1, "the stop before the caller's deadline is miscounted");
+        var stopped = Signal();
+        var clock = Stopwatch.StartNew();
+        async Task<JsonObject> Hold(JsonObject request, CancellationToken cancel)
+        {
+            try { await Task.Delay(Timeout.Infinite, cancel); }
+            catch (OperationCanceledException) { stopped.TrySetResult(); }
+            return JsonLine.Ok();
+        }
+        var held = Input("A", token, "held");
+        held["timeoutMs"] = 2000;
+        clock.Restart();
+        await lease.HandleAsync(held, Hold).WaitAsync(TimeSpan.FromSeconds(5));
+        long ms = clock.ElapsedMilliseconds;
+        Require(stopped.Task.IsCompleted && ms >= 1500 && ms < 1990, $"an action with 2000 ms was stopped after {ms} ms, not before its caller gave up");
+        return "an action queued behind another of its agent's runs in the time its caller has left, and stops before it";
+    }
+
     public static async Task<string> Line()
     {
         long now = 0;

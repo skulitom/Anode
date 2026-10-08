@@ -198,9 +198,16 @@ internal sealed class DesktopLease
         }
     }
 
+    /// <summary>
+    /// When an action is stopped: a second, or an eighth of a shorter time, before its caller gives up, so even an
+    /// action cut short answers in time and the caller's connection survives.
+    /// </summary>
+    internal static int StopAfterMs(int timeoutMs) => Math.Max(1, timeoutMs - Math.Min(1000, timeoutMs / 8));
+
     public async Task<JsonObject> HandleAsync(JsonObject request,
         Func<JsonObject, CancellationToken, Task<JsonObject>> dispatch, CancellationToken cancel = default)
     {
+        long arrived = _milliseconds();
         if (AgentAccess.Validate(request) is { } invalid) return JsonLine.Fail(invalid);
         string op = request.Str("op") ?? "";
         if (Mcp.Tools.ValidateOperation(op, AgentAccess.Arguments(request)) is { } badArgs) return JsonLine.Fail(badArgs);
@@ -210,7 +217,7 @@ internal sealed class DesktopLease
         lock (_state) { if (Check(request) is { } error) return error; }
 
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancel);
-        deadline.CancelAfter(request.Int("timeoutMs") ?? 60000);
+        deadline.CancelAfter(StopAfterMs(request.Int("timeoutMs") ?? 60000));
         await _interaction.WaitAsync(deadline.Token).ConfigureAwait(false);
         bool admitted = false;
         try
@@ -225,6 +232,8 @@ internal sealed class DesktopLease
                 // start, so only an idle owner needs renew. It never revives an expired lease.
                 _expires = Math.Max(_expires, _milliseconds() + _ttl);
             }
+            // Waiting for an earlier action of this agent comes off the time this one has.
+            AgentAccess.Spend(request, _milliseconds() - arrived);
             var response = await dispatch(request, deadline.Token).ConfigureAwait(false);
             // Tell the owner someone is waiting, so it can hand the desktop on when it finishes.
             lock (_state) { if (_line.Count > 0) response["waitingAgents"] = _line.Count; }

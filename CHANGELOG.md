@@ -14,6 +14,12 @@
   reuse window.
 - **Quicker startup feedback.** Readiness, failure and Stop wake waiting startup calls immediately.
   MCP connects as soon as it launches the daemon, and failed host connections retry sooner.
+- **Queued requests keep their deadline.** A request that waited behind another long operation, such as
+  typing, got a full 60 seconds of its own once it reached the seat. So it could still be running when
+  the daemon gave up on it: the reply was lost and the seat showed as `detached` until it was
+  reconnected. The daemon now forwards the time a request has left, the seat takes its own waits off as
+  well, and a desktop operation is stopped a second before its time runs out, so one queued behind
+  another answers, or fails, in time.
 - **Typing keeps pace with the program.** `seat_type` and `anode type` sent characters as fast as
   Windows took them, so a busy program, such as Chrome editing a long field, could drop and reorder
   them while the call still reported success. Characters now go out 15 ms apart by default, timed

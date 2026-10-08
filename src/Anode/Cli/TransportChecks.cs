@@ -54,6 +54,65 @@ internal static class TransportChecks
         return "queued requests time out without interrupting or replaying other commands";
     }
 
+    public static async Task<string> ForwardTimeLeft()
+    {
+        var entered = Signal();
+        var release = Signal();
+        var given = new System.Collections.Concurrent.ConcurrentDictionary<string, int?>();
+        string name = PipeName();
+        using var server = new JsonPipeServer(name, async request =>
+        {
+            given[request.Str("op")!] = request.Int("timeoutMs");
+            if (request.Str("op") == "slow")
+            {
+                entered.TrySetResult();
+                await release.Task;
+            }
+            return JsonLine.Ok();
+        });
+        server.Start();
+        using var seat = await JsonPipeClient.TryConnectAsync(name, 4000)
+            ?? throw new InvalidOperationException("could not connect to the test pipe");
+        Require((await seat.RequestAsync("plain", timeoutMs: 5000)).Bool("ok") == true && given["plain"] is null,
+            "an ordinary request gained a timeoutMs it was not given");
+        Require((await Daemon.AnodeDaemon.SendOnAsync(seat, "fresh", new JsonObject(), 5000)).Bool("ok") == true
+            && given["fresh"] is > 4000 and <= 5000, $"a forwarded request that waited for nothing was given {given["fresh"]} ms of 5000");
+        Require(JsonPipeClient.TimeLeft(5000, 99) == 5000 && JsonPipeClient.TimeLeft(5000, 100) == 4900 && JsonPipeClient.TimeLeft(5000, 6000) == 1,
+            "time left after a wait is miscounted");
+
+        // The daemon has one connection to the seat host; a request queued behind a long one has only what is left.
+        Task<JsonObject> first = seat.RequestAsync("slow", timeoutMs: 10_000);
+        Task<JsonObject> queued;
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            queued = Daemon.AnodeDaemon.SendOnAsync(seat, "queued", new JsonObject { ["timeoutMs"] = 8000 }, 8000);
+            await Task.Delay(1500);
+        }
+        finally { release.TrySetResult(); }
+        Require((await first.WaitAsync(TimeSpan.FromSeconds(3))).Bool("ok") == true
+            && (await queued.WaitAsync(TimeSpan.FromSeconds(3))).Bool("ok") == true, "a request lost its reply");
+        Require(given["queued"] is int left && left <= 8000 - 1400 && left > 8000 - 4500,
+            $"a request queued about 1.5 s behind another was forwarded with {given["queued"]} ms of 8000, not the time it had left");
+
+        // A request left with almost no time isn't sent: its reply would come too late and cost the connection.
+        entered = Signal();
+        release = Signal();
+        first = seat.RequestAsync("slow", timeoutMs: 10_000);
+        Task<JsonObject> starved;
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            starved = Daemon.AnodeDaemon.SendOnAsync(seat, "starved", new JsonObject(), 1000);
+            await Task.Delay(960);
+        }
+        finally { release.TrySetResult(); }
+        var unsent = await starved.WaitAsync(TimeSpan.FromSeconds(3));
+        Require((await first.WaitAsync(TimeSpan.FromSeconds(3))).Bool("ok") == true && unsent.Bool("ok") == false
+            && !given.ContainsKey("starved") && seat.IsConnected, "a request with almost no time left was sent, or cost the connection: " + unsent.ToJsonString());
+        return "the daemon forwards each request with its caller's time left, so time queued behind another isn't counted twice";
+    }
+
     public static async Task<string> LateReply()
     {
         string name = PipeName();

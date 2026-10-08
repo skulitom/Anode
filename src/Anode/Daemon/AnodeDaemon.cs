@@ -791,9 +791,9 @@ internal sealed class AnodeDaemon : IDisposable
             using var independent = await JsonPipeClient.TryConnectAsync(Env.SeatPipe, Math.Min(1000, timeout)).ConfigureAwait(false);
             int remaining = timeout - (int)clock.ElapsedMilliseconds;
             if (independent is null || remaining <= 0) return JsonLine.Fail("Could not reach the seat host within the request deadline.");
-            return await independent.RequestAsync(op, forwarded, remaining).ConfigureAwait(false);
+            return await SendOnAsync(independent, op, forwarded, remaining).ConfigureAwait(false);
         }
-        var response = await seat.RequestAsync(op, forwarded, timeout).ConfigureAwait(false);
+        var response = await SendOnAsync(seat, op, forwarded, timeout).ConfigureAwait(false);
 
         if (response.Bool("ok") != true && !seat.IsConnected && ReferenceEquals(_seat, seat) && !_stopRequested)
         {
@@ -803,6 +803,14 @@ internal sealed class AnodeDaemon : IDisposable
         }
         return response;
     }
+
+    /// <summary>
+    /// Sends a request on to the seat host with the time its caller has left. Time spent queued here, behind another
+    /// agent's long operation such as typing, comes off what the seat host gives it, so it still answers before this
+    /// deadline instead of losing its reply and the connection.
+    /// </summary>
+    internal static Task<JsonObject> SendOnAsync(JsonPipeClient seat, string op, JsonObject forwarded, int timeoutMs) =>
+        seat.RequestAsync(op, forwarded, timeoutMs, sendTimeLeft: true);
 
     // ----------------------------------------------------------------- display
 
