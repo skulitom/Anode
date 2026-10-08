@@ -115,10 +115,31 @@ internal static class InputInjector
 
     private static void Send(params Input[] inputs)
     {
-        if (Desktop.WindowAccess.InputBlockReason() is { } blocked) throw new InvalidOperationException(blocked);
-        uint sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<Input>());
+        uint sent = SendCounted(inputs, out string? blocked);
+        if (blocked is not null) throw new InvalidOperationException(blocked);
         if (sent != inputs.Length)
             throw Native.Native.LastError($"SendInput accepted {sent} of {inputs.Length} events");
+    }
+
+    /// <summary>Sends the events unless the seat's input is blocked, and returns how many Windows accepted.</summary>
+    private static uint SendCounted(Input[] inputs, out string? blocked)
+    {
+        blocked = Desktop.WindowAccess.InputBlockReason();
+        return blocked is null ? SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<Input>()) : 0;
+    }
+
+    /// <summary>
+    /// Sends one step of typing. A refusal says whether part of the step went out: an earlier part, or some of these
+    /// events. Windows may not report every refusal, though: input an elevated window doesn't take may be dropped
+    /// without an error.
+    /// </summary>
+    private static void TypingStep(Input[] events, bool earlierPartSent)
+    {
+        uint sent = SendCounted(events, out string? blocked);
+        if (blocked is not null) throw new TextTyping.Refused(blocked, earlierPartSent);
+        if (sent != events.Length)
+            throw new TextTyping.Refused(Native.Native.LastError($"SendInput accepted {sent} of {events.Length} events").Message,
+                earlierPartSent || sent > 0);
     }
 
     private static Input AbsoluteMove(int x, int y)
@@ -312,10 +333,11 @@ internal static class InputInjector
             // As Press does, with the hold timed precisely.
             ushort vk = KeyCodes.Resolve(key);
             HeldKeys.Add((vk, true));
-            try { Send(KeyEvent(vk, false, true)); wait(TextTyping.KeyHoldMs); }
+            bool pressed = false;
+            try { TypingStep([KeyEvent(vk, false, true)], false); pressed = true; wait(TextTyping.KeyHoldMs); }
             finally
             {
-                Send(KeyEvent(vk, true, true));
+                TypingStep([KeyEvent(vk, true, true)], pressed);
                 HeldKeys.Remove((vk, true));
             }
             return;
@@ -327,7 +349,7 @@ internal static class InputInjector
             events.Add(new Input { Type = InputKeyboard, Union = { Keyboard = new KeyboardInput { Scan = character, Flags = KeyEventUnicode } } });
             events.Add(new Input { Type = InputKeyboard, Union = { Keyboard = new KeyboardInput { Scan = character, Flags = KeyEventUnicode | KeyEventKeyUp } } });
         }
-        Send(events.ToArray());
+        TypingStep(events.ToArray(), false);
     }
 
     private static bool IsExtendedKey(ushort vk) => vk switch

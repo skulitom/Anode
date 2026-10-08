@@ -68,6 +68,15 @@ internal static class TextTyping
         public CancellationToken Cancel { get; init; }
     }
 
+    /// <summary>
+    /// Windows refused a step of typing. <see cref="PartlySent"/> when part of the step went out before the refusal,
+    /// such as the press of an Enter whose release was refused.
+    /// </summary>
+    internal sealed class Refused(string message, bool partlySent) : Exception(message)
+    {
+        public bool PartlySent { get; } = partlySent;
+    }
+
     internal static List<Unit> Units(string text)
     {
         var units = new List<Unit>(text.Length);
@@ -119,7 +128,7 @@ internal static class TextTyping
         var units = Units(text);
         double start = typist.Now(), previous = start;
         string ranOut = string.Create(CultureInfo.InvariantCulture, $"typing would have run past {stop / 1000.0:0.#} seconds, the time this call has");
-        const string cancelled = "the request was cancelled, because the seat is stopping or its time ran out";
+        const string cancelled = "the request was cancelled because its time ran out (time spent waiting for the desktop counts) or the seat is stopping";
         for (int i = 0; i < units.Count; i++)
         {
             if (i > 0)
@@ -143,7 +152,12 @@ internal static class TextTyping
                 return Stopped(units, i, cancelled);
             if (typist.Now() - start + (units[i].Key is null ? 0 : KeyHoldMs) > stop) return Stopped(units, i, ranOut);
             previous = typist.Now();
-            typist.Send(units[i]);
+            try { typist.Send(units[i]); }
+            catch (Refused refused)
+            {
+                // The count still matters: the caller mustn't send again what already arrived.
+                return Stopped(units, i, $"Windows refused the input ({refused.Message.TrimEnd('.')})", refused.PartlySent);
+            }
         }
         double elapsed = typist.Now() - start;
         string how = pace > 0 ? $"{pace} ms apart" : "without a pause";
@@ -159,16 +173,22 @@ internal static class TextTyping
 
     /// <summary>
     /// Ends a call partway, saying exactly how far it got. The reply gives counts only and never repeats the text,
-    /// which may be a secret.
+    /// which may be a secret. <paramref name="partlySent"/> means part of the next character, the one at index
+    /// <paramref name="typed"/> of <paramref name="units"/>, went out before Windows refused the rest.
     /// </summary>
-    private static JsonObject Stopped(List<Unit> units, int typed, string reason)
+    private static JsonObject Stopped(List<Unit> units, int typed, string reason, bool partlySent = false)
     {
-        var failure = JsonLine.Fail($"Typed the first {typed} of {units.Count} characters, then stopped: {reason}. Nothing after "
-            + $"character {typed} was sent. Check what reached the field before you send the rest (from UTF-16 index {units[typed].Index}).");
+        string sent = partlySent
+            ? $"Part of character {typed + 1} went out first, so it may already have taken effect, as a pressed Enter does; "
+                + "nothing after it was sent."
+            : typed == 0 ? "Nothing was sent." : $"Nothing after character {typed} was sent.";
+        var failure = JsonLine.Fail($"Typed the first {typed} of {units.Count} characters, then stopped: {reason}. {sent} "
+            + $"Check what reached the field before you send the rest (from UTF-16 index {units[typed].Index}).");
         failure["errorCode"] = "typing_stopped";
         failure["typed"] = typed;
         failure["total"] = units.Count;
         failure["nextIndex"] = units[typed].Index;
+        if (partlySent) failure["partlySent"] = true;
         return failure;
     }
 

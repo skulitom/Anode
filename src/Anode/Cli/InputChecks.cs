@@ -149,10 +149,51 @@ internal static class InputChecks
                 "typing went on after its request was cancelled: " + halted.ToJsonString());
         }
 
+        // Windows refusing a character still ends the call with the exact count. partlySent says part of that character
+        // went out first, as when an Enter's press went through and its release was refused.
+        foreach (var (at, partly) in new[] { (0, false), (3, true), (4, false) })
+        {
+            var blocked = new Recorder();
+            var typist = blocked.Typist(_ => true);
+            var refusal = new TextTyping.Refused("stand-in refusal: SendInput accepted 0 of 2 events.", partly);
+            var partway = TextTyping.Type(Sample, null, new TextTyping.Typist
+            {
+                Send = unit => { if (blocked.Sent.Count == at) throw refusal; typist.Send(unit); },
+                Responsive = typist.Responsive, Wait = typist.Wait, Now = typist.Now
+            });
+            string why = partway.Str("error") ?? "";
+            int next = TextTyping.Units(Sample)[at].Index;
+            Require(partway.Bool("ok") == false && partway.Str("errorCode") == "typing_stopped" && partway.Int("typed") == at
+                && partway.Int("total") == 7 && partway.Int("nextIndex") == next && blocked.Sent.Count == at
+                && (partway["partlySent"] is null) != partly
+                && why.Contains("Windows refused the input (stand-in refusal: SendInput accepted 0 of 2 events)", StringComparison.Ordinal)
+                && why.Contains(partly ? $"Part of character {at + 1} went out first" : at == 0 ? "Nothing was sent." : $"Nothing after character {at} was sent.",
+                    StringComparison.Ordinal)
+                && !why.Contains("ab\n", StringComparison.Ordinal) && !why.Contains("\U0001F600", StringComparison.Ordinal),
+                $"a refusal at character {at + 1} (partly sent: {partly}) did not end typing with the exact count: " + partway.ToJsonString());
+        }
+        Require(stopped["partlySent"] is null && late["partlySent"] is null,
+            "a stop before a character went out said part of it was sent: " + stopped.ToJsonString());
+        // Any other exception is a fault in Anode itself, and fails loudly instead of passing for a refusal.
+        foreach (Exception fault in new Exception[] { new InvalidOperationException("stand-in fault"), new ObjectDisposedException("stand-in") })
+        {
+            var faulty = new Recorder().Typist(_ => true);
+            bool surfaced = false;
+            try
+            {
+                TextTyping.Type("ab", null, new TextTyping.Typist
+                {
+                    Send = _ => throw fault, Responsive = faulty.Responsive, Wait = faulty.Wait, Now = faulty.Now
+                });
+            }
+            catch (Exception caught) when (ReferenceEquals(caught, fault)) { surfaced = true; }
+            Require(surfaced, $"typing turned a fault in Anode's own code ({fault.GetType().Name}) into a typing_stopped reply");
+        }
+
         var refused = new Recorder();
         Require(TextTyping.Type(new string('x', 3002), null, refused.Typist(_ => true)).Bool("ok") == false && refused.Sent.Count == 0,
             "text too long for one call was partly typed before being refused");
-        return "15 ms apart by default, pauses for a busy program, stops with an exact count for a hung one, a deadline or a cancel, keeps Enter, Tab and emoji whole";
+        return "15 ms apart by default, pauses for a busy program, stops with an exact count for a hung one, a deadline, a cancel or input Windows refuses partway, keeps Enter, Tab and emoji whole";
     }
 
     public static string Limits()
