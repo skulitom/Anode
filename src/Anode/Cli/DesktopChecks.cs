@@ -297,7 +297,7 @@ internal static class DesktopChecks
     /// <summary>
     /// A window whose tree repeats controls. The window lists A and D; A lists B and C; C lists A, its own parent, so
     /// its children are A and D again (a loop, as Chrome's window appeared below itself while a &lt;select&gt; list
-    /// was open); D lists a second provider with B's runtime ID, then E.
+    /// was open); D lists a second provider with B's runtime ID, then E, which says E is its own next sibling.
     /// </summary>
     private sealed class LoopWindow : HiddenWindow, IRawElementProviderFragmentRoot
     {
@@ -311,7 +311,7 @@ internal static class DesktopChecks
             (B.Parent, B.Next) = (A, C);
             (C.Parent, C.Previous, C.FirstChild, C.LastChild) = (A, B, A, A);
             (B2.Parent, B2.Next) = (D, E);
-            (E.Parent, E.Previous) = (D, B2);
+            (E.Parent, E.Previous, E.Next) = (D, B2, E);
         }
         public override object? GetPatternProvider(int patternId) => null;
         public override object? GetPropertyValue(int propertyId) => null;
