@@ -192,7 +192,7 @@ internal static class AccessibilityReader
         {
             case "invoke": Pattern<InvokePattern>(InvokePattern.Pattern).Invoke(); break;
             case "focus": element.SetFocus(); break;
-            case "set_value": return SetValue(Pattern<ValuePattern>(ValuePattern.Pattern), request.Str("value")!);
+            case "set_value": return SetValue(Pattern<ValuePattern>(ValuePattern.Pattern), request.Str("value")!, state.ControlType == ControlType.ComboBox);
             case "toggle": Pattern<TogglePattern>(TogglePattern.Pattern).Toggle(); break;
             case "select": Pattern<SelectionItemPattern>(SelectionItemPattern.Pattern).Select(); break;
             case "expand": Pattern<ExpandCollapsePattern>(ExpandCollapsePattern.Pattern).Expand(); break;
@@ -219,9 +219,10 @@ internal static class AccessibilityReader
 
     /// <summary>
     /// Sets a value and reads it back. Some controls accept the call and ignore it, as Chrome's drop-down lists
-    /// (&lt;select&gt;) do, and "performed" would then let an agent submit a form with the old choice.
+    /// (&lt;select&gt;) do, and "performed" would then let an agent submit a form with the old choice. The failure never
+    /// quotes the control's text: the pipe server logs errors, and a field can hold anything.
     /// </summary>
-    private static JsonObject SetValue(ValuePattern pattern, string value)
+    private static JsonObject SetValue(ValuePattern pattern, string value, bool list)
     {
         string before = pattern.Current.Value ?? "";
         pattern.SetValue(value);
@@ -236,11 +237,13 @@ internal static class AccessibilityReader
                 now = pattern.Current.Value ?? "";
             }
         }
-        catch (ElementNotAvailableException)
+        catch (Exception ex) when (ex is ElementNotAvailableException or InvalidOperationException or TimeoutException
+            or System.Runtime.InteropServices.COMException)
         {
-            var gone = Performed("set_value");
-            gone["note"] = "The control went away after the change, so its new value wasn't read back. Inspect again before the next action.";
-            return gone;
+            // The value was already sent, so this must not read as "nothing happened".
+            var unread = Performed("set_value");
+            unread["note"] = "The value was sent, but the control could not be read back (it may have gone away). Inspect again before the next action.";
+            return unread;
         }
         if (now == value) return Performed("set_value");
         if (now != before)
@@ -248,13 +251,14 @@ internal static class AccessibilityReader
             // An app may reformat what it was given, for example a number field that adds its separators.
             var changed = Performed("set_value");
             changed["value"] = Clip(now, 500);
-            changed["note"] = "The control changed the value it was given; value is what it reads now. Observation consumed. Inspect again before the next action.";
+            changed["note"] = "The control changed the value it was given. Observation consumed. Inspect again before the next action.";
             return changed;
         }
         throw new InvalidOperationException(
-            $"The control accepted set_value but still read \"{Clip(before, 200)}\" after {SetValueSettleMs} ms, so the new value "
-            + "wasn't applied, or the control doesn't show it. Some controls ignore set_value, as Chrome's drop-down lists do: "
-            + "expand the list and select the option, or click it. Inspect again before you retry.");
+            $"The control accepted set_value but still showed its old value {SetValueSettleMs} ms later. It ignored the change, or "
+            + "took it and kept its old text (a tag field that adds a tag, a value it rewrites, a change still pending). "
+            + (list ? "Drop-down lists such as Chrome's ignore set_value: expand the list and select the option, or click it. " : "")
+            + "Inspect again before you retry.");
     }
 
     /// <summary>The role of a control whose type .NET's UI Automation client can't name.</summary>

@@ -256,7 +256,8 @@ internal static class DesktopChecks
                     $"a value the control {(mode == "late" ? "applied a moment later" : "applied")} was reported as {done.ToJsonString()}");
             }
             var reformatted = Set("reformat");
-            Require(reformatted.Str("performed") == "set_value" && reformatted.Str("value") == "TEAM",
+            Require(reformatted.Str("performed") == "set_value" && reformatted.Str("value") == "TEAM"
+                && DesktopPresentation.Summary(reformatted).EndsWith("It now reads: TEAM", StringComparison.Ordinal),
                 "a value the control reformatted was not reported as it now reads: " + reformatted.ToJsonString());
             var watch = Stopwatch.StartNew();
             try
@@ -264,7 +265,12 @@ internal static class DesktopChecks
                 var ignored = Set("ignore");
                 throw new InvalidOperationException("a value the control ignored was reported as " + ignored.ToJsonString());
             }
-            catch (InvalidOperationException error) when (error.Message.Contains("still read \"Free\"", StringComparison.Ordinal)) { }
+            catch (InvalidOperationException error) when (error.Message.Contains("still showed its old value", StringComparison.Ordinal))
+            {
+                // Errors are logged, so the message must not quote the control's text; a list gets the way to choose.
+                Require(!error.Message.Contains("Free", StringComparison.Ordinal) && error.Message.Contains("expand the list", StringComparison.Ordinal),
+                    "the failure quoted the control's text or left out the drop-down advice: " + error.Message);
+            }
             Require(window.Value == "Free" && watch.ElapsedMilliseconds >= AccessibilityReader.SetValueSettleMs - 100,
                 "an ignored value was refused before the control had time to apply it");
             return "set_value reads the control back: an ignored value (as Chrome's <select>) fails instead of reporting performed; applied, late and reformatted values pass";

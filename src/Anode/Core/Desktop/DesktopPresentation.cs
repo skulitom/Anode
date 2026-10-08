@@ -66,7 +66,11 @@ internal static class DesktopPresentation
             if (result["warnings"] is JsonArray warnings)
                 foreach (var warning in warnings) text.AppendLine(Line(warning?.ToString()));
         }
-        else text.Append(result.Str("note") ?? "ok");
+        else
+        {
+            text.Append(result.Str("note") ?? "ok");
+            if (result.Str("value") is { } value) text.Append(" It now reads: " + Line(value));
+        }
         return text.ToString().TrimEnd();
     }
 

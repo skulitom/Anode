@@ -66,8 +66,10 @@ changes. Password controls omit their values and offer no element actions.
 `set_value` reads the control back. If it still shows its old value 1.5 seconds
 later, the action fails instead of reporting success: some controls accept the
 change and ignore it. Chrome's drop-down lists (`<select>`) do, so expand the list
-and select the option, or click it. A control that reformats the value succeeds,
-and its result's `value` is what the control now reads.
+and select the option, or click it. A field that takes the text and clears itself,
+such as a tag field, fails the same way although it took the text, so inspect
+before you retry. A control that reformats the value succeeds, and its result's
+`value` is what the control now reads.
 Successful action submission is not proof that an application completed its work;
 inspect again to confirm the result, including possible modal dialogs.
 
