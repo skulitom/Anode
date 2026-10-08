@@ -16,6 +16,13 @@ a Chrome window with a temporary profile. Each frame is one step; the time betwe
 | Your own page or app, on localhost or a test server | `seat_run` with Chrome and its own `--user-data-dir` | A temporary folder you delete afterwards: no accounts, nothing left behind |
 | A site the agent should use as you, such as a console | `seat_browser` | Anode's seat profile, which you sign in to once |
 
+Before the agent opens either browser, acquire the desktop lease. This starts the hidden seat if
+Anode is stopped; keep the lease until the form is finished and its window is closed.
+
+```json
+{"tool": "seat_lease", "arguments": {"action": "acquire"}}
+```
+
 **Your own page.** Start Chrome in the seat on a folder of its own (here an `--app` window, which
 has no address bar):
 
@@ -38,7 +45,6 @@ act on ([details](ANDROID.md#web-consoles-in-a-signed-in-browser)).
 ## Fill in the form
 
 ```json
-{"tool": "seat_lease", "arguments": {"action": "acquire"}}
 {"tool": "seat_windows", "arguments": {"query": "chrome"}}
 {"tool": "seat_observe", "arguments": {"windowId": "w_RETURNED_ID", "maxDepth": 16, "includeScreenshot": false}}
 {"tool": "seat_observe", "arguments": {"windowId": "w_RETURNED_ID", "maxDepth": 16, "includeScreenshot": false}}

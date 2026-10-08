@@ -34,6 +34,7 @@ Or run the guided prompt `/mcp__anode__android_test` and name your APK.
 
 ```json
 {"tool": "android_status", "arguments": {}}
+{"tool": "seat_lease", "arguments": {"action": "acquire"}}
 {"tool": "android_emulator", "arguments": {"action": "start", "avd": "Pixel_9_Pro"}}
 {"tool": "android_emulator", "arguments": {"action": "adb", "serial": "emulator-5554", "args": ["install", "-r", "C:\\work\\app-release.apk"]}}
 {"tool": "android_emulator", "arguments": {"action": "adb", "serial": "emulator-5554", "args": ["shell", "monkey", "-p", "com.example.quiz", "1"]}}
@@ -42,6 +43,7 @@ Or run the guided prompt `/mcp__anode__android_test` and name your APK.
 {"tool": "android_emulator", "arguments": {"action": "screenshot", "serial": "emulator-5554", "maxWidth": 540}}
 {"tool": "android_emulator", "arguments": {"action": "adb", "serial": "emulator-5554", "args": ["logcat", "-d", "-s", "AndroidRuntime:E"]}}
 {"tool": "android_emulator", "arguments": {"action": "stop", "serial": "emulator-5554"}}
+{"tool": "seat_lease", "arguments": {"action": "release"}}
 ```
 
 - `start` returns the serial to use, such as `emulator-5554`, and `booted: true` once Android is up.
