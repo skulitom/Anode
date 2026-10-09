@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **A desktop action that runs out of time says so.** An action stopped at its deadline, such as
+  `seat_wait` queued behind a long `seat_type`, answered with a bare "TaskCanceledException: A task
+  was canceled.", which said neither that time ran out nor whether anything ran. It now fails with
+  `errorCode: "timed_out"` and the time the request had, and `started: false` and "Nothing was
+  done" when it was still waiting for the desktop, or `started: true` when it was stopped partway.
 - **`set_value` checks that the value took.** On a Chrome drop-down list (`<select>`), `seat_element`
   `set_value` reported `performed` while the list kept its old choice, so an agent could submit a
   form with the wrong option. Anode now reads the control back: if it still shows its old value 1.5

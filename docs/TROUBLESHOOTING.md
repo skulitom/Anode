@@ -41,9 +41,12 @@ with an ordinary terminal. Only `anode setup` needs administrator approval.
 
 ### A command timed out and the viewer is still connected
 
-The timed-out command may have executed. Check the seat before repeating it. Run `anode start`
-to reconnect the seat host if the daemon reports it is not ready; Anode can recover that connection
-without waiting for the viewer to reconnect. `anode kill` remains available to stop the seat.
+The timed-out command may have executed. Check the seat before repeating it. A desktop action that
+the seat stopped at its deadline says how far it got: `timed_out` with `started: false` did nothing,
+since it was still waiting behind an earlier action; with `started: true` it was stopped partway.
+Run `anode start` to reconnect the seat host if the daemon reports it is not ready; Anode can
+recover that connection without waiting for the viewer to reconnect. `anode kill` remains available
+to stop the seat.
 
 ### "Remote Desktop host: fDenyTSConnections = 1"
 
