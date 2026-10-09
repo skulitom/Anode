@@ -119,13 +119,10 @@ internal static class DesktopChecks
         return "HTML report escapes untrusted app text; text summary keeps automation IDs, bounds and capture geometry";
     }
 
-    /// <summary>
-    /// A hidden window, never shown, whose accessibility provider says it is an AppBar (UIA control type 50040), as File
-    /// Explorer's command bar does. .NET's UI Automation client has no name for that type.
-    /// </summary>
-    private sealed class AppBarWindow : NativeWindow, IRawElementProviderSimple
+    /// <summary>A hidden window, never shown, that answers UI Automation with its own provider.</summary>
+    private abstract class HiddenWindow : NativeWindow, IRawElementProviderSimple
     {
-        private const int WmGetObject = 0x003D, UiaRootObjectId = -25, AppBarControlTypeId = 50040;
+        private const int WmGetObject = 0x003D, UiaRootObjectId = -25;
         public const int Quit = 0x8002; // WM_APP + 2
 
         protected override void WndProc(ref Message m)
@@ -140,59 +137,160 @@ internal static class DesktopChecks
         }
 
         public ProviderOptions ProviderOptions => ProviderOptions.ServerSideProvider;
-        public object? GetPatternProvider(int patternId) => null;
-        public object? GetPropertyValue(int propertyId) =>
+        public abstract object? GetPatternProvider(int patternId);
+        public abstract object? GetPropertyValue(int propertyId);
+        public IRawElementProviderSimple HostRawElementProvider => AutomationInteropProvider.HostProviderFromHandle(Handle);
+    }
+
+    /// <summary>A control that says it is an AppBar (UIA control type 50040), as File Explorer's command bar does.</summary>
+    private sealed class AppBarWindow : HiddenWindow
+    {
+        private const int AppBarControlTypeId = 50040;
+        public override object? GetPatternProvider(int patternId) => null;
+        public override object? GetPropertyValue(int propertyId) =>
             propertyId == AutomationElement.ControlTypeProperty.Id ? AppBarControlTypeId
             : propertyId == AutomationElement.NameProperty.Id ? "Command bar" : null;
-        public IRawElementProviderSimple HostRawElementProvider => AutomationInteropProvider.HostProviderFromHandle(Handle);
+    }
+
+    /// <summary>
+    /// A drop-down list, or a text field, that takes set_value the way it is told to: applies it, ignores it as Chrome's
+    /// &lt;select&gt; does, applies it a moment later as Chrome's text fields do, reformats it, or goes away.
+    /// </summary>
+    private sealed class ValueWindow : HiddenWindow, IValueProvider
+    {
+        private volatile string _mode = "apply", _value = "Free";
+        private volatile bool _sent, _field;
+        public void Use(string mode, bool field = false) { _mode = mode; _field = field; _value = "Free"; _sent = false; }
+        public override object? GetPatternProvider(int patternId) => patternId == ValuePattern.Pattern.Id ? this : null;
+        public override object? GetPropertyValue(int propertyId) =>
+            propertyId == AutomationElement.ControlTypeProperty.Id ? (_field ? ControlType.Edit.Id : ControlType.ComboBox.Id)
+            : propertyId == AutomationElement.NameProperty.Id ? "Plan" : null;
+        public bool IsReadOnly => false;
+        public string Value => _mode == "vanish" && _sent ? throw new ElementNotAvailableException() : _value;
+        public void SetValue(string value)
+        {
+            _sent = true;
+            switch (_mode)
+            {
+                case "ignore": break;
+                case "late": _ = Task.Delay(300).ContinueWith(_ => _value = value, TaskScheduler.Default); break;
+                case "reformat": _value = value.ToUpperInvariant(); break;
+                default: _value = value; break;
+            }
+        }
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
     private static extern bool PostMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
 
-    public static string UnknownControlTypes()
+    /// <summary>
+    /// Runs a check against a hidden window of this process on its own STA thread. The window is this process's, so it
+    /// passes the seat's session checks; the check runs off that thread, since UI Automation must not run on an STA
+    /// thread, as in the seat's worker.
+    /// </summary>
+    private static string Hosted(HiddenWindow window, string caption, Func<WindowTarget, string> check)
     {
-        Require(AccessibilityReader.Role(ControlType.Button) == "Button", "a known control type lost its name");
-        var window = new AppBarWindow();
         using var created = new ManualResetEventSlim();
         Exception? failed = null;
         var thread = new Thread(() =>
         {
-            try { window.CreateHandle(new CreateParams { Caption = "Anode unknown control type check", Style = unchecked((int)0x80000000) }); } // WS_POPUP, never visible
+            try { window.CreateHandle(new CreateParams { Caption = caption, Style = unchecked((int)0x80000000) }); } // WS_POPUP, never visible
             catch (Exception ex) { failed = ex; created.Set(); return; }
             created.Set();
             Application.Run();
             window.DestroyHandle();
-        }) { IsBackground = true, Name = "unknown control type window" };
+        }) { IsBackground = true, Name = caption };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         Require(created.Wait(5000) && failed is null, "the check's hidden window was not created: " + failed?.Message);
-        T Within<T>(Func<T> work) => Task.Run(work).WaitAsync(TimeSpan.FromSeconds(10)).GetAwaiter().GetResult();
         try
         {
-            // UI Automation must not run on an STA thread, as in the seat's worker. The window is this process's, so it
-            // passes the seat's session checks.
             var target = WindowAccess.Identify(window.Handle);
-            var observation = Within(() => AccessibilityReader.Observe(target, new JsonObject { ["maxDepth"] = 1 }));
-            var root = observation["elements"]?.AsArray().FirstOrDefault()?.AsObject()
-                ?? throw new InvalidOperationException("the observation has no elements: " + observation.ToJsonString());
+            return Task.Run(() => check(target)).WaitAsync(TimeSpan.FromSeconds(20)).GetAwaiter().GetResult();
+        }
+        finally
+        {
+            PostMessage(window.Handle, HiddenWindow.Quit, IntPtr.Zero, IntPtr.Zero);
+            thread.Join(5000);
+        }
+    }
+
+    private static JsonObject Root(JsonObject observation) => observation["elements"]?.AsArray().FirstOrDefault()?.AsObject()
+        ?? throw new InvalidOperationException("the observation has no elements: " + observation.ToJsonString());
+
+    public static string UnknownControlTypes()
+    {
+        Require(AccessibilityReader.Role(ControlType.Button) == "Button", "a known control type lost its name");
+        return Hosted(new AppBarWindow(), "Anode unknown control type check", target =>
+        {
+            var root = Root(AccessibilityReader.Observe(target, new JsonObject { ["maxDepth"] = 1 }));
             string expected = AccessibilityReader.Role(ControlType.LookupById(50040));
             Require(root.Str("role") == expected && root.Str("name") == "Command bar",
                 $"an AppBar control was described as {root.Str("role")} \"{root.Str("name")}\", not {expected} \"Command bar\"");
             // Acting on it compares the role again; an action it doesn't offer must be refused after that comparison.
             try
             {
-                Within(() => AccessibilityReader.Act(target, root, new JsonObject { ["action"] = "invoke" }));
+                AccessibilityReader.Act(target, root, new JsonObject { ["action"] = "invoke" });
                 throw new InvalidOperationException("an action the control does not offer was performed");
             }
             catch (InvalidOperationException error) when (error.Message.Contains("not offered", StringComparison.Ordinal)) { }
             return $"a control type .NET's client can't name (AppBar, as in File Explorer) is observed as {expected}, and actions on it reach their checks";
-        }
-        finally
+        });
+    }
+
+    public static string IgnoredValues()
+    {
+        var window = new ValueWindow();
+        return Hosted(window, "Anode set_value check", target =>
         {
-            PostMessage(window.Handle, AppBarWindow.Quit, IntPtr.Zero, IntPtr.Zero);
-            thread.Join(5000);
-        }
+            var list = Root(AccessibilityReader.Observe(target, new JsonObject { ["maxDepth"] = 0 }));
+            Require(list["actions"]!.AsArray().Any(action => action?.GetValue<string>() == "set_value"), "the list does not offer set_value");
+            JsonObject Set(string mode, JsonObject? control = null)
+            {
+                window.Use(mode, field: control is not null);
+                return AccessibilityReader.Act(target, control ?? list, new JsonObject { ["action"] = "set_value", ["value"] = "Team" });
+            }
+            foreach (string mode in new[] { "apply", "late" })
+            {
+                var done = Set(mode);
+                Require(done.Str("performed") == "set_value" && done["value"] is null && window.Value == "Team",
+                    $"a value the control {(mode == "late" ? "applied a moment later" : "applied")} was reported as {done.ToJsonString()}");
+            }
+            var reformatted = Set("reformat");
+            Require(reformatted.Str("performed") == "set_value" && reformatted.Str("value") == "TEAM"
+                && DesktopPresentation.Summary(reformatted).EndsWith("It now reads: \"TEAM\"", StringComparison.Ordinal),
+                "a value the control reformatted was not reported as it now reads: " + reformatted.ToJsonString());
+            var watch = Stopwatch.StartNew();
+            try
+            {
+                var ignored = Set("ignore");
+                throw new InvalidOperationException("a value the control ignored was reported as " + ignored.ToJsonString());
+            }
+            catch (InvalidOperationException error) when (error.Message.Contains("still showed its old value", StringComparison.Ordinal))
+            {
+                // Errors are logged, so the message must not quote the control's text; a list gets the way to choose.
+                Require(!error.Message.Contains("Free", StringComparison.Ordinal) && error.Message.Contains("expand the list", StringComparison.Ordinal),
+                    "the failure quoted the control's text or left out the drop-down advice: " + error.Message);
+            }
+            Require(window.Value == "Free" && watch.ElapsedMilliseconds >= AccessibilityReader.SetValueSettleMs - 100,
+                "an ignored value was refused before the control had time to apply it");
+            // The value went out before the control went away, so that must not read as "nothing happened".
+            var unread = Set("vanish");
+            Require(unread.Str("performed") == "set_value" && unread.Str("note")!.Contains("could not be read back", StringComparison.Ordinal),
+                "a control that went away after set_value was reported as " + unread.ToJsonString());
+            window.Use("ignore", field: true);
+            var field = Root(AccessibilityReader.Observe(target, new JsonObject { ["maxDepth"] = 0 }));
+            try
+            {
+                var ignored = Set("ignore", field);
+                throw new InvalidOperationException("a value the text field ignored was reported as " + ignored.ToJsonString());
+            }
+            catch (InvalidOperationException error) when (error.Message.Contains("still showed its old value", StringComparison.Ordinal))
+            {
+                Require(!error.Message.Contains("expand the list", StringComparison.Ordinal), "a text field was told to expand a list: " + error.Message);
+            }
+            return "set_value reads the control back: an ignored value (as Chrome's <select>) fails instead of reporting performed; applied, late and reformatted values pass";
+        });
     }
 }
