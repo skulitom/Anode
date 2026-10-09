@@ -48,10 +48,10 @@ See [Install](#install) for custom locations and offline installs, or
 **Ctrl+Alt+Shift+K** stops it (if another program holds that shortcut, use **Stop seat** in the viewer or
 `anode kill`). Unsigned builds may trigger SmartScreen. No telemetry.
 
-<!-- Remove this section in the release that ships #18 and #20. -->
+<!-- 0.11.2 ships #18 and #20. Remove this section in the release after it. -->
 ### Known issues in 0.11.1
 
-Two bugs in 0.11.1 have fixes waiting for the next release. Until then:
+Two bugs in 0.11.1 are fixed in 0.11.2. On 0.11.1:
 
 - **`seat_observe` fails on Windows 11 File Explorer windows** with "Object reference not set to an
   instance of an object", and so does `seat_wait`. Use `seat_screenshot` and `seat_click` on those

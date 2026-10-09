@@ -2,7 +2,8 @@
 
 ## 0.11.2 candidate — 9 October 2026
 
-**Scope:** the bug fixes merged since 0.11.1 (#10 to #29) and the startup changes in
+**Scope:** the fixes merged since 0.11.1 (pull requests #10 to #29, except those still open, such
+as #19, the Business edition's terms) and the startup changes in
 [startup performance](STARTUP-PERFORMANCE.md). No new tools or commands; the tool count stays 41.
 The candidate is the commit that sets the version to 0.11.2. Fixes merged after it are not in it.
 The changelog dates 0.11.2 to 9 October, when its contents were fixed.
@@ -72,6 +73,7 @@ closes every program in it), and the .NET 10 SDK, Node.js and Chrome installed.
    anode run explorer.exe C:\Windows | Out-Host
    Start-Sleep -Seconds 2
    $explorer = @((anode windows --query Windows --json | ConvertFrom-Json).windows | Where-Object process -eq 'explorer')[0]
+   if (-not $explorer) { throw 'No File Explorer window in the seat yet: wait a moment, then set $explorer again.' }
    anode inspect $explorer.windowId | Out-Host
    anode window $explorer.windowId close | Out-Host
    anode lease release | Out-Host

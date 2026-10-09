@@ -70,14 +70,21 @@ Assert-That ($status.state -eq 'ready' -and $status.session -ne $status.parentSe
 # The caller supplies an existing lease; never acquire/start a seat from this opt-in test.
 $null = Call-Anode @('lease', 'renew', '--ttl', '600')
 $url = ([Uri]$page).AbsoluteUri
-$launched = Call-Anode @('run', $Chrome, "--user-data-dir=$profileDirectory", '--no-first-run', '--no-default-browser-check',
-    '--force-renderer-accessibility', "--app=$url")
-Assert-That ($launched.session -eq $status.session) 'Chrome launched in the wrong session.'
 $windowId = $null
-$chromePid = 0
-$chromeStarted = $null
+# The Chrome processes this test started, by id and start time, so cleanup never touches another one.
+$owned = @()
+function Add-Owned([int]$ProcessId) {
+    $process = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+    if ($process -and $process.SessionId -eq $status.session -and -not ($script:owned | Where-Object { $_.Id -eq $ProcessId })) {
+        $script:owned += [pscustomobject]@{ Id = $ProcessId; Started = $process.StartTime }
+    }
+}
 $warnings = @()
 try {
+    $launched = Call-Anode @('run', $Chrome, "--user-data-dir=$profileDirectory", '--no-first-run', '--no-default-browser-check',
+        '--force-renderer-accessibility', "--app=$url")
+    Assert-That ($launched.session -eq $status.session) 'Chrome launched in the wrong session.'
+    Add-Owned ([int]$launched.pid)
     $deadline = (Get-Date).AddSeconds(20)
     do {
         $windows = @((Call-Anode @('windows', '--query', $title)).windows)
@@ -85,38 +92,37 @@ try {
     } while ($windows.Count -eq 0 -and (Get-Date) -lt $deadline)
     Assert-That ($windows.Count -eq 1) "Chrome's window '$title' did not appear exactly once."
     $windowId = $windows[0].windowId
-    $chromePid = [int]$windows[0].pid
-    $chrome = Get-Process -Id $chromePid
+    $chrome = Get-Process -Id ([int]$windows[0].pid)
     Assert-That ($chrome.SessionId -eq $status.session) 'Chrome window is outside the seat.'
-    $chromeStarted = $chrome.StartTime
+    Add-Owned $chrome.Id
     # Page controls sit deep in Chrome's tree, and Chrome builds the tree only once something asks.
     function Observe-Page { Call-Anode @('inspect', $windowId, '--max-depth', '16', '--max-elements', '500') }
     $deadline = (Get-Date).AddSeconds(15)
     do {
         $observation = Observe-Page
-        $ready = (Find-Control $observation 'name').Count -gt 0 -and (Find-Control $observation 'plan').Count -gt 0
+        $ready = @(Find-Control $observation 'name').Count -gt 0 -and @(Find-Control $observation 'plan').Count -gt 0
         if (-not $ready) { Start-Sleep -Milliseconds 500 }
     } while (-not $ready -and (Get-Date) -lt $deadline)
     Assert-That $ready "The page's fields never appeared in Chrome's accessibility tree."
 
     # A text field: set_value succeeds only once the field reads the new value back.
-    $field = (Find-Control $observation 'name')[0]
+    $field = @(Find-Control $observation 'name')[0]
     Assert-That ($field.actions -contains 'set_value') 'The text field offers no set_value.'
     $watch = [Diagnostics.Stopwatch]::StartNew()
     $null = Call-Anode @('element', $observation.snapshotId, $field.id, 'set_value', '--value', 'Sam Example')
     $watch.Stop()
     $fieldMilliseconds = $watch.ElapsedMilliseconds
     $observation = Observe-Page
-    $field = (Find-Control $observation 'name')[0]
+    $field = @(Find-Control $observation 'name')[0]
     Assert-That ($field.text -eq 'Sam Example') "The text field reads '$($field.text)' after set_value."
 
     # A drop-down list: Chrome may ignore set_value, which must then fail instead of reporting success.
-    $plan = (Find-Control $observation 'plan')[0]
+    $plan = @(Find-Control $observation 'plan')[0]
     Assert-That ($plan.text -eq 'Free') "The drop-down list starts at '$($plan.text)', not Free."
     $attempt = Try-Anode @('element', $observation.snapshotId, $plan.id, 'set_value', '--value', 'Team')
     $observation = Observe-Page
-    $plan = (Find-Control $observation 'plan')[0]
-    $result = (Find-Control $observation 'result')[0]
+    $plan = @(Find-Control $observation 'plan')[0]
+    $result = @(Find-Control $observation 'result')[0]
     if ($attempt.ExitCode -eq 0) {
         Assert-That ($plan.text -eq 'Team' -and $result.text -eq 'Plan: Team') 'set_value on the drop-down list reported success, but the choice did not change.'
         $dropDown = 'applied'
@@ -131,7 +137,7 @@ try {
     $null = Call-Anode @('element', $observation.snapshotId, $plan.id, 'expand')
     Start-Sleep -Milliseconds 500
     $open = Observe-Page
-    $copies = (Find-Control $open 'name').Count
+    $copies = @(Find-Control $open 'name').Count
     Assert-That ($copies -eq 1) "With the list open, the observation listed the text field $copies times."
     $skippedRepeats = 0
     if ($open.PSObject.Properties['skippedRepeats']) { $skippedRepeats = [int]$open.skippedRepeats }
@@ -163,9 +169,11 @@ try {
     } | ConvertTo-Json -Depth 5 | Tee-Object -FilePath (Join-Path $OutputDirectory 'result.json')
 } finally {
     if ($windowId) { & $Anode window $windowId close | Out-Host }
-    $remaining = if ($chromePid) { Get-Process -Id $chromePid -ErrorAction SilentlyContinue }
-    if ($remaining -and $remaining.SessionId -eq $status.session -and $remaining.StartTime -eq $chromeStarted) {
-        if (-not $remaining.WaitForExit(5000)) { & $Anode ps kill $chromePid | Out-Host }
+    foreach ($item in $owned) {
+        $remaining = Get-Process -Id $item.Id -ErrorAction SilentlyContinue
+        if ($remaining -and $remaining.SessionId -eq $status.session -and $remaining.StartTime -eq $item.Started) {
+            if (-not $remaining.WaitForExit(5000)) { & $Anode ps kill $item.Id | Out-Host }
+        }
     }
     # Chrome's helper processes can hold the profile for a moment after the browser exits.
     for ($try = 0; $try -lt 10 -and (Test-Path -LiteralPath $profileDirectory); $try++) {

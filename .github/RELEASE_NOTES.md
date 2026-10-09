@@ -33,9 +33,9 @@ the foreground window: use `focus`. `anode type` has no option for a slower pace
 for a later release.
 
 **Validation.** All 97 quick checks and the documentation check passed, and Windows CI repeated
-the build, packaging, installation and distribution checks. The live checks in a Windows 11 seat
-and their limits are in the
-[validation record](https://github.com/skulitom/Anode/blob/v0.11.2/docs/RELEASE-READINESS.md).
+the build, packaging, installation and distribution checks. The live checks in a Windows 11 seat,
+their results and their limits are in the
+[validation record](https://github.com/skulitom/Anode/blob/main/docs/RELEASE-READINESS.md).
 See the [changelog](https://github.com/skulitom/Anode/blob/v0.11.2/CHANGELOG.md#0112--2026-10-09) for every
 change.
 
