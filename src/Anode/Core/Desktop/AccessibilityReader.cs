@@ -28,17 +28,35 @@ internal static class AccessibilityReader
         var elements = new JsonArray();
         var warnings = new JsonArray();
         var watch = Stopwatch.StartNew();
-        var queue = new Queue<(AutomationElement Element, int[] Path, string? Parent)>();
-        queue.Enqueue((root, Array.Empty<int>(), null));
+        // An app can list the same control twice in its tree, even below itself (Chrome appeared to while a <select> list
+        // was open). Walking it again would repeat its whole subtree until the budget ran out, so a control with a runtime
+        // ID already queued is skipped. Its index still counts, so the paths seat_element follows stay right.
+        var seen = new HashSet<string>();
+        int repeated = 0;
+        var queue = new Queue<(AutomationElement Element, int[]? RuntimeId, int[] Path, string? Parent)>();
+        int[]? rootId = RuntimeId(root);
+        if (rootId is { Length: > 0 }) seen.Add(Key(rootId));
+        queue.Enqueue((root, rootId, Array.Empty<int>(), null));
         bool truncated = false;
         int visited = 0;
         while (queue.Count > 0 && visited < maximum && watch.ElapsedMilliseconds < 4000)
         {
             var current = queue.Dequeue();
             visited++;
+            JsonObject? node = null;
+            string? key = current.RuntimeId is { Length: > 0 } queued ? Key(queued) : null;
             try
             {
-                var node = Describe(current.Element, current.Path, current.Parent, ref textBudget);
+                // A runtime ID that couldn't be read when queued is read again here, and its failure reported.
+                int[] runtimeId = current.RuntimeId ?? current.Element.GetRuntimeId() ?? Array.Empty<int>();
+                if (current.RuntimeId is null && runtimeId.Length > 0 && !seen.Add(Key(runtimeId)))
+                {
+                    visited--;
+                    repeated++;
+                    continue;
+                }
+                if (runtimeId.Length > 0) key = Key(runtimeId);
+                node = Describe(current.Element, runtimeId, current.Path, current.Parent, ref textBudget);
                 string? parent = current.Parent;
                 if (offscreen || node.Bool("offscreen") != true || current.Path.Length == 0)
                 {
@@ -48,29 +66,53 @@ internal static class AccessibilityReader
                 }
                 if (current.Path.Length >= depthLimit) { truncated = true; continue; }
                 int index = 0;
+                var siblings = new HashSet<string>();
                 var child = Walker.GetFirstChild(current.Element);
                 while (child is not null && queue.Count + visited < maximum && watch.ElapsedMilliseconds < 4000)
                 {
-                    queue.Enqueue((child, current.Path.Append(index++).ToArray(), parent));
+                    int[]? id = RuntimeId(child);
+                    string? childKey = id is { Length: > 0 } ? Key(id) : null;
+                    // A list of children that comes back to one it already gave has no more to give; repeats take no
+                    // budget, so only this stops it.
+                    if (childKey is not null && !siblings.Add(childKey)) { child = null; break; }
+                    if (childKey is not null && !seen.Add(childKey)) repeated++;
+                    else queue.Enqueue((child, id, current.Path.Append(index).ToArray(), parent));
+                    index++;
                     child = Walker.GetNextSibling(child);
                 }
                 if (child is not null) truncated = true;
             }
             catch (Exception ex) when (ex is ElementNotAvailableException or InvalidOperationException or System.Runtime.InteropServices.COMException)
             {
+                // A control that couldn't be described lets a copy of it listed later be described instead.
+                if (node is null && key is not null) seen.Remove(key);
                 if (warnings.Count < 3) warnings.Add("A control changed or did not expose readable accessibility information.");
             }
         }
         truncated |= queue.Count > 0;
-        return new JsonObject
+        var result = new JsonObject
         {
             ["window"] = WindowAccess.Describe(target), ["elements"] = elements,
             ["truncated"] = truncated, ["warnings"] = warnings,
             ["observedAt"] = DateTime.UtcNow.ToString("o"), ["elapsedMs"] = watch.ElapsedMilliseconds
         };
+        // Not a warning: nothing was hidden, and seat_wait's "missing" needs a tree without warnings.
+        if (repeated > 0) result["skippedRepeats"] = repeated;
+        return result;
+
+        // Null when the control can't say yet; it is then read again, and its failure reported, when it is described.
+        static int[]? RuntimeId(AutomationElement element)
+        {
+            try { return element.GetRuntimeId(); }
+            catch (Exception ex) when (ex is ElementNotAvailableException or InvalidOperationException or System.Runtime.InteropServices.COMException)
+            {
+                return null;
+            }
+        }
+        static string Key(int[] id) => string.Join(".", id);
     }
 
-    private static JsonObject Describe(AutomationElement element, int[] path, string? parent, ref int textBudget)
+    private static JsonObject Describe(AutomationElement element, int[] runtimeId, int[] path, string? parent, ref int textBudget)
     {
         var cache = new CacheRequest { TreeScope = TreeScope.Element };
         foreach (var property in new[]
@@ -102,7 +144,7 @@ internal static class AccessibilityReader
             ["actions"] = new JsonArray(actions.Select(value => (JsonNode)value).ToArray()),
             // Private references are retained by the host and removed from public results.
             ["path"] = new JsonArray(path.Select(value => (JsonNode)value).ToArray()),
-            ["runtimeId"] = new JsonArray(element.GetRuntimeId().Select(value => (JsonNode)value).ToArray()),
+            ["runtimeId"] = new JsonArray(runtimeId.Select(value => (JsonNode)value).ToArray()),
             ["processId"] = data.ProcessId
         };
         if (!password)
@@ -174,7 +216,7 @@ internal static class AccessibilityReader
             if (element is null) throw Stale();
         }
         int[] runtimeId = reference["runtimeId"]!.AsArray().Select(value => value!.GetValue<int>()).ToArray();
-        if (!element.GetRuntimeId().SequenceEqual(runtimeId)) throw Stale();
+        if (!(element.GetRuntimeId() ?? Array.Empty<int>()).SequenceEqual(runtimeId)) throw Stale();
         var state = element.Current;
         VerifyElementSession(state.ProcessId);
         if (state.ProcessId != reference.Int("processId") || Clip(state.Name, 500) != reference.Str("name")

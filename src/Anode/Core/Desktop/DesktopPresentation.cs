@@ -62,6 +62,8 @@ internal static class DesktopPresentation
                 if (node.Str("selectedText") is { Length: > 0 } selected) text.AppendLine("    selected: " + Line(selected));
             }
             if (result.Bool("truncated") == true) text.AppendLine("Tree truncated; adjust maxElements/maxDepth or inspect a smaller window.");
+            if (result.Int("skippedRepeats") is int repeats)
+                text.AppendLine($"Skipped {repeats} control(s) the app listed again elsewhere in this window's tree; each is shown once.");
             if (result.Str("screenshotError") is { } error) text.AppendLine(Line(error));
             if (result["warnings"] is JsonArray warnings)
                 foreach (var warning in warnings) text.AppendLine(Line(warning?.ToString()));

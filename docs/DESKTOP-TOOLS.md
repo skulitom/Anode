@@ -83,7 +83,10 @@ action may already have happened: inspect again instead of replaying it.
 Observations default to 200 controls, depth 8 and 6,000 text characters. MCP accepts
 `maxElements` (1–500), `maxDepth` (0–20), `maxTextChars` (0–20,000), and
 `includeOffscreen`. CLI uses `--max-elements`, `--max-depth`, `--max-text` and
-`--offscreen`. The tree reports truncation and provider warnings. Accessibility
+`--offscreen`. The tree reports truncation and provider warnings. A control the app
+lists more than once (the same UI Automation runtime ID), even inside itself as
+Chrome appeared to while a drop-down list was open, appears once; `skippedRepeats`
+says how many copies were skipped. Accessibility
 work runs in a disposable child-session process with a ten-second deadline, so
 an unresponsive app provider does not hold the seat indefinitely.
 

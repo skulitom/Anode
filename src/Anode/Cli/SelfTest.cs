@@ -132,6 +132,7 @@ internal static class SelfTest
         Check(results, "desktop report escaping", DesktopChecks.Presentation);
         Check(results, "desktop unknown control types", DesktopChecks.UnknownControlTypes);
         Check(results, "desktop ignored set_value", DesktopChecks.IgnoredValues);
+        Check(results, "desktop repeated elements", DesktopChecks.RepeatedElements);
         Check(results, "execution output", DevelopmentChecks.Output);
         Check(results, "execution jobs", () => DevelopmentChecks.Jobs().GetAwaiter().GetResult());
         Check(results, "cancelled execution", () => DevelopmentChecks.CancelledStart().GetAwaiter().GetResult());
