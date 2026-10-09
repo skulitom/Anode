@@ -16,8 +16,19 @@ a Chrome window with a temporary profile. Each frame is one step; the time betwe
 | Your own page or app, on localhost or a test server | `seat_run` with Chrome and its own `--user-data-dir` | A temporary folder you delete afterwards: no accounts, nothing left behind |
 | A site the agent should use as you, such as a console | `seat_browser` | Anode's seat profile, which you sign in to once |
 
-Before the agent opens either browser, acquire the desktop lease. This starts the hidden seat if
-Anode is stopped; keep the lease until the form is finished and its window is closed.
+**A signed-in site: sign in first, yourself.** Do it once, before any agent uses the profile, from
+your own terminal; it opens the seat's profile on your desktop, and you close it when you're done:
+
+```powershell
+anode browser --sign-in https://example.com/account
+```
+
+Agents never sign in or answer a 2-step check: when a site asks, they stop and ask you. Anyone holding
+the desktop lease can use what that profile is signed in to, so sign in only to what agents should
+act on ([details](ANDROID.md#web-consoles-in-a-signed-in-browser)).
+
+Then, before the agent opens either browser, it acquires the desktop lease. This starts the hidden
+seat if Anode is stopped; keep the lease until the form is finished and its window is closed.
 
 ```json
 {"tool": "seat_lease", "arguments": {"action": "acquire"}}
@@ -30,17 +41,8 @@ has no address bar):
 {"tool": "seat_run", "arguments": {"path": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", "args": ["--user-data-dir=C:\\temp\\form-test-profile", "--no-first-run", "--no-default-browser-check", "--force-renderer-accessibility", "--app=http://localhost:5173/signup"]}}
 ```
 
-**A signed-in site.** Sign in once, from your own terminal; it opens the seat's profile on your
-desktop, and you close it when you're done:
-
-```powershell
-anode browser --sign-in https://example.com/account
-```
-
-Then the agent opens pages there with `seat_browser` (`{"url": "https://example.com/account"}`).
-Agents never sign in or answer a 2-step check: when a site asks, they stop and ask you. Anyone holding
-the desktop lease can use what that profile is signed in to, so sign in only to what agents should
-act on ([details](ANDROID.md#web-consoles-in-a-signed-in-browser)).
+**A signed-in site.** The agent opens pages on the seat profile with `seat_browser`
+(`{"url": "https://example.com/account"}`).
 
 ## Fill in the form
 
@@ -73,17 +75,23 @@ act on ([details](ANDROID.md#web-consoles-in-a-signed-in-browser)).
   appear. Raise `maxElements`, or work from `seat_screenshot` and `seat_click`.
 - **Fields by name.** Text fields appear as `Edit` with the field's label as their name and its HTML
   `id` as `automationId`; checkboxes offer `toggle`, buttons `invoke`. `seat_wait` returns a fresh
-  observation when it matches, so its snapshot can be used for the next action.
-- **Drop-down lists (`<select>`).** In Anode 0.11.0 and 0.11.1, and not yet fixed, `set_value` on a
-  Chrome drop-down reports success without changing the choice, and while the list is open
-  `seat_observe` repeats the window's tree instead of listing the options, so don't observe then.
-  Use `expand` on the list, then a `seat_screenshot` and a `seat_click` on the option (the click
-  above is the "Team" option in the recording), and check the choice took with `seat_wait` or a new
-  observation.
+  observation when it matches, so its snapshot can be used for the next action. That observation is
+  its own (depth 20, up to 500 controls), so take the next element ID from the wait's reply, as the
+  `toggle` on `e30` above does, not from an earlier observation.
+- **Drop-down lists (`<select>`).** Use `expand` on the list, then a `seat_screenshot` and a
+  `seat_click` on the option (the click above is the "Team" option in the recording), and check the
+  choice took with `seat_wait` or a new observation. `seat_click` takes the seat's full-size pixels,
+  so scale a point read from a screenshot taken with `maxWidth` back first (`x * sourceWidth / width`,
+  the same for `y`). In Anode 0.11.0 and 0.11.1, `set_value` on a Chrome drop-down reports success
+  without changing the choice, and while the list is open `seat_observe` repeats the window's tree
+  instead of listing the options, so don't observe then. The next release fixes both: `set_value`
+  fails with a message instead, and an observation lists each control once
+  ([changelog](../CHANGELOG.md)).
 - **Fields that ignore `set_value`.** Some pages only react to key presses. Use `seat_element` with
   `focus` on the field, then `seat_type`, and check the field afterwards. In 0.11.1 and earlier, send
-  long text in pieces of at most about 2,500 characters with `perCharMs` 3; later releases pace typing
-  themselves ([why](TROUBLESHOOTING.md#typed-text-arrives-incomplete-or-out-of-order)).
+  long text in pieces of at most about 2,500 characters with `perCharMs` 3. Later releases pace typing
+  themselves, and one call types at most about 3,000 characters at the default pace, so split longer
+  text across calls ([why](TROUBLESHOOTING.md#typed-text-arrives-incomplete-or-out-of-order)).
 - **Check the result, not the click.** `seat_wait` on the confirmation text proves the form went
   through; a successful `invoke` only proves the button was pressed.
 

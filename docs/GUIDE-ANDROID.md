@@ -12,8 +12,9 @@ pixels, before and after `cmd uimode night yes`. It booted in 6.7 s.</sub>
 
 ## Before you start
 
-You need Android Studio's SDK and at least one AVD, as on your desktop. Check what Anode finds; this
-starts nothing:
+You need Android Studio's SDK and at least one AVD, as on your desktop. Check what Anode finds. The
+check starts nothing, so it needs Anode running: if it says "Anode is not running", start it with
+`anode start --hidden` and run it again.
 
 ```powershell
 anode android | Out-Host
@@ -78,7 +79,8 @@ Use the serial `android start` prints; `android shot` saves the screen at the de
 ## When it doesn't work
 
 - **`booted: false`.** The boot outlasted the wait, and the emulator keeps booting; check
-  `anode android` until the seat's emulator says `booted`. A cold boot takes longer.
+  `anode android status --json` (or `android_status`) until the seat's emulator shows
+  `"booted": true`. The plain-text summary doesn't show it. A cold boot takes longer.
 - **adb keeps saying `device offline`.** The device itself is failing. After a quick boot, stop it
   and start again with `coldBoot` (`--cold`). If it still never comes online, the AVD may be damaged,
   which only you can repair or recreate; trying another AVD tells you quickly

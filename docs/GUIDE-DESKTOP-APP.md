@@ -63,7 +63,9 @@ examples.
 - **Waits, not sleeps.** `seat_wait` returns as soon as the total shows 120.00, or reports that it
   didn't within the time given.
 - **Pixels when there is no control.** For a custom-drawn canvas or a game, the agent takes a
-  `seat_screenshot` and uses `seat_click` with coordinates from it.
+  `seat_screenshot` and uses `seat_click` with coordinates from it. `seat_click` takes the seat's
+  full-size pixels, so a point read from a screenshot scaled with `maxWidth` is scaled back first
+  (`x * sourceWidth / width`, the same for `y`).
 - **Jobs the test itself needs.** A local server, or a long build the desktop test depends on, can run
   in the seat with `seat_exec`; read its output with `seat_job` until the reply says `finished: true`
   ([command jobs](DEVELOPMENT-TESTING.md#command-jobs)).
@@ -74,12 +76,12 @@ Every step has a CLI command, so a test you like can become a script. It needs a
 lease token, as in [desktop leases](MULTI-AGENT.md):
 
 ```powershell
+dotnet build C:\src\Invoices
+if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
 $env:ANODE_AGENT_ID = 'invoices-test'
 $lease = anode lease acquire | Out-String | ConvertFrom-Json
 if ($LASTEXITCODE -ne 0) { throw 'Desktop acquisition failed.' }
 $env:ANODE_LEASE_TOKEN = $lease.leaseToken
-dotnet build C:\src\Invoices
-if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
 anode run C:\src\Invoices\bin\Debug\net10.0-windows\Invoices.exe | Out-Host
 anode windows --query Invoices | Out-Host
 anode inspect w_RETURNED_ID --html invoices.html | Out-Host
@@ -93,6 +95,10 @@ anode shot invoices.png | Out-Host
 anode window w_RETURNED_ID close | Out-Host
 anode lease release --cancel-jobs | Out-Host
 ```
+
+Build before `lease acquire`: the lease ends 120 seconds after the last desktop command, and a build
+isn't one, so a longer build would leave `anode run` failing with `lease_expired`. For a script with
+long steps between desktop commands, `anode lease acquire --ttl 600` keeps it longer.
 
 Each `element` needs the snapshot ID from the `inspect` just before it. `inspect --html` writes a
 report you can search, with the screenshot and each control's bounds, which helps when you write the
