@@ -296,8 +296,7 @@ internal sealed class JsonPipeClient : IDisposable
             {
                 long left = timeoutMs - (Environment.TickCount64 - started);
                 // With almost no time left, any reply would come too late, and a late reply costs the connection.
-                if (deadline.IsCancellationRequested || left < Math.Min(100, timeoutMs / 8))
-                    return JsonLine.Fail($"'{op}' timed out after {timeoutMs} ms while it waited; nothing was sent");
+                if (deadline.IsCancellationRequested || left < Math.Min(100, timeoutMs / 8)) return NotSent(op, timeoutMs);
                 request["timeoutMs"] = TimeLeft(timeoutMs, timeoutMs - left);
             }
             sent = true;
@@ -315,7 +314,7 @@ internal sealed class JsonPipeClient : IDisposable
             // the command: it may already have changed something in the seat.
             if (sent) Close();
             cancel.ThrowIfCancellationRequested();
-            return JsonLine.Fail($"'{op}' timed out after {timeoutMs} ms");
+            return sent ? JsonLine.Fail($"'{op}' timed out after {timeoutMs} ms") : NotSent(op, timeoutMs);
         }
         catch (IOException ex)
         {
@@ -338,6 +337,18 @@ internal sealed class JsonPipeClient : IDisposable
     /// ordinary cost of passing a request on and aren't counted, so limits derived from the time, such as how much
     /// one call may type, don't depend on clock ticks.
     /// </summary>
+    /// <summary>
+    /// A request whose time ran out before it went out. It carries the seat host's <c>timed_out</c> failure for an
+    /// action that never got the desktop, so a caller can tell that nothing ran.
+    /// </summary>
+    private static JsonObject NotSent(string op, int timeoutMs)
+    {
+        var failure = JsonLine.Fail($"'{op}' timed out after {timeoutMs} ms while it waited; nothing was sent");
+        failure["errorCode"] = "timed_out";
+        failure["started"] = false;
+        return failure;
+    }
+
     internal static int TimeLeft(int timeoutMs, long waitedMs) =>
         waitedMs < Math.Min(100, timeoutMs / 16) ? timeoutMs : (int)Math.Max(1, timeoutMs - waitedMs);
 

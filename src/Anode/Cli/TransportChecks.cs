@@ -44,7 +44,8 @@ internal static class TransportChecks
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
             var queued = await client.RequestAsync("queued", timeoutMs: 100).WaitAsync(TimeSpan.FromSeconds(2));
-            Require(queued.Bool("ok") == false && queued.Str("error")!.Contains("timed out"), "queued request did not time out");
+            Require(queued.Bool("ok") == false && queued.Str("error")!.Contains("timed out")
+                && queued.Str("errorCode") == "timed_out" && queued.Bool("started") == false, "queued request did not time out as never sent: " + queued.ToJsonString());
             Require(!first.IsCompleted && client.IsConnected, "queue timeout interrupted the active request");
         }
         finally { release.TrySetResult(); }
@@ -109,7 +110,8 @@ internal static class TransportChecks
         finally { release.TrySetResult(); }
         var unsent = await starved.WaitAsync(TimeSpan.FromSeconds(3));
         Require((await first.WaitAsync(TimeSpan.FromSeconds(3))).Bool("ok") == true && unsent.Bool("ok") == false
-            && !given.ContainsKey("starved") && seat.IsConnected, "a request with almost no time left was sent, or cost the connection: " + unsent.ToJsonString());
+            && !given.ContainsKey("starved") && seat.IsConnected && unsent.Str("errorCode") == "timed_out" && unsent.Bool("started") == false,
+            "a request with almost no time left was sent, cost the connection, or didn't say it never started: " + unsent.ToJsonString());
         return "the daemon forwards each request with its caller's time left, so time queued behind another isn't counted twice";
     }
 

@@ -43,7 +43,8 @@ with an ordinary terminal. Only `anode setup` needs administrator approval.
 
 The timed-out command may have executed. Check the seat before repeating it. A desktop action that
 the seat stopped at its deadline says how far it got: `timed_out` with `started: false` did nothing,
-since it was still waiting behind an earlier action; with `started: true` it was stopped partway.
+since it was still waiting behind an earlier action; with `started: true` it was stopped partway (one
+that only reads, such as `seat_wait`, changed nothing).
 Run `anode start` to reconnect the seat host if the daemon reports it is not ready; Anode can
 recover that connection without waiting for the viewer to reconnect. `anode kill` remains available
 to stop the seat.

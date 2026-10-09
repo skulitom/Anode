@@ -35,7 +35,8 @@
   with a bare "TaskCanceledException: A task was canceled.", which said neither that time ran out nor
   whether anything ran. It now fails with `errorCode: "timed_out"` and the time the request had,
   and `started: false` and "Nothing was done" when it was still waiting for the desktop, or
-  `started: true` when it was stopped partway.
+  `started: true` when it was stopped partway; a read-only action says that nothing changed. A request
+  whose time ran out before it was even sent also answers `timed_out` with `started: false`.
 - **Typing keeps pace with the program.** `seat_type` and `anode type` sent characters as fast as
   Windows took them, so a busy program, such as Chrome editing a long field, could drop and reorder
   them while the call still reported success. Characters now go out 15 ms apart by default, timed
