@@ -141,22 +141,6 @@ internal static class DevelopmentChecks
             Require(page.Str("stdout") == prefix + "\U0001F680" && buffered.Read(page.Str("cursor"), 4).Str("stdout") == "tail",
                 "stream buffer split a Unicode character across output chunks");
         }
-        ProcessStartInfo Worker(string code)
-        {
-            var info = new ProcessStartInfo("powershell.exe");
-            foreach (string arg in new[] { "-NoProfile", "-NonInteractive", "-EncodedCommand",
-                Convert.ToBase64String(Encoding.Unicode.GetBytes("$null = [Console]::In.ReadLine(); " + code)) }) info.ArgumentList.Add(arg);
-            return info;
-        }
-        // Windows PowerShell can take longer than one wait (10 s at most) to start on a cold machine, so read a job
-        // that should finish until it does, for up to 30 s, before judging its result.
-        static async Task<JsonObject> ReadUntilFinished(ExecutionJobs jobs, JsonObject reply)
-        {
-            for (var clock = Stopwatch.StartNew(); reply.Bool("finished") != true && clock.ElapsedMilliseconds < 30000; )
-                reply = await jobs.ReadAsync(new JsonObject { ["jobId"] = reply.Str("jobId"),
-                    ["waitMs"] = (int)Math.Clamp(30000 - clock.ElapsedMilliseconds, 1, 10000) }, reply.Str("agentId")!);
-            return reply;
-        }
         using (var jobs = new ExecutionJobs(() => Worker("[Console]::Out.Write('hello'); [Console]::Error.Write('problem'); exit 7")))
         {
             var done = await ReadUntilFinished(jobs, await jobs.StartAsync(new JsonObject { ["path"] = "unused-test-command", ["waitMs"] = 10000 }, "test-agent"));
@@ -252,6 +236,47 @@ internal static class DevelopmentChecks
             await jobs.ReadAsync(new JsonObject { ["jobId"] = b.Str("jobId"), ["action"] = "cancel", ["waitMs"] = 5000 }, "B");
         }
         return "UTF-8 streams/exit codes, recovery, hard timeouts, cancelled requests, owner-only discovery/read/cancel and cleanup of owned descendants";
+    }
+    private static ProcessStartInfo Worker(string code)
+    {
+        var info = new ProcessStartInfo("powershell.exe");
+        foreach (string arg in new[] { "-NoProfile", "-NonInteractive", "-EncodedCommand",
+            Convert.ToBase64String(Encoding.Unicode.GetBytes("$null = [Console]::In.ReadLine(); " + code)) }) info.ArgumentList.Add(arg);
+        return info;
+    }
+    // Windows PowerShell can take longer than one wait (10 s at most) to start on a cold machine, so read a job
+    // that should finish until it does, for up to 30 s, before judging its result.
+    private static async Task<JsonObject> ReadUntilFinished(ExecutionJobs jobs, JsonObject reply)
+    {
+        for (var clock = Stopwatch.StartNew(); reply.Bool("finished") != true && clock.ElapsedMilliseconds < 30000; )
+            reply = await jobs.ReadAsync(new JsonObject { ["jobId"] = reply.Str("jobId"),
+                ["waitMs"] = (int)Math.Clamp(30000 - clock.ElapsedMilliseconds, 1, 10000) }, reply.Str("agentId")!);
+        return reply;
+    }
+    /// <summary>
+    /// A read that says a job finished holds its output to the end, even when the job finishes while the read is
+    /// between the job's status and its output; an agent stops reading at <c>finished: true</c>.
+    /// </summary>
+    public static async Task<string> JobTail()
+    {
+        using var jobs = new ExecutionJobs(() => Worker("[Console]::Out.Write('head'); [Threading.Thread]::Sleep(200); [Console]::Out.Write('tail')"));
+        var started = await jobs.StartAsync(new JsonObject { ["path"] = "unused-test-command", ["waitMs"] = 0 }, "test-agent");
+        bool between = false;
+        jobs.BetweenStatusAndOutput = async () =>
+        {
+            jobs.BetweenStatusAndOutput = null;
+            between = true;
+            var done = await ReadUntilFinished(jobs, started);
+            Require(done.Bool("finished") == true, "the job did not finish: " + done.Str("summary"));
+        };
+        var reply = await jobs.ReadAsync(new JsonObject { ["jobId"] = started.Str("jobId") }, "test-agent");
+        var rest = await jobs.ReadAsync(new JsonObject { ["jobId"] = started.Str("jobId"), ["after"] = reply.Str("cursor") }, "test-agent");
+        Require(between, "the read never paused between the job's status and its output");
+        Require(reply.Str("stdout") + rest.Str("stdout") == "headtail" && rest.Bool("finished") == true,
+            $"output was lost: '{reply.Str("stdout")}' then '{rest.Str("stdout")}'");
+        Require(reply.Bool("finished") != true || (reply.Bool("hasMoreOutput") == false && rest.Str("stdout") == "" && rest.Str("stderr") == ""),
+            $"a reply said finished: true without the end of the output: it had '{reply.Str("stdout")}', and '{rest.Str("stdout")}' followed");
+        return "a job that finishes during a read is reported finished only with its output to the end";
     }
     public static async Task<string> CancelledStart()
     {

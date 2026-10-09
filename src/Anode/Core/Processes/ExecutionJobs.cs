@@ -39,6 +39,8 @@ internal sealed class ExecutionJobs : IDisposable
     private readonly Dictionary<string, Job> _jobs = new();
     private readonly Func<ProcessStartInfo> _workerInfo;
     private bool _disposed;
+    /// <summary>For the quick checks: runs while a read is between a job's status and its output.</summary>
+    internal Func<Task>? BetweenStatusAndOutput { get; set; }
     public ExecutionJobs(Func<ProcessStartInfo>? workerInfo = null) => _workerInfo = workerInfo ?? (() => new ProcessStartInfo(Env.ExecutablePath, "__exec-worker"));
 
     public async Task<JsonObject> StartAsync(JsonObject request, string agentId, CancellationToken cancel = default)
@@ -163,19 +165,24 @@ internal sealed class ExecutionJobs : IDisposable
         int wait = request.Int("waitMs") ?? 0;
         if (!job.Done.Task.IsCompleted && wait > 0)
             await Task.WhenAny(job.Done.Task, Task.Delay(wait, cancel)).WaitAsync(cancel).ConfigureAwait(false);
-        JsonObject result = job.Output.Read(request.Str("after"), request.Int("maxChars") ?? 12000);
+        // The status comes before the output: a job finishes only after its output is drained, so a page read
+        // after a finished status holds everything to the end. Read the other way round, a job that finished in
+        // between was reported finished with its last output missing.
+        (string State, bool Finished, int WorkerPid, int Session, int? ExitCode, string? Error, long ElapsedMs) status;
         lock (job.Gate)
-        {
-            result["jobId"] = job.Id;
-            result["agentId"] = job.AgentId;
-            result["state"] = job.State;
-            result["finished"] = job.Done.Task.IsCompleted;
-            result["workerPid"] = job.WorkerPid;
-            result["session"] = job.Session;
-            result["exitCode"] = job.ExitCode;
-            result["error"] = job.Error;
-            result["elapsedMs"] = (long)((job.Finished ?? DateTime.UtcNow) - job.Started).TotalMilliseconds;
-        }
+            status = (job.State, job.Done.Task.IsCompleted, job.WorkerPid, job.Session, job.ExitCode, job.Error,
+                (long)((job.Finished ?? DateTime.UtcNow) - job.Started).TotalMilliseconds);
+        if (BetweenStatusAndOutput is { } gap) await gap().ConfigureAwait(false);
+        JsonObject result = job.Output.Read(request.Str("after"), request.Int("maxChars") ?? 12000);
+        result["jobId"] = job.Id;
+        result["agentId"] = job.AgentId;
+        result["state"] = status.State;
+        result["finished"] = status.Finished;
+        result["workerPid"] = status.WorkerPid;
+        result["session"] = status.Session;
+        result["exitCode"] = status.ExitCode;
+        result["error"] = status.Error;
+        result["elapsedMs"] = status.ElapsedMs;
         static string Printable(string text) => string.Concat(text.Select(c => char.IsControl(c) && c is not '\n' and not '\r' and not '\t' ? ' ' : c));
         result["summary"] = $"{job.Id}: {result.Str("state")}, exit code {result["exitCode"]?.ToString() ?? "pending"}. Cursor {result.Str("cursor")}."
             + (result.Bool("outputTruncated") == true ? " Earlier output was discarded; save complete logs from the command when needed." : "")

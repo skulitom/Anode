@@ -41,7 +41,9 @@ input is closed. Use `seat_run` for applications that should outlive the command
 The reply includes `jobId`, `state`, `finished`, `exitCode`, `stdout`, `stderr`, `cursor`,
 `outputTruncated` and `hasMoreOutput`. A running job has no exit code. `completed` means the
 process exited, including a nonzero exit; inspect `exitCode`. `timed_out`, `cancelled` and `failed`
-are distinct states. Wait for `finished: true` to confirm cleanup has ended.
+are distinct states. Wait for `finished: true` to confirm cleanup has ended. A reply that says
+`finished: true` holds the output to its end; when `hasMoreOutput` is also true, `maxChars` cut the page,
+and the rest follows from its `cursor`.
 
 ```json
 {"jobId":"j_RETURNED_ID","after":"RETURNED_CURSOR","waitMs":1000,"maxChars":12000}
