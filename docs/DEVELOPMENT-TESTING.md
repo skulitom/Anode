@@ -92,6 +92,7 @@ $lease = anode lease acquire --ttl 600 | Out-String | ConvertFrom-Json
 if ($LASTEXITCODE -ne 0) { throw 'Desktop acquisition failed.' }
 $env:ANODE_LEASE_TOKEN = $lease.leaseToken
 powershell -ExecutionPolicy Bypass -File scripts\test-desktop.ps1
+powershell -ExecutionPolicy Bypass -File scripts\test-chrome-form.ps1
 powershell -ExecutionPolicy Bypass -File scripts\test-development.ps1 -InstallBrowserTools
 powershell -ExecutionPolicy Bypass -File scripts\test-development.ps1 -VerifyInput
 powershell -ExecutionPolicy Bypass -File scripts\test-pointer-isolation.ps1 -PlacePointer
@@ -103,7 +104,9 @@ the lease they inherit through the environment and never acquire one or start a 
 
 The native fixture covers Windows Forms and WPF: text, buttons, toggles, list selection, slider
 values, delayed control states, password omission, stale references and report generation.
-The development fixture checks command cwd/environment/streams/exit codes, starts a localhost server
+The Chrome form check opens a local page in Chrome on a temporary profile and checks `set_value` on a
+text field and a drop-down list, and an observation while the list is open; its result is under
+`artifacts/chrome-form-test`. The development fixture checks command cwd/environment/streams/exit codes, starts a localhost server
 and headed Chrome inside the seat, verifies both process sessions, exercises form/HTTP behavior and
 mobile layout, and saves browser plus seat screenshots. Its browser context uses a separate temporary
 profile, without copying the user's browser accounts. Output is under `output/playwright/development`;

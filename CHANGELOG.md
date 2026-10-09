@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.2 — 2026-10-09
 
 - **`set_value` checks that the value took.** On a Chrome drop-down list (`<select>`), `seat_element`
   `set_value` reported `performed` while the list kept its old choice, so an agent could submit a
