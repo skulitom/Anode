@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Text.Json.Nodes;
 using Anode.Core.Bridge;
 
@@ -204,6 +205,22 @@ internal sealed class DesktopLease
     /// </summary>
     internal static int StopAfterMs(int timeoutMs) => Math.Max(1, timeoutMs - Math.Min(1000, timeoutMs / 8));
 
+    /// <summary>
+    /// The failure for a desktop action its deadline cut short. It names the time the request had and says whether
+    /// the action had started: one still waiting for the desktop did nothing, one stopped partway may have done some.
+    /// </summary>
+    internal static JsonObject TimedOut(int timeoutMs, bool started)
+    {
+        string time = timeoutMs < 1000 ? $"{timeoutMs} ms" : (timeoutMs / 1000.0).ToString("0.#", CultureInfo.InvariantCulture) + " s";
+        var failure = JsonLine.Fail(started
+            ? $"The desktop action ran out of its {time} and was stopped. Part of it may have run: observe the desktop "
+              + "before acting again, and don't repeat it unseen."
+            : $"The request ran out of its {time} while it waited behind an earlier desktop action, so it never started. Nothing was done.");
+        failure["errorCode"] = "timed_out";
+        failure["started"] = started;
+        return failure;
+    }
+
     public async Task<JsonObject> HandleAsync(JsonObject request,
         Func<JsonObject, CancellationToken, Task<JsonObject>> dispatch, CancellationToken cancel = default)
     {
@@ -216,9 +233,13 @@ internal sealed class DesktopLease
         if (!AgentAccess.RequiresLease(op)) return await dispatch(request, cancel).ConfigureAwait(false);
         lock (_state) { if (Check(request) is { } error) return error; }
 
+        int timeoutMs = request.Int("timeoutMs") ?? 60000;
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancel);
-        deadline.CancelAfter(StopAfterMs(request.Int("timeoutMs") ?? 60000));
-        await _interaction.WaitAsync(deadline.Token).ConfigureAwait(false);
+        deadline.CancelAfter(StopAfterMs(timeoutMs));
+        // Only the deadline's own cancellation is a timeout; a stopping seat still cancels as before.
+        bool OutOfTime() => deadline.IsCancellationRequested && !cancel.IsCancellationRequested;
+        try { await _interaction.WaitAsync(deadline.Token).ConfigureAwait(false); }
+        catch (OperationCanceledException) when (OutOfTime()) { return TimedOut(timeoutMs, started: false); }
         bool admitted = false;
         try
         {
@@ -239,6 +260,7 @@ internal sealed class DesktopLease
             lock (_state) { if (_line.Count > 0) response["waitingAgents"] = _line.Count; }
             return response;
         }
+        catch (OperationCanceledException) when (OutOfTime()) { return TimedOut(timeoutMs, admitted); }
         finally
         {
             try { if (admitted) lock (_state) { _active = false; Expire(); } }

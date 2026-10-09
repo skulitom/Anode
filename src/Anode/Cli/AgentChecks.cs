@@ -337,6 +337,62 @@ internal static class AgentChecks
         return "an action queued behind another of its agent's runs in the time its caller has left, and stops before it";
     }
 
+    /// <summary>
+    /// A desktop action its deadline cuts short answers <c>timed_out</c> with the time it had and whether it started,
+    /// not a bare "A task was canceled.": one still queued did nothing. A stopping seat still cancels.
+    /// </summary>
+    public static async Task<string> DeadlineReplies()
+    {
+        var entered = Signal(); var finish = Signal();
+        var lease = new DesktopLease();
+        async Task<JsonObject> Dispatch(JsonObject request, CancellationToken cancel)
+        {
+            if (request.Str("text") == "first")
+            {
+                entered.TrySetResult();
+                await finish.Task;
+                return JsonLine.Ok();
+            }
+            await Task.Delay(Timeout.Infinite, cancel); // An action that doesn't size its work by its time.
+            return JsonLine.Ok();
+        }
+        string token = (await lease.HandleAsync(Lease("A", "acquire"), Dispatch)).Obj("result")!.Str("leaseToken")!;
+        Task<JsonObject> first = lease.HandleAsync(Input("A", token, "first"), Dispatch);
+        JsonObject queued;
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            var waiting = Input("A", token, "queued");
+            waiting["timeoutMs"] = 800;
+            queued = await lease.HandleAsync(waiting, Dispatch).WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally { finish.TrySetResult(); }
+        Require((await first.WaitAsync(TimeSpan.FromSeconds(2))).Bool("ok") == true, "the action in front failed");
+        Require(queued.Bool("ok") == false && queued.Str("errorCode") == "timed_out" && queued.Bool("started") == false
+            && queued.Str("error") is { } never && never.Contains("800 ms") && never.Contains("Nothing was done"),
+            "a request that ran out of time in the queue did not say so: " + queued.ToJsonString());
+
+        var held = Input("A", token, "held");
+        held["timeoutMs"] = 1500;
+        var stopped = await lease.HandleAsync(held, Dispatch).WaitAsync(TimeSpan.FromSeconds(5));
+        Require(stopped.Bool("ok") == false && stopped.Str("errorCode") == "timed_out" && stopped.Bool("started") == true
+            && stopped.Str("error") is { } partway && partway.Contains("1.5 s") && partway.Contains("may have run"),
+            "an action stopped partway did not say so: " + stopped.ToJsonString());
+        Require((await lease.HandleAsync(Input("A", token, "first"), Dispatch).WaitAsync(TimeSpan.FromSeconds(2))).Bool("ok") == true,
+            "a timed-out action kept the desktop from the next one");
+
+        using var stopping = new CancellationTokenSource();
+        Task<JsonObject> during = lease.HandleAsync(Input("A", token, "held"), Dispatch, stopping.Token);
+        stopping.Cancel();
+        try
+        {
+            var reply = await during.WaitAsync(TimeSpan.FromSeconds(2));
+            throw new InvalidOperationException("a stopping seat's cancellation was answered as a timeout: " + reply.ToJsonString());
+        }
+        catch (OperationCanceledException) { }
+        return "an action cut short by its deadline answers timed_out with its time, and says nothing was done when it never started";
+    }
+
     public static async Task<string> Line()
     {
         long now = 0;
