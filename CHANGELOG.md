@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **`set_value` checks that the value took.** On a Chrome drop-down list (`<select>`), `seat_element`
+  `set_value` reported `performed` while the list kept its old choice, so an agent could submit a
+  form with the wrong option. Anode now reads the control back: if it still shows its old value 1.5
+  seconds later, the action fails and says to expand the list and select the option. A control that
+  reformats the value succeeds and returns what it now reads.
+- **`seat_observe` lists each control once.** While a Chrome drop-down list was open, `seat_observe`
+  returned the window's tree nested inside itself, over and over, until its element budget ran out.
+  An app can list one control in two places, or even inside itself. The walk now skips a control with
+  the same UI Automation runtime ID as one it has already listed, without using the budget, and
+  `skippedRepeats` says how many it skipped.
 - **Packaged apps' Anode folders.** A daemon started by a desktop app that redirects AppData, such
   as the Claude desktop app, keeps its log and state in that app's
   `%LOCALAPPDATA%\Packages\<app>\LocalCache\Local\Anode`, which the privacy, install and troubleshooting

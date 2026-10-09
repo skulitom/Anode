@@ -63,6 +63,13 @@ by `--`, for example `--direction down --amount large` or `--number 50`.
 
 Only use actions listed on that control. Read-only fields do not offer value
 changes. Password controls omit their values and offer no element actions.
+`set_value` reads the control back. If it still shows its old value 1.5 seconds
+later, the action fails instead of reporting success: some controls accept the
+change and ignore it. Chrome's drop-down lists (`<select>`) do, so expand the list
+and select the option, or click it. A field that takes the text and clears itself,
+such as a tag field, fails the same way although it took the text, so inspect
+before you retry. A control that reformats the value succeeds, and its result's
+`value` is what the control now reads.
 Successful action submission is not proof that an application completed its work;
 inspect again to confirm the result, including possible modal dialogs.
 
@@ -76,7 +83,10 @@ action may already have happened: inspect again instead of replaying it.
 Observations default to 200 controls, depth 8 and 6,000 text characters. MCP accepts
 `maxElements` (1–500), `maxDepth` (0–20), `maxTextChars` (0–20,000), and
 `includeOffscreen`. CLI uses `--max-elements`, `--max-depth`, `--max-text` and
-`--offscreen`. The tree reports truncation and provider warnings. Accessibility
+`--offscreen`. The tree reports truncation and provider warnings. A control the app
+lists more than once (the same UI Automation runtime ID), even inside itself as
+Chrome appeared to while a drop-down list was open, appears once; `skippedRepeats`
+says how many copies were skipped. Accessibility
 work runs in a disposable child-session process with a ten-second deadline, so
 an unresponsive app provider does not hold the seat indefinitely.
 
