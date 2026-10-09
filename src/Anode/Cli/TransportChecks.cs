@@ -128,6 +128,8 @@ internal static class TransportChecks
             ?? throw new InvalidOperationException("could not connect to the test pipe");
         var timedOut = await client.RequestAsync("slow", timeoutMs: 100);
         Require(timedOut.Bool("ok") == false && !client.IsConnected, "timed-out connection stayed reusable");
+        // It was sent, so it may have run: it must not claim, as an unsent request does, that it never started.
+        Require(timedOut["started"] is null, "a request timed out after it was sent claimed it never started: " + timedOut.ToJsonString());
         var next = await client.RequestAsync("next", timeoutMs: 4000);
         Require(next.Bool("ok") == false, "a late reply was accepted as the next result");
         using var fresh = await JsonPipeClient.TryConnectAsync(name, 4000)
