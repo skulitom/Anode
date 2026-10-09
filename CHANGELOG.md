@@ -2,11 +2,6 @@
 
 ## Unreleased
 
-- **A desktop action that runs out of time says so.** An action stopped at its deadline, such as
-  `seat_wait` queued behind a long `seat_type`, answered with a bare "TaskCanceledException: A task
-  was canceled.", which said neither that time ran out nor whether anything ran. It now fails with
-  `errorCode: "timed_out"` and the time the request had, and `started: false` and "Nothing was
-  done" when it was still waiting for the desktop, or `started: true` when it was stopped partway.
 - **`set_value` checks that the value took.** On a Chrome drop-down list (`<select>`), `seat_element`
   `set_value` reported `performed` while the list kept its old choice, so an agent could submit a
   form with the wrong option. Anode now reads the control back: if it still shows its old value 1.5
@@ -35,6 +30,11 @@
   reconnected. The daemon now forwards the time a request has left, the seat takes its own waits off as
   well, and a desktop operation is stopped a second before its time runs out, so one queued behind
   another answers, or fails, in time.
+- **A desktop action that runs out of time says so.** An action stopped at its deadline, such as
+  `seat_wait` queued behind a long `seat_type`, answered with a bare "TaskCanceledException: A task
+  was canceled.", which said neither that time ran out nor whether anything ran. It now fails with
+  `errorCode: "timed_out"` and the time the request had, and `started: false` and "Nothing was
+  done" when it was still waiting for the desktop, or `started: true` when it was stopped partway.
 - **Typing keeps pace with the program.** `seat_type` and `anode type` sent characters as fast as
   Windows took them, so a busy program, such as Chrome editing a long field, could drop and reorder
   them while the call still reported success. Characters now go out 15 ms apart by default, timed
