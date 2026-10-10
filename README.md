@@ -48,21 +48,6 @@ See [Install](#install) for custom locations and offline installs, or
 **Ctrl+Alt+Shift+K** stops it (if another program holds that shortcut, use **Stop seat** in the viewer or
 `anode kill`). Unsigned builds may trigger SmartScreen. No telemetry.
 
-<!-- 0.11.2 ships #18 and #20. Remove this section in the release after it. -->
-### Known issues in 0.11.1
-
-Two bugs in 0.11.1 are fixed in 0.11.2. On 0.11.1:
-
-- **`seat_observe` fails on Windows 11 File Explorer windows** with "Object reference not set to an
-  instance of an object", and so does `seat_wait`. Use `seat_screenshot` and `seat_click` on those
-  windows ([details](docs/TROUBLESHOOTING.md#seat_observe-fails-with-object-reference-not-set-to-an-instance-of-an-object),
-  [fix](https://github.com/skulitom/Anode/pull/20)).
-- **A long `seat_type` text can arrive garbled in Chrome** while the call reports success: of one
-  7,938-character text, only about the first 5,500 characters arrived intact. Send long text in
-  several `seat_type` calls of at most about 2,500 characters each, with `perCharMs` 3, and check the
-  field after each ([details](docs/TROUBLESHOOTING.md#typed-text-arrives-incomplete-or-out-of-order),
-  [fix](https://github.com/skulitom/Anode/pull/18)).
-
 ## What can you do with it?
 
 - **Develop and test apps:** run builds and local servers, collect command output, inspect native
