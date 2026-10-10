@@ -1,0 +1,238 @@
+# Throwaway probe: can an Anode seat (a loopback child session) start on a GitHub-hosted
+# Windows runner? Records the runner's session and policy state, builds the dev channel,
+# runs setup, tries a seat with the default credential delegation and then with delegation
+# of default credentials to TERMSRV/localhost, and runs test-desktop.ps1 if a seat comes up.
+# Machine settings changed here live only on the disposable runner VM.
+name: Seat spike
+
+on:
+  push:
+    branches: [compass/build-2026-10-10-anode-ci-seat]
+
+permissions:
+  contents: read
+
+jobs:
+  seat:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      ANODE_AGENT_ID: ci-spike
+      OUT: ${{ github.workspace }}\spike-out
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Runner session and policy state
+        run: |
+          New-Item -ItemType Directory -Path $env:OUT -Force | Out-Null
+          "ImageOS=$env:ImageOS ImageVersion=$env:ImageVersion"
+          $os = Get-CimInstance Win32_OperatingSystem
+          "OS: $($os.Caption) $($os.Version) build $($os.BuildNumber)"
+          "EditionID: $((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').EditionID)"
+          "whoami: $(whoami)"
+          whoami /groups /fo csv | ConvertFrom-Csv | Where-Object { $_.'Group Name' -like 'Mandatory Label*' } | ForEach-Object { "integrity: $($_.'Group Name')" }
+          "elevated (Administrators role): $(([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))"
+          "step process session: $((Get-Process -Id $PID).SessionId)"
+          '--- query session'
+          query session | Out-Host
+          '--- query user'
+          query user 2>&1 | Out-Host
+          '--- runner processes'
+          Get-CimInstance Win32_Process -Filter "Name='Runner.Listener.exe' OR Name='Runner.Worker.exe' OR Name='explorer.exe' OR Name='LogonUI.exe' OR Name='winlogon.exe'" |
+            ForEach-Object { $owner = Invoke-CimMethod -InputObject $_ -MethodName GetOwner; '{0,-20} pid {1,-6} session {2} owner {3}\{4}' -f $_.Name, $_.ProcessId, $_.SessionId, $owner.Domain, $owner.User }
+          '--- desktop'
+          Add-Type -AssemblyName System.Windows.Forms
+          "UserInteractive: $([Environment]::UserInteractive)"
+          "PrimaryScreen: $([System.Windows.Forms.Screen]::PrimaryScreen.Bounds)"
+          '--- UAC'
+          $system = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System'
+          "EnableLUA=$($system.EnableLUA) ConsentPromptBehaviorAdmin=$($system.ConsentPromptBehaviorAdmin)"
+          '--- automatic sign-in (names only)'
+          $winlogon = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
+          foreach ($name in 'AutoAdminLogon', 'DefaultUserName', 'DefaultDomainName') {
+            "$name=$(try { Get-ItemPropertyValue -Path $winlogon -Name $name -ErrorAction Stop } catch { '<unset>' })"
+          }
+          '--- Remote Desktop'
+          "fDenyTSConnections=$((Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server').fDenyTSConnections)"
+          $rdpTcp = Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp'
+          "RDP-Tcp PortNumber=$($rdpTcp.PortNumber) UserAuthentication(NLA)=$($rdpTcp.UserAuthentication) SecurityLayer=$($rdpTcp.SecurityLayer)"
+          Get-Service TermService, UmRdpService, SessionEnv -ErrorAction SilentlyContinue | Format-Table Name, Status, StartType -AutoSize | Out-Host
+          '--- credential delegation policy'
+          $delegation = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\CredentialsDelegation'
+          if (Test-Path $delegation) { Get-ChildItem $delegation -Recurse | Out-Host; Get-ItemProperty $delegation | Out-Host } else { '<no CredentialsDelegation policy key>' }
+          '--- child sessions (wtsapi32)'
+          Add-Type -Namespace Spike -Name Wts -MemberDefinition @'
+          [DllImport("wtsapi32.dll", SetLastError = true)] public static extern bool WTSIsChildSessionsEnabled(out bool enabled);
+          '@
+          $enabled = $false
+          "WTSIsChildSessionsEnabled call=$([Spike.Wts]::WTSIsChildSessionsEnabled([ref]$enabled)) enabled=$enabled"
+
+      - name: Build the dev channel (Debug)
+        run: |
+          dotnet build Anode.sln --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $exe = (Resolve-Path 'src\Anode\bin\Debug\net10.0-windows\win-x64\anode.exe').Path
+          "ANODE_EXE=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          & $exe version | Out-Host
+
+      - name: Doctor before setup
+        continue-on-error: true
+        run: |
+          & $env:ANODE_EXE doctor | Out-Host
+          "doctor exit $LASTEXITCODE"
+
+      - name: Setup
+        timeout-minutes: 4
+        continue-on-error: true
+        run: |
+          & $env:ANODE_EXE setup | Out-Host
+          "setup exit $LASTEXITCODE"
+          & $env:ANODE_EXE doctor | Out-Host
+          "doctor exit $LASTEXITCODE"
+
+      - name: Seat start, default delegation
+        id: first
+        timeout-minutes: 6
+        continue-on-error: true
+        run: |
+          $sw = [Diagnostics.Stopwatch]::StartNew()
+          & $env:ANODE_EXE start --hidden | Out-Host
+          "start exit $LASTEXITCODE after $([int]$sw.Elapsed.TotalSeconds) s"
+          $status = & $env:ANODE_EXE status --json | Out-String
+          $status | Out-File (Join-Path $env:OUT 'status-first.json') -Encoding utf8
+          $status | Out-Host
+          $parsed = $status | ConvertFrom-Json
+          "ready=$($parsed.state -eq 'ready' -and $parsed.session -ne $parsed.parentSession)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Seat start, default credentials delegated to TERMSRV/localhost
+        id: second
+        if: steps.first.outputs.ready != 'true'
+        timeout-minutes: 7
+        continue-on-error: true
+        run: |
+          & $env:ANODE_EXE quit | Out-Host
+          "quit exit $LASTEXITCODE"
+          $delegation = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\CredentialsDelegation'
+          foreach ($policy in 'AllowDefaultCredentials', 'AllowDefCredentialsWhenNTLMOnly') {
+            New-Item -Path "$delegation\$policy" -Force | Out-Null
+            Set-ItemProperty -Path $delegation -Name $policy -Value 1 -Type DWord
+            Set-ItemProperty -Path "$delegation\$policy" -Name '1' -Value 'TERMSRV/localhost' -Type String
+          }
+          Set-ItemProperty -Path $delegation -Name 'ConcatenateDefaults_AllowDefault' -Value 1 -Type DWord
+          Set-ItemProperty -Path $delegation -Name 'ConcatenateDefaults_AllowDefNTLMOnly' -Value 1 -Type DWord
+          Get-ChildItem $delegation -Recurse | Out-Host
+          $sw = [Diagnostics.Stopwatch]::StartNew()
+          & $env:ANODE_EXE start --hidden | Out-Host
+          "start exit $LASTEXITCODE after $([int]$sw.Elapsed.TotalSeconds) s"
+          $status = & $env:ANODE_EXE status --json | Out-String
+          $status | Out-File (Join-Path $env:OUT 'status-second.json') -Encoding utf8
+          $status | Out-Host
+          $parsed = $status | ConvertFrom-Json
+          "ready=$($parsed.state -eq 'ready' -and $parsed.session -ne $parsed.parentSession)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Lease, seat screenshot and capabilities
+        id: lease
+        if: steps.first.outputs.ready == 'true' || steps.second.outputs.ready == 'true'
+        continue-on-error: true
+        run: |
+          query session | Out-Host
+          $lease = & $env:ANODE_EXE lease acquire --ttl 900 | Out-String | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Desktop acquisition failed.' }
+          "::add-mask::$($lease.leaseToken)"
+          "ANODE_LEASE_TOKEN=$($lease.leaseToken)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          $env:ANODE_LEASE_TOKEN = $lease.leaseToken
+          & $env:ANODE_EXE shot (Join-Path $env:OUT 'seat.png') | Out-Host
+          "shot exit $LASTEXITCODE"
+          & $env:ANODE_EXE capabilities --json | Out-Host
+          "ok=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: test-desktop.ps1 (the gate)
+        if: steps.lease.outputs.ok == 'true'
+        timeout-minutes: 5
+        continue-on-error: true
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts\test-desktop.ps1 -Anode $env:ANODE_EXE -OutputDirectory (Join-Path $env:OUT 'desktop-test')
+          if ($LASTEXITCODE -ne 0) { throw "test-desktop.ps1 exit $LASTEXITCODE" }
+
+      - name: Probe test-display.ps1
+        if: steps.lease.outputs.ok == 'true'
+        timeout-minutes: 4
+        continue-on-error: true
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts\test-display.ps1 -Anode $env:ANODE_EXE -OutputDirectory (Join-Path $env:OUT 'display-test')
+          if ($LASTEXITCODE -ne 0) { throw "test-display.ps1 exit $LASTEXITCODE" }
+
+      - name: Probe test-development.ps1 -VerifyInput
+        if: steps.lease.outputs.ok == 'true'
+        timeout-minutes: 6
+        continue-on-error: true
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts\test-development.ps1 -Anode $env:ANODE_EXE -OutputDirectory (Join-Path $env:OUT 'development-test') -InstallBrowserTools -VerifyInput
+          if ($LASTEXITCODE -ne 0) { throw "test-development.ps1 exit $LASTEXITCODE" }
+
+      - name: Probe test-pointer-isolation.ps1 -PlacePointer
+        if: steps.lease.outputs.ok == 'true'
+        timeout-minutes: 4
+        continue-on-error: true
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts\test-pointer-isolation.ps1 -Anode $env:ANODE_EXE -PlacePointer
+          if ($LASTEXITCODE -ne 0) { throw "test-pointer-isolation.ps1 exit $LASTEXITCODE" }
+
+      - name: Status, logs and events
+        if: always()
+        continue-on-error: true
+        run: |
+          New-Item -ItemType Directory -Path $env:OUT -Force | Out-Null
+          if ($env:ANODE_EXE) { & $env:ANODE_EXE status --json | Out-Host }
+          query session | Out-Host
+          $logs = Join-Path $env:LOCALAPPDATA 'Anode-dev'
+          if (Test-Path $logs) { Copy-Item -Path (Join-Path $logs '*.log') -Destination $env:OUT -ErrorAction SilentlyContinue }
+          foreach ($log in 'Microsoft-Windows-TerminalServices-LocalSessionManager/Operational',
+                           'Microsoft-Windows-TerminalServices-RemoteConnectionManager/Operational',
+                           'Microsoft-Windows-TerminalServices-RDPClient/Operational') {
+            $name = ($log -replace '[/ ]', '_') + '.txt'
+            try {
+              Get-WinEvent -LogName $log -MaxEvents 60 -ErrorAction Stop |
+                ForEach-Object { '{0:u} {1,5} {2}' -f $_.TimeCreated, $_.Id, ($_.Message -replace '\s+', ' ') } |
+                Out-File (Join-Path $env:OUT $name) -Encoding utf8
+            } catch { "$log : $($_.Exception.Message)" | Out-File (Join-Path $env:OUT $name) -Encoding utf8 }
+          }
+          try {
+            Get-WinEvent -FilterHashtable @{ LogName = 'Security'; Id = 4624, 4625; StartTime = (Get-Date).AddMinutes(-40) } -MaxEvents 40 -ErrorAction Stop |
+              ForEach-Object {
+                $x = [xml]$_.ToXml(); $d = @{}; foreach ($item in $x.Event.EventData.Data) { $d[$item.Name] = $item.'#text' }
+                '{0:u} {1} type={2} user={3} process={4} status={5} substatus={6} package={7}' -f $_.TimeCreated, $_.Id, $d.LogonType, $d.TargetUserName, $d.ProcessName, $d.Status, $d.SubStatus, $d.AuthenticationPackageName
+              } | Out-File (Join-Path $env:OUT 'security-logons.txt') -Encoding utf8
+          } catch { "Security: $($_.Exception.Message)" | Out-File (Join-Path $env:OUT 'security-logons.txt') -Encoding utf8 }
+
+      - name: Stop the seat
+        if: always()
+        continue-on-error: true
+        run: |
+          if ($env:ANODE_EXE) {
+            & $env:ANODE_EXE quit | Out-Host
+            "quit exit $LASTEXITCODE"
+          }
+          query session | Out-Host
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: seat-spike-${{ matrix.os }}
+          path: spike-out
+          retention-days: 7
+          if-no-files-found: warn
