@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **A finished job's reply holds all its output.** `seat_job` and `anode job` could answer `finished: true`
+  with the end of the command's output missing, when the command ended while the reply was being put
+  together: it read the output first and the status second. An agent that stops reading at `finished:
+  true` lost the end of the log, often its summary. The reply now reads the status first, so `finished:
+  true` comes only with the output to its end.
 - **`set_value` checks that the value took.** On a Chrome drop-down list (`<select>`), `seat_element`
   `set_value` reported `performed` while the list kept its old choice, so an agent could submit a
   form with the wrong option. Anode now reads the control back: if it still shows its old value 1.5
