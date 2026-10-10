@@ -80,6 +80,25 @@ jobs:
           '@
           $enabled = $false
           "WTSIsChildSessionsEnabled call=$([Spike.Wts]::WTSIsChildSessionsEnabled([ref]$enabled)) enabled=$enabled"
+          '--- Credential Guard and LSA protection'
+          try {
+            $guard = Get-CimInstance -Namespace root\Microsoft\Windows\DeviceGuard -ClassName Win32_DeviceGuard -ErrorAction Stop
+            "VBS status=$($guard.VirtualizationBasedSecurityStatus) configured=$($guard.SecurityServicesConfigured -join ',') running=$($guard.SecurityServicesRunning -join ',') (1 = Credential Guard)"
+          } catch { "DeviceGuard: $($_.Exception.Message)" }
+          $lsa = Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa'
+          "RunAsPPL=$($lsa.RunAsPPL) LsaCfgFlags=$($lsa.LsaCfgFlags) DisableRestrictedAdmin=$($lsa.DisableRestrictedAdmin)"
+          '--- interactive sign-ins of runneradmin since boot'
+          $boot = (Get-CimInstance Win32_OperatingSystem).LastBootUpTime
+          "LastBootUpTime: $($boot.ToUniversalTime().ToString('u'))"
+          try {
+            Get-WinEvent -FilterHashtable @{ LogName = 'Security'; Id = 4624; StartTime = $boot } -ErrorAction Stop |
+              ForEach-Object {
+                $x = [xml]$_.ToXml(); $d = @{}; foreach ($item in $x.Event.EventData.Data) { $d[$item.Name] = $item.'#text' }
+                if ($d.TargetUserName -eq 'runneradmin' -and $d.LogonType -in '2', '7', '10', '11') {
+                  '{0:u} type={1} process={2} package={3} elevated={4}' -f $_.TimeCreated.ToUniversalTime(), $d.LogonType, $d.ProcessName, $d.AuthenticationPackageName, $d.ElevatedToken
+                }
+              }
+          } catch { "Security: $($_.Exception.Message)" }
           # `query user` exits 1 even when it lists the session; this step only records state.
           exit 0
 
@@ -90,6 +109,13 @@ jobs:
           $exe = (Resolve-Path 'src\Anode\bin\Debug\net10.0-windows\win-x64\anode.exe').Path
           "ANODE_EXE=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           & $exe version | Out-Host
+
+      - name: Probe the environment self-test on the runner's desktop (no seat)
+        timeout-minutes: 6
+        continue-on-error: true
+        run: |
+          & $env:ANODE_EXE selftest --no-gamepad | Out-Host
+          if ($LASTEXITCODE -ne 0) { throw "selftest --no-gamepad exit $LASTEXITCODE" }
 
       - name: Doctor before setup
         continue-on-error: true
@@ -146,9 +172,38 @@ jobs:
           $parsed = $status | ConvertFrom-Json
           "ready=$($parsed.state -eq 'ready' -and $parsed.session -ne $parsed.parentSession)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
+      - name: Seat start, delegation to TERMSRV/* after a policy refresh and a TermService restart
+        id: third
+        if: steps.first.outputs.ready != 'true' && steps.second.outputs.ready != 'true'
+        timeout-minutes: 8
+        continue-on-error: true
+        run: |
+          & $env:ANODE_EXE quit | Out-Host
+          "quit exit $LASTEXITCODE"
+          $delegation = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\CredentialsDelegation'
+          foreach ($policy in 'AllowDefaultCredentials', 'AllowDefCredentialsWhenNTLMOnly') {
+            Set-ItemProperty -Path "$delegation\$policy" -Name '2' -Value 'TERMSRV/*' -Type String
+          }
+          gpupdate /target:computer /force | Out-Host
+          Get-ChildItem $delegation -Recurse | Out-Host
+          Restart-Service TermService -Force
+          $deadline = (Get-Date).AddSeconds(60)
+          do { Start-Sleep -Seconds 2; $listening = (Test-NetConnection localhost -Port 3389 -WarningAction SilentlyContinue).TcpTestSucceeded } while (-not $listening -and (Get-Date) -lt $deadline)
+          "listener after restart: $listening"
+          query session | Out-Host
+          & $env:ANODE_EXE doctor | Out-Host
+          $sw = [Diagnostics.Stopwatch]::StartNew()
+          & $env:ANODE_EXE start --hidden | Out-Host
+          "start exit $LASTEXITCODE after $([int]$sw.Elapsed.TotalSeconds) s"
+          $status = & $env:ANODE_EXE status --json | Out-String
+          $status | Out-File (Join-Path $env:OUT 'status-third.json') -Encoding utf8
+          $status | Out-Host
+          $parsed = $status | ConvertFrom-Json
+          "ready=$($parsed.state -eq 'ready' -and $parsed.session -ne $parsed.parentSession)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
       - name: Lease, seat screenshot and capabilities
         id: lease
-        if: steps.first.outputs.ready == 'true' || steps.second.outputs.ready == 'true'
+        if: steps.first.outputs.ready == 'true' || steps.second.outputs.ready == 'true' || steps.third.outputs.ready == 'true'
         continue-on-error: true
         run: |
           query session | Out-Host
