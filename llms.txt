@@ -42,6 +42,10 @@ acquire and `seat_start` start a seat. The MCP prompt `desktop_test` walks throu
 
 - [Desktop controls](https://raw.githubusercontent.com/skulitom/Anode/main/docs/DESKTOP-TOOLS.md): observe, act and verify.
 - [Development testing](https://raw.githubusercontent.com/skulitom/Anode/main/docs/DEVELOPMENT-TESTING.md): native/browser tests and jobs.
+- [When to use which](https://raw.githubusercontent.com/skulitom/Anode/main/docs/COMPARISON.md): Anode compared with Windows-MCP, Cua Driver, Desktop Commander and Windows 365 for Agents.
+- [Guide: test a desktop app](https://raw.githubusercontent.com/skulitom/Anode/main/docs/GUIDE-DESKTOP-APP.md): build, launch, act on controls, wait and screenshot, with MCP calls and CLI.
+- [Guide: fill in a web form](https://raw.githubusercontent.com/skulitom/Anode/main/docs/GUIDE-WEB-FORM.md): headed Chrome in the seat, temporary or signed-in profile, fields, drop-downs and checks.
+- [Guide: check an Android app](https://raw.githubusercontent.com/skulitom/Anode/main/docs/GUIDE-ANDROID.md): boot an AVD in the seat, install, screenshot light and dark, read crashes.
 - [Test other displays](https://raw.githubusercontent.com/skulitom/Anode/main/docs/DISPLAYS.md): change the seat's resolution and Windows scaling while its apps run.
 - [Android apps and web consoles](https://raw.githubusercontent.com/skulitom/Anode/main/docs/ANDROID.md): emulators, adb and Android Studio in the seat, and a browser profile signed in for agents.
 - [Troubleshooting](https://raw.githubusercontent.com/skulitom/Anode/main/docs/TROUBLESHOOTING.md): readiness, capture and input blockers.

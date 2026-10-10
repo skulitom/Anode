@@ -13,7 +13,8 @@ Android Studio opened at its Welcome screen on its own profile; and Chrome opene
 Anode uses the SDK Android Studio installed: `ANDROID_HOME`, then `ANDROID_SDK_ROOT`, then
 `%LOCALAPPDATA%\Android\Sdk`, and the AVDs in `ANDROID_AVD_HOME` or `%USERPROFILE%\.android\avd`.
 The emulator needs a hypervisor: the Windows Hypervisor Platform or the Android Emulator hypervisor
-driver, as it does on your desktop. `anode android` shows what Anode finds, and starts nothing.
+driver, as it does on your desktop. `anode android` shows what Anode finds, and starts nothing, so it
+needs Anode running (`anode start --hidden`); otherwise it says "Anode is not running".
 
 ## Emulators
 

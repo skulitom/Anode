@@ -330,8 +330,9 @@ Terminal or PowerShell opened from the Start menu. See [Android apps and web con
   Android Emulator hypervisor driver, as on your desktop; install one with Android Studio's SDK Manager.
 - **"runs outside the seat".** That serial belongs to an emulator on your desktop or elsewhere, which
   Anode never drives. Start one in the seat and use its serial.
-- **It did not finish booting in time.** A cold boot can take minutes. Check `anode android` until the
-  seat's emulator says `booted`; its output is in the log file `android start` names.
+- **It did not finish booting in time.** A cold boot can take minutes. Check
+  `anode android status --json` until the seat's emulator shows `"booted": true` (the plain-text
+  summary doesn't show it); its output is in the log file `android start` names.
 
 ### My own documents opened in the seat
 
