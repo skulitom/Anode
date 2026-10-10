@@ -38,9 +38,11 @@ focus the dialog with `seat_window`, then click. `seat_window` `raise` can leave
 the foreground window: use `focus`. `anode type` has no option for a slower pace. Fixes are planned
 for a later release.
 
-**Validation.** All 99 quick checks and the documentation check passed, and Windows CI repeated
-the build, packaging, installation and distribution checks. The live checks in a Windows 11 seat,
-their results and their limits are in the
+**Validation.** All 99 quick checks, 102 environment checks inside the seat, and the documentation
+check passed. Windows CI repeated the build, packaging, installation and distribution checks.
+Live native controls, Chrome forms and real input, File Explorer, display changes, an isolated
+Xbox controller and a read-only Android emulator passed on Windows 11. Results and coverage limits
+(including audio and foreground pointer phases not repeated) are in the
 [validation record](https://github.com/skulitom/Anode/blob/main/docs/RELEASE-READINESS.md).
 See the [changelog](https://github.com/skulitom/Anode/blob/v0.11.2/CHANGELOG.md#0112--2026-10-10) for every
 change.

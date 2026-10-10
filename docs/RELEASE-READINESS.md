@@ -1,121 +1,72 @@
 # Release readiness
 
-## 0.11.2 candidate — 10 October 2026
+## 0.11.2 release validation — 10 October 2026
 
-**Scope:** the fixes merged since 0.11.1 (pull requests #10 to #32, except those still open, such
-as #19, the Business edition's terms) and the startup changes in
-[startup performance](STARTUP-PERFORMANCE.md). No new tools or commands; the tool count stays 41.
-The candidate is the commit that sets the version to 0.11.2. Fixes merged after it are not in it.
-The changelog dates 0.11.2 to 10 October, when its contents were fixed.
+**Scope:** the fixes merged since 0.11.1 through #32, the quick-test cleanup in #33, the version
+and release metadata in #30, and the Windows PowerShell 5.1 registry-entry default-path fix.
+The Business licence proposal (#19) and the experimental hosted-runner seat workflow are excluded.
+No tools or commands were added; the tool count stays 41. Product code was tested at `7b229e9`;
+subsequent release-record and package-listing changes do not change that code.
 
-### Already checked, without a seat
+### Live validation
 
-- The candidate's tree (`main` at `98173de` plus the version change): all **99 quick checks** and
-  the documentation check passed locally on 10 October, and so did the release-mode distribution
-  check (`test-distribution.ps1 -Release`) on its package, MCPB bundle and registry entry. Windows
-  CI passed on `98173de`: Release build, packaging and the MCPB bundle, registry-entry validation,
-  quick self-tests, disposable install, update, rollback and uninstall, distribution and
-  documentation checks. CI repeats them on the candidate.
-- Code fixes came with regression checks, in the quick suite or in CI's install tests, and each
-  pull request had a second, independent review before it merged.
-- The .NET runtime pin is still the current 10.0 patch, **10.0.12** (Microsoft's release metadata,
-  10 October 2026). If a newer 10.0 patch is out when you tag, update `RuntimeFrameworkVersion` first.
-- Publishing: merging the version change doesn't publish anything. Anode is already listed in the
-  MCP Registry (0.11.0, metadata only), so `publish-registry.yml` skips pushes to `main`; 0.11.2's
-  installable entry follows the release and the Claude Desktop bundle test
-  ([publishing](PUBLISHING.md)).
+The installed self-contained 0.11.2 daemon and host ran on Windows 11 Pro 25H2 build 26200, main
+channel, child session 2, with an initial display of 1280x720 at 100%. Windows refused automatic
+sign-in (disconnect reason 2055); the user signed in through Windows, after which the verified
+seat became ready. The viewer was hidden for all application checks. Capture was available and
+no known input blocker was reported. The installed instance was upgraded from 0.11.0, and was
+left running after owned fixtures were closed and the desktop lease released.
 
-### Owner's live check (about 25 minutes)
+| Area | Evidence |
+| --- | --- |
+| Native desktop | `test-desktop.ps1` passed discovery, UI Automation, password omission, text replacement/read-back, consumed-snapshot refusal, invocation, delayed-state waits, checkbox and list actions, sliders, read-only filtering, window movement and HTML inspection. |
+| Chrome controls | `test-chrome-form.ps1` passed with Chrome 154.0.8037.99. Text-field replacement read back in 584 ms. An ignored dropdown value was refused; the open list skipped three repeated controls, exposed its options and successfully selected one. No warnings. |
+| Browser input and command jobs | `test-development.ps1 -VerifyInput` passed stdout/stderr, nonzero exit, working-directory/environment and process-session checks. Headed Chrome passed form submission, HTTP response, canvas capture, mobile layout and page-error checks. Actual Anode mouse, key and text delivery was confirmed in the page. |
+| File Explorer | An owned Explorer window exposed 99 controls through `inspect`, without the null-reference failure fixed in #20, and was closed afterward. |
+| Displays | `test-display.ps1` applied 1024x768 at 100%, 1920x1080 at 150%, 1080x1920 at 100% and 2560x1440 at 125% in 153–171 ms. Status and screenshot dimensions matched; reset restored 1280x720 at 100%. |
+| Environment | `selftest --no-gamepad` ran as an Anode command job inside the seat: all 102 checks passed, including screen capture, geometry and a disposable scheduler probe in that same session. |
+| Virtual controller | Xbox 360 attach returned `seatOnly=true` and `verifiedFromDesktop=true` before any input. Stick movement, button tap, reset and detach passed with HidHide. This verifies isolation and command handling, not support in every game. |
+| Android | `test-android.ps1 -Avd Pixel_9_Pro` passed a read-only API 36 start with automatic GPU selection, adb boot confirmation, a correctly sized screenshot, seat placement and clean emulator shutdown. |
 
-These need a real seat, so only the owner runs them. Installing the candidate also upgrades the
-installed Anode. Before you start: no game in the seat, nothing open there you need (`anode quit`
-closes every program in it), and the .NET 10 SDK, Node.js and Chrome installed.
+Local results, logs, screenshots and inspection reports are retained in the validation checkout
+under `artifacts/validation` (ignored by Git). All tests preserved the hidden viewer and the seat
+session. The remaining seat is available for normal use.
 
-1. **Build the candidate** (about 5 minutes):
+### Build and package validation
 
-   ```powershell
-   git clone https://github.com/skulitom/Anode anode-0.11.2
-   cd anode-0.11.2
-   $candidate = git log -1 --format=%H -S '<Version>0.11.2</Version>' -- src/Anode/Anode.csproj
-   git checkout $candidate
-   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build.ps1 -OutputDirectory artifacts\pkg-build -ArchiveDirectory artifacts\pkg-release -QuickTest -Package
-   ```
+- Debug build: no warnings or errors. All **99 quick self-tests** passed in Debug and Release.
+- Documentation: 40 documents checked against 41 tools; links, anchors and tool names consistent.
+- Disposable installer checks passed installation, update, rollback, refusal paths, agent
+  configuration and uninstall. Release-mode distribution checks passed for the ZIP, MCPB bundle,
+  checksums and generated registry entry. Both registry metadata files passed the publisher's
+  schema validation.
+- The registry-entry default output path was exercised successfully in Windows PowerShell 5.1
+  and PowerShell 7 after fixing its parameter-binding issue.
+- [Windows CI at 7b229e9](https://github.com/skulitom/Anode/actions/runs/38050181889) passed the
+  build, packaging, quick suite, installation, distribution and documentation checks. CI repeats
+  these checks on the recorded release commit, and the tag's Release workflow tests its package
+  before publishing.
+- The self-contained runtime remains **.NET 10.0.12**, checked against
+  [Microsoft's support policy](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core)
+  on 10 October 2026.
 
-2. **Install it.** Close the agent apps and sessions that use Anode first (they keep `anode.exe`
-   open, and the installer stops rather than replace a running copy). Then:
+### Coverage limits and known issues
 
-   ```powershell
-   anode quit | Out-Host
-   powershell -NoProfile -ExecutionPolicy Bypass -File artifacts\pkg-release\install.ps1 -PackagePath artifacts\pkg-release\anode-windows-x64.zip -ChecksumPath artifacts\pkg-release\SHA256SUMS
-   ```
-
-   In a new terminal, in the same folder:
-
-   ```powershell
-   anode version | Out-Host
-   anode start --hidden | Out-Host
-   anode capabilities | Out-Host
-   ```
-
-   `version` must say 0.11.2. Windows may ask you to sign in to the seat once.
-
-3. **Run the live checks** (about 15 minutes), holding a lease:
-
-   ```powershell
-   $env:ANODE_AGENT_ID = 'release-0.11.2'
-   $lease = anode lease acquire --ttl 600 | Out-String | ConvertFrom-Json
-   if ($LASTEXITCODE -ne 0) { throw 'Desktop acquisition failed.' }
-   $env:ANODE_LEASE_TOKEN = $lease.leaseToken
-   $exe = (Get-Command anode).Source
-   powershell -ExecutionPolicy Bypass -File scripts\test-desktop.ps1 -Anode $exe
-   powershell -ExecutionPolicy Bypass -File scripts\test-chrome-form.ps1 -Anode $exe
-   powershell -ExecutionPolicy Bypass -File scripts\test-development.ps1 -Anode $exe -InstallBrowserTools -VerifyInput
-   anode run explorer.exe C:\Windows | Out-Host
-   Start-Sleep -Seconds 2
-   $explorer = @((anode windows --query Windows --json | ConvertFrom-Json).windows | Where-Object process -eq 'explorer')[0]
-   if (-not $explorer) { throw 'No File Explorer window in the seat yet: wait a moment, then set $explorer again.' }
-   anode inspect $explorer.windowId | Out-Host
-   anode window $explorer.windowId close | Out-Host
-   anode lease release | Out-Host
-   ```
-
-   | Check | What it covers in 0.11.2 | Passes when |
-   | --- | --- | --- |
-   | `test-desktop.ps1` | native controls, including `set_value`'s new read-back on a text box | it prints `"passed": true` |
-   | `test-chrome-form.ps1` | Chrome: a text field's `set_value` reads back within its 1.5 s wait; `set_value` on a `<select>` fails instead of reporting success; the open list's observation lists each control once | it prints `"passed": true`; a warning that the open list's options weren't listed is a finding for a later release, not a failure |
-   | `test-development.ps1` | typing's new pace, with mouse, key and text delivery checked in a headed Chrome page | it ends without an error |
-   | File Explorer | `inspect` on an Explorer window, which failed in 0.11.1 | it lists the window's controls |
-
-4. **Release.** If every check passed, tag the candidate and push the tag from the candidate
-   checkout, whose `HEAD` is the candidate ([release process](../CONTRIBUTING.md#release-process),
-   step 6):
-
-   ```powershell
-   git tag v0.11.2 HEAD
-   git push origin v0.11.2
-   ```
-
-   The Release workflow builds, tests and publishes the release. After it: the package manifests
-   (step 7), and the Claude Desktop test of the workflow's MCPB bundle
-   ([release gate](../packaging/mcpb/README.md#claude-desktop-test-release-gate)), which lets the
-   registry list 0.11.2 as installable. The validation results go into this record then.
-
-### Covered without a live run
-
-The seat profile held on the other desktop (Restart Manager), requests queued behind a long
-operation, packaged apps' folders and the uninstaller's list are covered by quick checks with
-stand-ins and by CI's disposable installs, not by a live seat. Startup timings are in
-[startup performance](STARTUP-PERFORMANCE.md).
-
-### Known and open, for a later release
-
-- A Chrome window's first observation can come back without the page, and page controls sit below
-  the default `maxDepth` of 8. Observe again with `maxDepth` 16.
-- On Windows' "Open File - Security Warning" dialog, `invoke` on Run reports success, but nothing
-  runs. Focus the dialog with `seat_window`, then click.
-- `seat_window` `raise` can leave a UWP window behind the foreground window. Use `focus`.
-- `anode type` has no option for a slower pace (MCP's `seat_type` has `perCharMs`).
-- `anode.log` is never rotated ([privacy](PRIVACY.md)).
+- Audio was disabled on this seat, so live audio capture/playback was not repeated. The successful
+  0.11.1 audio and legacy MCP audio runs remain recorded below; audio regression checks passed.
+- The live pointer-isolation script, visible-viewer/control phases and machine-wide gamepad
+  self-test were omitted to leave the user's foreground desktop available. The pointer-guard
+  regression checks and the isolated seat-controller check passed.
+- Chrome and Explorer results do not establish compatibility with every application. Steam games,
+  DualShock 4, Android software rendering, writable AVDs and display reconnect fallback were not
+  retested. Failed or uncertain operations remain covered by injected handlers/private pipes.
+- The optional MCPB bundle remains a workflow artifact until its separate
+  [Claude Desktop validation](../packaging/mcpb/README.md#claude-desktop-test-release-gate).
+  Publishing the Windows release does not satisfy that gate or publish the installable registry entry.
+- A Chrome window's first observation can omit the page; observe again with `maxDepth` 16.
+  Windows' Open File security dialog may ignore `invoke`; focus it and click. `seat_window raise`
+  may leave a UWP window behind another; use `focus`. `anode type` still lacks a pace option,
+  and `anode.log` is not rotated.
 
 ## 0.11.1 release validation — 2 October 2026
 
