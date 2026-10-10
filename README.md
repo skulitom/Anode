@@ -218,6 +218,8 @@ flowchart LR
 | Connect Codex, Claude Code, Claude Desktop, VS Code or Cursor | [Connecting agents](docs/CONNECTING-AGENTS.md) |
 | Share the desktop between agents | [Multiple agents and leases](docs/MULTI-AGENT.md) |
 | Help an agent discover and choose Anode | [Agent guide](docs/FOR-AGENTS.md) |
+| Decide whether Anode fits, or another tool does | [When to use which](docs/COMPARISON.md): Windows-MCP, Cua Driver, Desktop Commander, Windows 365 for Agents |
+| Follow a worked example | [Test a desktop app with Claude Code](docs/GUIDE-DESKTOP-APP.md), [fill in a web form](docs/GUIDE-WEB-FORM.md), [check an Android app](docs/GUIDE-ANDROID.md) |
 | Run apps, control the viewer or use a gamepad | [Usage guide](docs/USAGE.md) |
 | Look up a CLI command or option | [Command reference](docs/USAGE.md#command-reference) |
 | Test native apps and browsers | [Development and testing](docs/DEVELOPMENT-TESTING.md) |
@@ -235,6 +237,8 @@ flowchart LR
 ## Limits to know
 
 - One seat per Windows session: agents and CLI clients share it and take turns.
+- Not for Windows Home or macOS, or when you need a security sandbox:
+  [when to use which](docs/COMPARISON.md) says what to use instead.
 - Files, accounts, network ports and application singletons are shared. Steam games run in the seat
   using the Steam client on your desktop, which stays there, without the overlay or Steam Input; other
   single-instance apps may already belong to your main session. Use separate browser profiles for

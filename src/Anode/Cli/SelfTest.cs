@@ -135,6 +135,7 @@ internal static class SelfTest
         Check(results, "desktop repeated elements", DesktopChecks.RepeatedElements);
         Check(results, "execution output", DevelopmentChecks.Output);
         Check(results, "execution jobs", () => DevelopmentChecks.Jobs().GetAwaiter().GetResult());
+        Check(results, "execution job tail", () => DevelopmentChecks.JobTail().GetAwaiter().GetResult());
         Check(results, "cancelled execution", () => DevelopmentChecks.CancelledStart().GetAwaiter().GetResult());
         Check(results, "malformed pipe messages", () => TransportChecks.MalformedMessages().GetAwaiter().GetResult());
         Check(results, "agent ownership", () => AgentChecks.Ownership().GetAwaiter().GetResult());
@@ -144,6 +145,7 @@ internal static class SelfTest
         Check(results, "MCP lease client process", () => McpChecks.LeaseClientProcess().GetAwaiter().GetResult());
         Check(results, "agent queue and disconnect", () => AgentChecks.QueueAndDisconnect().GetAwaiter().GetResult());
         Check(results, "agent queue time", () => AgentChecks.QueueTime().GetAwaiter().GetResult());
+        Check(results, "agent deadline replies", () => AgentChecks.DeadlineReplies().GetAwaiter().GetResult());
         Check(results, "agent line", () => AgentChecks.Line().GetAwaiter().GetResult());
         Check(results, "agent names", () => AgentChecks.Names().GetAwaiter().GetResult());
         Check(results, "MCP ownership", () => AgentChecks.McpOwnership().GetAwaiter().GetResult());

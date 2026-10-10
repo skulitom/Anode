@@ -41,9 +41,13 @@ with an ordinary terminal. Only `anode setup` needs administrator approval.
 
 ### A command timed out and the viewer is still connected
 
-The timed-out command may have executed. Check the seat before repeating it. Run `anode start`
-to reconnect the seat host if the daemon reports it is not ready; Anode can recover that connection
-without waiting for the viewer to reconnect. `anode kill` remains available to stop the seat.
+The timed-out command may have executed. Check the seat before repeating it. A desktop action that
+the seat stopped at its deadline says how far it got: `timed_out` with `started: false` did nothing,
+since it was still waiting behind an earlier action; with `started: true` it was stopped partway (one
+that only reads, such as `seat_wait`, changed nothing).
+Run `anode start` to reconnect the seat host if the daemon reports it is not ready; Anode can
+recover that connection without waiting for the viewer to reconnect. `anode kill` remains available
+to stop the seat.
 
 ### "Remote Desktop host: fDenyTSConnections = 1"
 
@@ -330,8 +334,9 @@ Terminal or PowerShell opened from the Start menu. See [Android apps and web con
   Android Emulator hypervisor driver, as on your desktop; install one with Android Studio's SDK Manager.
 - **"runs outside the seat".** That serial belongs to an emulator on your desktop or elsewhere, which
   Anode never drives. Start one in the seat and use its serial.
-- **It did not finish booting in time.** A cold boot can take minutes. Check `anode android` until the
-  seat's emulator says `booted`; its output is in the log file `android start` names.
+- **It did not finish booting in time.** A cold boot can take minutes. Check
+  `anode android status --json` until the seat's emulator shows `"booted": true` (the plain-text
+  summary doesn't show it); its output is in the log file `android start` names.
 
 ### My own documents opened in the seat
 
