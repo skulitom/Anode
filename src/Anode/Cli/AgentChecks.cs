@@ -337,6 +337,76 @@ internal static class AgentChecks
         return "an action queued behind another of its agent's runs in the time its caller has left, and stops before it";
     }
 
+    /// <summary>
+    /// A desktop action its deadline cuts short answers <c>timed_out</c> with the time it had and whether it started,
+    /// not a bare "A task was canceled.": one still queued did nothing. A stopping seat still cancels.
+    /// </summary>
+    public static async Task<string> DeadlineReplies()
+    {
+        var entered = Signal(); var finish = Signal();
+        var record = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        var lease = new DesktopLease(record: record.Enqueue);
+        int dispatched = 0;
+        async Task<JsonObject> Dispatch(JsonObject request, CancellationToken cancel)
+        {
+            Interlocked.Increment(ref dispatched);
+            if (request.Str("text") == "first")
+            {
+                entered.TrySetResult();
+                await finish.Task;
+                return JsonLine.Ok();
+            }
+            await Task.Delay(Timeout.Infinite, cancel); // An action that doesn't size its work by its time.
+            return JsonLine.Ok();
+        }
+        string token = (await lease.HandleAsync(Lease("A", "acquire"), Dispatch)).Obj("result")!.Str("leaseToken")!;
+        Task<JsonObject> first = lease.HandleAsync(Input("A", token, "first"), Dispatch);
+        JsonObject queued;
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            var waiting = Input("A", token, "queued");
+            waiting["timeoutMs"] = 800;
+            queued = await lease.HandleAsync(waiting, Dispatch).WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally { finish.TrySetResult(); }
+        Require((await first.WaitAsync(TimeSpan.FromSeconds(2))).Bool("ok") == true, "the action in front failed");
+        Require(dispatched == 1, $"a request that never got the desktop was dispatched ({dispatched} dispatches)");
+        Require(queued.Bool("ok") == false && queued.Str("errorCode") == "timed_out" && queued.Bool("started") == false
+            && queued.Str("error") is { } never && never.Contains("800 ms") && never.Contains("Nothing was done"),
+            "a request that ran out of time in the queue did not say so: " + queued.ToJsonString());
+
+        var held = Input("A", token, "held");
+        held["timeoutMs"] = 1500;
+        var stopped = await lease.HandleAsync(held, Dispatch).WaitAsync(TimeSpan.FromSeconds(5));
+        Require(stopped.Bool("ok") == false && stopped.Str("errorCode") == "timed_out" && stopped.Bool("started") == true
+            && stopped.Str("error") is { } partway && partway.Contains("1.5 s") && partway.Contains("may have run"),
+            "an action stopped partway did not say so: " + stopped.ToJsonString());
+        var look = new JsonObject { ["op"] = "desktop.wait", ["agentId"] = "A", ["leaseToken"] = token, ["windowId"] = "w_1", ["textContains"] = "never", ["timeoutMs"] = 1000 };
+        var read = await lease.HandleAsync(look, Dispatch).WaitAsync(TimeSpan.FromSeconds(5));
+        Require(read.Str("errorCode") == "timed_out" && read.Bool("started") == true && read.Str("error") is { } safe
+            && safe.Contains("nothing changed") && !safe.Contains("may have run"), "a read-only action stopped partway was said to have acted: " + read.ToJsonString());
+        var start = new JsonObject { ["op"] = "exec.start", ["agentId"] = "A", ["leaseToken"] = token, ["path"] = "unused-test-command", ["timeoutMs"] = 1000 };
+        var started = await lease.HandleAsync(start, Dispatch).WaitAsync(TimeSpan.FromSeconds(5));
+        Require(started.Str("errorCode") == "timed_out" && started.Bool("started") == true && started.Str("error") is { } job
+            && job.Contains("seat_job action=list"), "a command start cut short didn't point at the job list: " + started.ToJsonString());
+        Require(record.Any(line => line == "'input.text' ran out of its 800 ms before it got the desktop")
+            && record.Any(line => line == "'input.text' ran out of its 1.5 s and was stopped"), "a timeout left no log line: " + string.Join(" | ", record));
+        Require((await lease.HandleAsync(Input("A", token, "first"), Dispatch).WaitAsync(TimeSpan.FromSeconds(2))).Bool("ok") == true,
+            "a timed-out action kept the desktop from the next one");
+
+        using var stopping = new CancellationTokenSource();
+        Task<JsonObject> during = lease.HandleAsync(Input("A", token, "held"), Dispatch, stopping.Token);
+        stopping.Cancel();
+        try
+        {
+            var reply = await during.WaitAsync(TimeSpan.FromSeconds(2));
+            throw new InvalidOperationException("a stopping seat's cancellation was answered as a timeout: " + reply.ToJsonString());
+        }
+        catch (OperationCanceledException) { }
+        return "an action cut short by its deadline answers timed_out with its time and how far it got: nothing done, nothing changed, a job to find, or input that may have run";
+    }
+
     public static async Task<string> Line()
     {
         long now = 0;

@@ -446,6 +446,9 @@ internal static class Tools
     /// </summary>
     internal static bool ActsOnScreen(string op) => op.StartsWith("input.", StringComparison.Ordinal) || op is "gamepad.set" or "gamepad.tap";
 
+    /// <summary>Whether an operation only reads, as its tool's read-only hint says: stopping it partway changed nothing.</summary>
+    internal static bool ReadsOnly(string op) => All.Any(tool => tool.Op == op && tool.Effect == Effect.ReadOnly);
+
     public static bool TryResolve(string name, out string op, out bool startsDaemon)
     {
         foreach (var tool in All)

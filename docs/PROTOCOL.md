@@ -26,6 +26,12 @@ daemon forwards a request with `timeoutMs` set to the time it has left after wai
 operations on its one connection to the seat host (waits under 100 ms aren't counted), and the seat
 host takes its own waits off as well. A desktop operation is stopped a second (or an eighth of a
 shorter time) before that time runs out, so even one cut short answers before its caller gives up.
+It fails with `errorCode: "timed_out"`, and `started` says how far it got: `false` when it was still
+waiting for the desktop behind an earlier operation and did nothing, `true` when it was stopped
+partway and may have done some of its work (one that only reads, such as `desktop.wait`, changed
+nothing even then). A request whose time runs out before it is sent at all, in a client's queue or
+the daemon's, fails the same way with `started: false`. Once started, operations that bound their own
+work by the time, such as `input.text`, report their own failure instead.
 Limits derived from the time, such as how much one `input.text` may type, shrink with it.
 
 Desktop operations additionally require an `agentId` and live `leaseToken`, acquired through
