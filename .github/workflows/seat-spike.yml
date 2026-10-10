@@ -80,6 +80,8 @@ jobs:
           '@
           $enabled = $false
           "WTSIsChildSessionsEnabled call=$([Spike.Wts]::WTSIsChildSessionsEnabled([ref]$enabled)) enabled=$enabled"
+          # `query user` exits 1 even when it lists the session; this step only records state.
+          exit 0
 
       - name: Build the dev channel (Debug)
         run: |
