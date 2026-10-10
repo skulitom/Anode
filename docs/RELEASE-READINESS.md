@@ -1,25 +1,25 @@
 # Release readiness
 
-## 0.11.2 candidate — 9 October 2026
+## 0.11.2 candidate — 10 October 2026
 
-**Scope:** the fixes merged since 0.11.1 (pull requests #10 to #29, except those still open, such
+**Scope:** the fixes merged since 0.11.1 (pull requests #10 to #32, except those still open, such
 as #19, the Business edition's terms) and the startup changes in
 [startup performance](STARTUP-PERFORMANCE.md). No new tools or commands; the tool count stays 41.
 The candidate is the commit that sets the version to 0.11.2. Fixes merged after it are not in it.
-The changelog dates 0.11.2 to 9 October, when its contents were fixed.
+The changelog dates 0.11.2 to 10 October, when its contents were fixed.
 
 ### Already checked, without a seat
 
-- The candidate's tree (`main` at `a504b9a` plus the version change): all **97 quick checks** and
-  the documentation check passed locally on 9 October, and so did the release-mode distribution
+- The candidate's tree (`main` at `98173de` plus the version change): all **99 quick checks** and
+  the documentation check passed locally on 10 October, and so did the release-mode distribution
   check (`test-distribution.ps1 -Release`) on its package, MCPB bundle and registry entry. Windows
-  CI passed on `a504b9a`: Release build, packaging and the MCPB bundle, registry-entry validation,
+  CI passed on `98173de`: Release build, packaging and the MCPB bundle, registry-entry validation,
   quick self-tests, disposable install, update, rollback and uninstall, distribution and
   documentation checks. CI repeats them on the candidate.
 - Code fixes came with regression checks, in the quick suite or in CI's install tests, and each
   pull request had a second, independent review before it merged.
 - The .NET runtime pin is still the current 10.0 patch, **10.0.12** (Microsoft's release metadata,
-  9 October 2026). If a newer 10.0 patch is out when you tag, update `RuntimeFrameworkVersion` first.
+  10 October 2026). If a newer 10.0 patch is out when you tag, update `RuntimeFrameworkVersion` first.
 - Publishing: merging the version change doesn't publish anything. Anode is already listed in the
   MCP Registry (0.11.0, metadata only), so `publish-registry.yml` skips pushes to `main`; 0.11.2's
   installable entry follows the release and the Claude Desktop bundle test
@@ -115,9 +115,6 @@ stand-ins and by CI's disposable installs, not by a live seat. Startup timings a
   runs. Focus the dialog with `seat_window`, then click.
 - `seat_window` `raise` can leave a UWP window behind the foreground window. Use `focus`.
 - `anode type` has no option for a slower pace (MCP's `seat_type` has `perCharMs`).
-- An action cut short by its deadline answers "A task was canceled." without saying it timed out.
-- In rare timing, `seat_job` can answer `finished: true` before it has returned the last of the
-  output.
 - `anode.log` is never rotated ([privacy](PRIVACY.md)).
 
 ## 0.11.1 release validation — 2 October 2026

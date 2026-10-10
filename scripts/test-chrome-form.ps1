@@ -92,9 +92,9 @@ try {
     } while ($windows.Count -eq 0 -and (Get-Date) -lt $deadline)
     Assert-That ($windows.Count -eq 1) "Chrome's window '$title' did not appear exactly once."
     $windowId = $windows[0].windowId
-    $chrome = Get-Process -Id ([int]$windows[0].pid)
-    Assert-That ($chrome.SessionId -eq $status.session) 'Chrome window is outside the seat.'
-    Add-Owned $chrome.Id
+    $chromeProcess = Get-Process -Id ([int]$windows[0].pid)
+    Assert-That ($chromeProcess.SessionId -eq $status.session) 'Chrome window is outside the seat.'
+    Add-Owned $chromeProcess.Id
     # Page controls sit deep in Chrome's tree, and Chrome builds the tree only once something asks.
     function Observe-Page { Call-Anode @('inspect', $windowId, '--max-depth', '16', '--max-elements', '500') }
     $deadline = (Get-Date).AddSeconds(15)

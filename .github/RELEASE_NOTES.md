@@ -15,6 +15,12 @@ This patch fixes bugs found after 0.11.1, most of them by AI agents using Anode 
   its drop-down lists was open. Both are fixed; a control listed twice now appears once.
 - **Queued requests keep their deadline.** A request that waited behind a long operation, such as
   typing, could lose its reply and leave the seat `detached`. It now answers, or fails, in time.
+- **Running out of time is reported as such.** A desktop action stopped at its deadline answered
+  with a bare "A task was canceled." It now fails with `errorCode: "timed_out"` and says whether
+  anything ran (`started`).
+- **A finished job's reply holds all its output.** `seat_job` and `anode job` could answer
+  `finished: true` with the end of the command's output missing. `finished: true` now comes only
+  with the output to its end.
 - **Browser sign-in is clearer.** `anode browser --sign-in` explains its window in its first tab
   and opens several addresses. When the seat's profile is open on the other desktop, `seat_browser`
   and `--sign-in` refuse and name the process holding it, instead of reporting a window.
@@ -32,11 +38,11 @@ focus the dialog with `seat_window`, then click. `seat_window` `raise` can leave
 the foreground window: use `focus`. `anode type` has no option for a slower pace. Fixes are planned
 for a later release.
 
-**Validation.** All 97 quick checks and the documentation check passed, and Windows CI repeated
+**Validation.** All 99 quick checks and the documentation check passed, and Windows CI repeated
 the build, packaging, installation and distribution checks. The live checks in a Windows 11 seat,
 their results and their limits are in the
 [validation record](https://github.com/skulitom/Anode/blob/main/docs/RELEASE-READINESS.md).
-See the [changelog](https://github.com/skulitom/Anode/blob/v0.11.2/CHANGELOG.md#0112--2026-10-09) for every
+See the [changelog](https://github.com/skulitom/Anode/blob/v0.11.2/CHANGELOG.md#0112--2026-10-10) for every
 change.
 
 ## Install or upgrade

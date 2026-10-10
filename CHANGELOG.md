@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.11.2 — 2026-10-09
+## 0.11.2 — 2026-10-10
 
 - **A finished job's reply holds all its output.** `seat_job` and `anode job` could answer `finished: true`
   with the end of the command's output missing, when the command ended while the reply was being put
