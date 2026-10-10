@@ -18,10 +18,12 @@
 param(
     [Parameter(Mandatory = $true)][string]$Tag,
     [Parameter(Mandatory = $true)][string]$Bundle,
-    [string]$OutFile = (Join-Path $PSScriptRoot '..\artifacts\release\server.registry.json')
+    [string]$OutFile
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
+# Windows PowerShell 5.1 leaves PSScriptRoot empty in defaults when a parameter is mandatory.
+if (-not $OutFile) { $OutFile = Join-Path $root 'artifacts\release\server.registry.json' }
 [xml]$project = Get-Content -LiteralPath (Join-Path $root 'src\Anode\Anode.csproj') -Raw
 $version = @($project.Project.PropertyGroup.Version | Where-Object { $_ })[0]
 if ($Tag -cnotmatch '^v\d+\.\d+\.\d+$' -or $Tag -cne "v$version") {

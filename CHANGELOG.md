@@ -2,6 +2,9 @@
 
 ## 0.11.2 — 2026-10-10
 
+- **Release tooling on Windows PowerShell 5.1.** The registry-entry generator now resolves its
+  default output path after parameter binding, so omitting `-OutFile` works in both PowerShell 5.1
+  and PowerShell 7.
 - **A finished job's reply holds all its output.** `seat_job` and `anode job` could answer `finished: true`
   with the end of the command's output missing, when the command ended while the reply was being put
   together: it read the output first and the status second. An agent that stops reading at `finished:
