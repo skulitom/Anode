@@ -455,11 +455,13 @@ Something wrong? [docs/TROUBLESHOOTING.md](TROUBLESHOOTING.md), and the log at
 powershell -ExecutionPolicy Bypass -File scripts\build.ps1 -QuickTest   # publish and verify dist\anode.exe
 dotnet build Anode.sln
 anode selftest          # also captures the desktop and tests a machine-wide gamepad
-anode selftest --quick  # includes MCP discovery, pipe deadlines and identity checks (what CI runs)
+anode selftest --quick  # includes MCP discovery, pipe deadlines and identity checks (what CI's build job runs)
 ```
 
 If a running Anode or MCP client uses `dist\anode.exe`, publish elsewhere with
 `-OutputDirectory artifacts\pkg-build`; see [Contributing](../CONTRIBUTING.md#build-while-anode-is-running).
 `-Configuration Debug` builds the dev channel, which cannot reach the installed Anode; see
 [a separate dev Anode](DEVELOPMENT-TESTING.md#a-separate-dev-anode).
-CI builds on `windows-latest` and runs the quick self-test on every push and pull request.
+CI builds on `windows-latest` and runs the quick self-test on every push and pull request. A second
+job builds the dev channel and runs `anode selftest --no-gamepad` on the runner's own desktop, which adds
+screen capture, screen geometry and the Task Scheduler hand-off; it starts no seat.
