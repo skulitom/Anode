@@ -89,7 +89,7 @@ See [Microsoft's pipe option documentation](https://learn.microsoft.com/en-us/do
 | `seat.hide` | | |
 | `seat.control` | `viewOnly` | `{viewOnly}` |
 | `lease` | `action`, `ttlSeconds`, `cancelJobs`, `agentId`, `leaseToken`, optional `clientPid`/`clientStarted` on acquire/renew | `{agentId, ownerAgentId, expiresInMs, operationRunning, leaseToken, summary}`; `acquire` starts the seat if needed; the request then goes to the seat host, which owns the lease, on an independent connection. See [multiple agents](MULTI-AGENT.md). |
-| `quit` | | stops the seat, then exits Anode |
+| `quit` | | stops the seat, then exits Anode; ends its process if a Windows dialog, such as the `--sign-in` credential prompt, still holds the viewer 5 seconds later. From then on `seat.start` and lease acquisitions fail with "Anode is quitting". |
 
 `status` result:
 

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- **`anode quit` ends Anode while the sign-in dialog is open.** With the credential dialog of
+  `anode start --sign-in` waiting for an answer, `quit` stopped the seat but Anode kept running, and
+  the CLI gave up after 60 seconds with "Anode accepted quit but is still running". Windows' dialog
+  runs its own message loop on the viewer's thread, which took Anode's exit request and kept the
+  thread, and the Remote Desktop control can't cancel its prompt. A later `anode start --hidden`
+  then reached that Anode, which went back to the credential dialog. Now, when the viewer's
+  thread is still held 5 seconds after quit, Anode removes its tray icon and ends its process.
+  Once quit has begun, a start, an acquisition or **Sign in…** is refused with "Anode is quitting"
+  instead of creating a seat that would outlive the exit.
+
 ## 0.11.2 — 2026-10-10
 
 - **Release tooling on Windows PowerShell 5.1.** The registry-entry generator now resolves its

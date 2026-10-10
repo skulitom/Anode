@@ -663,6 +663,9 @@ internal sealed class SeatWindow : Form
     /// <summary>Marks the window as free to close for real, rather than hiding to the tray.</summary>
     public void AllowClose() => _reallyClosing = true;
 
+    /// <summary>Takes the icon out of the notification area before the process ends without closing the window.</summary>
+    internal void RemoveTrayIcon() => _tray.Visible = false;
+
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
         if (!_reallyClosing && e.CloseReason == CloseReason.UserClosing)

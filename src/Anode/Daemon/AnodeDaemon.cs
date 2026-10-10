@@ -34,6 +34,11 @@ internal sealed class AnodeDaemon : IDisposable
     private readonly Func<bool, uint?> _logoff;
     private readonly Action _disconnectViewer;
     private readonly Func<DisplayMode, bool, CancellationToken, Task> _changeDisplay;
+    private readonly Action _endMessageLoop;
+    private readonly Action<int> _exitProcess;
+    private readonly TimeSpan _quitGrace;
+    private int _quitting;
+    private volatile bool _messageLoopEnded;
 
     private SeatWindow? _window;
     private JsonPipeServer? _control;
@@ -54,7 +59,8 @@ internal sealed class AnodeDaemon : IDisposable
 
     internal AnodeDaemon(SeatOptions options, Func<uint?>? findChild = null, Func<string?>? blockingSummary = null,
         Func<Task>? startHost = null, Func<bool, uint?>? logoff = null, Action? disconnectViewer = null,
-        Func<DisplayMode, bool, CancellationToken, Task>? changeDisplay = null)
+        Func<DisplayMode, bool, CancellationToken, Task>? changeDisplay = null, Action? endMessageLoop = null,
+        Action<int>? exitProcess = null, TimeSpan? quitGrace = null)
     {
         _options = options;
         _promptForCredentials = options.PromptForCredentials;
@@ -64,6 +70,10 @@ internal sealed class AnodeDaemon : IDisposable
         _logoff = logoff ?? ChildSession.Logoff;
         _disconnectViewer = disconnectViewer ?? (() => _window?.BeginInvoke(new Action(() => _window.Viewer.Disconnect())));
         _changeDisplay = changeDisplay ?? ChangeViewerDisplayAsync;
+        _endMessageLoop = endMessageLoop ?? EndMessageLoop;
+        // Only Run ends the process; a daemon made for a check never ends the process running it.
+        _exitProcess = exitProcess ?? (_ => { });
+        _quitGrace = quitGrace ?? TimeSpan.FromSeconds(5);
     }
 
     public static int Run(SeatOptions options)
@@ -106,7 +116,7 @@ internal sealed class AnodeDaemon : IDisposable
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
 
-        using var daemon = new AnodeDaemon(options);
+        using var daemon = new AnodeDaemon(options, exitProcess: Environment.Exit);
         return daemon.Start();
     }
 
@@ -146,8 +156,12 @@ internal sealed class AnodeDaemon : IDisposable
         }
 
         Application.Run();
+        MessageLoopEnded();
         return 0;
     }
+
+    /// <summary>The window's message loop has returned, so the process ends without the quit fallback.</summary>
+    internal void MessageLoopEnded() => _messageLoopEnded = true;
 
     private void BeginConnect()
     {
@@ -434,7 +448,7 @@ internal sealed class AnodeDaemon : IDisposable
         int stopVersion;
         lock (_lifecycleGate)
         {
-            if (_reconnecting || _changingDisplay || _state == "stopping") return;
+            if (_reconnecting || _changingDisplay || _state == "stopping" || Volatile.Read(ref _quitting) == 1) return;
             stopVersion = _stopVersion;
             _reconnecting = true;
             // Let an old host startup release the seat gate before retrying.
@@ -574,6 +588,9 @@ internal sealed class AnodeDaemon : IDisposable
         int startupStopVersion = Volatile.Read(ref _stopVersion);
         try
         {
+            // A seat started now would outlive the exit, signed in with no Anode to stop it.
+            if (Volatile.Read(ref _quitting) == 1)
+                return JsonLine.Fail("Anode is quitting. Start it again once it has exited: `anode start --hidden` (agents: seat_lease action=acquire).");
             if (expectedStopVersion is int version && version != Volatile.Read(ref _stopVersion))
                 return JsonLine.Fail("The seat was stopped while this acquisition was pending. Request a new lease when desktop work should resume.");
             if (_hostReady && _seat is { IsConnected: true })
@@ -659,19 +676,59 @@ internal sealed class AnodeDaemon : IDisposable
 
     private void Quit()
     {
+        // A second quit, from the CLI or the tray, joins the one under way.
+        if (Interlocked.Exchange(ref _quitting, 1) == 1) return;
         _ = Task.Run(async () =>
         {
             if (!_options.KeepSeatOnExit) await StopSeatAsync("Anode is quitting").ConfigureAwait(false);
-            try
-            {
-                _window?.BeginInvoke(new Action(() =>
-                {
-                    _window!.AllowClose();
-                    Application.Exit();
-                }));
-            }
-            catch { Application.Exit(); }
+            _endMessageLoop();
+            // The loop ends at once, and the process with it, unless a Windows dialog holds the window's thread.
+            // The credential dialog of `--sign-in` does: its own modal loop takes the exit request and keeps the
+            // thread until someone answers it, and the control cannot cancel its prompt (Disconnect fails).
+            await Task.Delay(_quitGrace).ConfigureAwait(false);
+            if (_messageLoopEnded) return;
+            Log.Warn($"Anode's window was still busy {_quitGrace.TotalSeconds:0} seconds after quit, "
+                + "probably in a Windows dialog such as the sign-in prompt; ending the process");
+            await RemoveTrayIconAsync().ConfigureAwait(false);
+            _exitProcess(0);
         });
+    }
+
+    private void EndMessageLoop()
+    {
+        try
+        {
+            _window?.BeginInvoke(new Action(() =>
+            {
+                _window!.AllowClose();
+                Application.Exit();
+            }));
+        }
+        catch { Application.Exit(); }
+    }
+
+    /// <summary>
+    /// A dialog's loop still dispatches the window's messages, so the tray icon can go before the process does;
+    /// otherwise Windows shows it until the pointer passes over it.
+    /// </summary>
+    private async Task RemoveTrayIconAsync()
+    {
+        if (_window is not { IsHandleCreated: true } window) return;
+        var removed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        try
+        {
+            window.BeginInvoke(new Action(() =>
+            {
+                window.RemoveTrayIcon();
+                removed.TrySetResult();
+            }));
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"could not remove the tray icon: {ex.Message}");
+            return;
+        }
+        await Task.WhenAny(removed.Task, Task.Delay(1000)).ConfigureAwait(false);
     }
 
     // ------------------------------------------------------------- control pipe
