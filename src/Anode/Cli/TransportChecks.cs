@@ -88,13 +88,13 @@ internal static class TransportChecks
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
             queued = Daemon.AnodeDaemon.SendOnAsync(seat, "queued", new JsonObject { ["timeoutMs"] = 8000 }, 8000);
-            await Task.Delay(1500);
+            await Task.Delay(600);
         }
         finally { release.TrySetResult(); }
         Require((await first.WaitAsync(TimeSpan.FromSeconds(3))).Bool("ok") == true
             && (await queued.WaitAsync(TimeSpan.FromSeconds(3))).Bool("ok") == true, "a request lost its reply");
-        Require(given["queued"] is int left && left <= 8000 - 1400 && left > 8000 - 4500,
-            $"a request queued about 1.5 s behind another was forwarded with {given["queued"]} ms of 8000, not the time it had left");
+        Require(given["queued"] is int left && left <= 8000 - 500 && left > 8000 - 3600,
+            $"a request queued about 0.6 s behind another was forwarded with {given["queued"]} ms of 8000, not the time it had left");
 
         // A request left with almost no time isn't sent: its reply would come too late and cost the connection.
         entered = Signal();
