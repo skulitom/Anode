@@ -2,8 +2,8 @@
 # Windows runner? Records the runner's session and policy state, builds the dev channel,
 # runs setup, tries a seat with the default credential delegation and then with delegation
 # of default credentials to TERMSRV/localhost, and runs test-desktop.ps1 if a seat comes up.
-# Later probes: a start that may show Windows' credential dialog (nothing is entered), and a
-# fresh automatic sign-in of the runner session after child sessions are on.
+# Later probe: a fresh automatic sign-in of the runner session after child sessions are on
+# (disconnect the session; Winlogon signs it in again), then a fresh seat start.
 # Machine settings changed here live only on the disposable runner VM.
 name: Seat spike
 
@@ -141,34 +141,6 @@ jobs:
           $parsed = $status | ConvertFrom-Json
           "ready=$($parsed.state -eq 'ready' -and $parsed.session -ne $parsed.parentSession)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
-      - name: Probe a start that may show the Windows credential dialog (nothing is entered)
-        id: signin
-        timeout-minutes: 4
-        continue-on-error: true
-        run: |
-          & $env:ANODE_EXE quit | Out-Host
-          $log = Join-Path $env:OUT 'start-sign-in.txt'
-          $p = Start-Process -FilePath $env:ANODE_EXE -ArgumentList 'start', '--sign-in' -PassThru -NoNewWindow -RedirectStandardOutput $log -RedirectStandardError "$log.err"
-          $deadline = (Get-Date).AddSeconds(45)
-          do {
-            Start-Sleep -Seconds 3
-            $s = & $env:ANODE_EXE status --json | Out-String | ConvertFrom-Json
-            '{0:HH:mm:ss} state={1} signInPrompt={2} loginComplete={3} viewerConnection={4} lastError={5}' -f (Get-Date), $s.state, $s.signInPrompt, $s.loginComplete, $s.viewerConnection, $s.lastError
-          } while ((Get-Date) -lt $deadline -and $s.state -notin 'ready', 'error', 'logon-error')
-          # The runner VM's own screen, to see whether Windows shows a credential dialog.
-          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
-          $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-          $bitmap = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
-          [System.Drawing.Graphics]::FromImage($bitmap).CopyFromScreen(0, 0, 0, 0, $bitmap.Size)
-          $bitmap.Save((Join-Path $env:OUT 'runner-screen-sign-in.png'))
-          & $env:ANODE_EXE status --json | Out-File (Join-Path $env:OUT 'status-sign-in.json') -Encoding utf8
-          & $env:ANODE_EXE quit | Out-Host
-          if (-not $p.WaitForExit(30000)) { $p.Kill() }
-          Get-Content $log, "$log.err" -ErrorAction SilentlyContinue
-          Get-WinEvent -LogName 'Microsoft-Windows-TerminalServices-RDPClient/Operational' -MaxEvents 12 |
-            ForEach-Object { '{0:u} {1,5} {2}' -f $_.TimeCreated, $_.Id, ($_.Message -replace '\s+', ' ') }
-          exit 0
-
       - name: Upload the evidence so far
         if: always()
         uses: actions/upload-artifact@v4
@@ -184,6 +156,8 @@ jobs:
         continue-on-error: true
         run: |
           & $env:ANODE_EXE quit | Out-Host
+          # A fresh daemon must make this start, not one left over from an earlier attempt.
+          Get-Process anode -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $env:ANODE_EXE } | Stop-Process -Force
           "fSingleSessionPerUser=$((Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server').fSingleSessionPerUser)"
           $own = (Get-Process -Id $PID).SessionId
           query session | Out-Host
@@ -202,9 +176,11 @@ jobs:
                 if ($d.TargetUserName -eq 'runneradmin') { '{0:u} type={1} process={2}' -f $_.TimeCreated.ToUniversalTime(), $d.LogonType, $d.ProcessName }
               }
           } catch { "Security: $($_.Exception.Message)" }
+          "dev daemons before the start: $(@(Get-Process anode -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $env:ANODE_EXE }).Count)"
           $sw = [Diagnostics.Stopwatch]::StartNew()
           & $env:ANODE_EXE start --hidden | Out-Host
           "start exit $LASTEXITCODE after $([int]$sw.Elapsed.TotalSeconds) s"
+          query session | Out-Host
           $status = & $env:ANODE_EXE status --json | Out-String
           $status | Out-File (Join-Path $env:OUT 'status-reconnect.json') -Encoding utf8
           $status | Out-Host
