@@ -382,11 +382,11 @@ internal static class AgentChecks
         Require(stopped.Bool("ok") == false && stopped.Str("errorCode") == "timed_out" && stopped.Bool("started") == true
             && stopped.Str("error") is { } partway && partway.Contains("1.5 s") && partway.Contains("may have run"),
             "an action stopped partway did not say so: " + stopped.ToJsonString());
-        var look = new JsonObject { ["op"] = "desktop.wait", ["agentId"] = "A", ["leaseToken"] = token, ["windowId"] = "w_1", ["textContains"] = "never", ["timeoutMs"] = 1000 };
+        var look = new JsonObject { ["op"] = "desktop.wait", ["agentId"] = "A", ["leaseToken"] = token, ["windowId"] = "w_1", ["textContains"] = "never", ["timeoutMs"] = 300 };
         var read = await lease.HandleAsync(look, Dispatch).WaitAsync(TimeSpan.FromSeconds(5));
         Require(read.Str("errorCode") == "timed_out" && read.Bool("started") == true && read.Str("error") is { } safe
             && safe.Contains("nothing changed") && !safe.Contains("may have run"), "a read-only action stopped partway was said to have acted: " + read.ToJsonString());
-        var start = new JsonObject { ["op"] = "exec.start", ["agentId"] = "A", ["leaseToken"] = token, ["path"] = "unused-test-command", ["timeoutMs"] = 1000 };
+        var start = new JsonObject { ["op"] = "exec.start", ["agentId"] = "A", ["leaseToken"] = token, ["path"] = "unused-test-command", ["timeoutMs"] = 300 };
         var started = await lease.HandleAsync(start, Dispatch).WaitAsync(TimeSpan.FromSeconds(5));
         Require(started.Str("errorCode") == "timed_out" && started.Bool("started") == true && started.Str("error") is { } job
             && job.Contains("seat_job action=list"), "a command start cut short didn't point at the job list: " + started.ToJsonString());
@@ -540,7 +540,10 @@ internal static class AgentChecks
 
         // Waiting in line: the owner hears someone is waiting, and the waiter gets the desktop on release.
         var waiting = Call(second, "seat_lease", new JsonObject { ["action"] = "acquire", ["waitSeconds"] = 10 });
-        await Task.Delay(1500);
+        var asked = Stopwatch.StartNew(); // Its first ask puts it in line.
+        while ((await lease.HandleAsync(Lease("watcher", "status"), (_, _) => Task.FromResult(JsonLine.Ok()))).Obj("result")?["waiting"] is not JsonArray { Count: 1 }
+               && asked.ElapsedMilliseconds < 5000)
+            await Task.Delay(10);
         Require(McpChecks.Text(await Call(first, "seat_windows")).Contains("Another agent is waiting"), "the owner was not told another agent is waiting");
         await Call(first, "seat_lease", new JsonObject { ["action"] = "release" });
         var granted = await waiting.WaitAsync(TimeSpan.FromSeconds(5));
@@ -599,9 +602,13 @@ internal static class AgentChecks
         var staleLease = new DesktopLease();
         using var staleDaemon = new JsonPipeServer(stalePipe, request => staleLease.HandleAsync(request, (_, _) => Task.FromResult(JsonLine.Ok())));
         staleDaemon.Start();
+        // A short connect wait makes each call after the quit fail fast, once the stand-in's pipe is there to connect to.
+        var listening = Stopwatch.StartNew();
+        while (!Core.Launch.SeatSlot.Pipes().Contains(stalePipe, StringComparer.OrdinalIgnoreCase) && listening.ElapsedMilliseconds < 5000)
+            await Task.Delay(10);
         using var stale = new McpServer(stalePipe,
             () => { staleLaunches++; throw new InvalidOperationException("a cached lease token launched a daemon"); },
-            () => { staleReadiness++; return null; }, "C");
+            () => { staleReadiness++; return null; }, "C") { ConnectTimeoutMs = 50 };
         Require((await Call(stale, "seat_lease", acquire)).Bool("isError") != true && stale.HoldsLease, "stale-token fixture could not acquire");
         staleDaemon.Dispose();
         // The first call discovers the closed connection and reports the quit; it is never replayed.

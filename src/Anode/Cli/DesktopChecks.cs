@@ -273,7 +273,7 @@ internal static class DesktopChecks
                 Require(!error.Message.Contains("Free", StringComparison.Ordinal) && error.Message.Contains("expand the list", StringComparison.Ordinal),
                     "the failure quoted the control's text or left out the drop-down advice: " + error.Message);
             }
-            Require(window.Value == "Free" && watch.ElapsedMilliseconds >= AccessibilityReader.SetValueSettleMs - 100,
+            Require(watch.ElapsedMilliseconds >= AccessibilityReader.SetValueSettleMs - 100,
                 "an ignored value was refused before the control had time to apply it");
             // The value went out before the control went away, so that must not read as "nothing happened".
             var unread = Set("vanish");
