@@ -17,9 +17,17 @@ internal sealed record WindowTarget(long Handle, int Pid, long Started)
 /// <summary>Every HWND is checked against this process's verified seat before use.</summary>
 internal static class WindowAccess
 {
+    internal sealed record ZOrderEntry(bool Visible, bool Minimized, bool Cloaked, bool OwnedByTarget,
+        bool Topmost, bool ClickThrough, Rectangle Frame);
+
+    private const uint GwHwndPrev = 3, GwOwner = 4;
+    private const int WsExTopmost = 0x8, WsExLayered = 0x80000, WsExTransparent = 0x20;
+    private const int DwmwaExtendedFrameBounds = 9, DwmwaCloaked = 14;
+
     [StructLayout(LayoutKind.Sequential)]
     private struct Rect { public int Left, Top, Right, Bottom; }
     [DllImport("user32.dll")] private static extern bool EnumWindows(Win.EnumWindowsProc callback, IntPtr parameter);
+    [DllImport("user32.dll")] private static extern IntPtr GetWindow(IntPtr window, uint command);
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
     [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr window, out Rect rect);
     [DllImport("user32.dll")] private static extern bool IsWindow(IntPtr window);
@@ -122,9 +130,7 @@ internal static class WindowAccess
                     throw new InvalidOperationException(InputBlockReason() ?? "Windows refused focus in the seat. Inspect the current window or modal dialog.");
                 break;
             case "raise":
-                if (IsIconic(handle)) ShowWindowAsync(handle, 4);
-                if (!SetWindowPos(handle, IntPtr.Zero, 0, 0, 0, 0, 0x0013)) throw Win.LastError("Cannot raise seat window");
-                break;
+                return RaiseVerifiedWindow(handle);
             case "restore": ShowWindowAsync(handle, 9); break;
             case "maximize": ShowWindowAsync(handle, 3); break;
             case "minimize": ShowWindowAsync(handle, 6); break;
@@ -141,11 +147,146 @@ internal static class WindowAccess
         return new JsonObject { ["requested"] = action, ["note"] = "Inspect again to confirm the resulting window state." };
     }
 
+    private static JsonObject RaiseVerifiedWindow(IntPtr handle)
+    {
+        if (IsIconic(handle))
+        {
+            ShowWindowAsync(handle, 4); // SW_SHOWNOACTIVATE
+            var watch = Stopwatch.StartNew();
+            while (IsIconic(handle) && watch.ElapsedMilliseconds < 500) Thread.Sleep(20);
+        }
+        Raise();
+        if (CoveringWindows(handle).Cover != IntPtr.Zero) WithForegroundInput(handle, Raise);
+        var (covering, onTop) = CoveringWindows(handle);
+        var result = new JsonObject { ["requested"] = "raise", ["raised"] = false };
+        if (IsIconic(handle))
+            result["note"] = "The window is still minimized. Use action \"restore\" or \"focus\", then inspect again.";
+        else if (covering == IntPtr.Zero && onTop != IntPtr.Zero)
+        {
+            // Always-on-top windows stay above every normal window, whatever raise or focus do.
+            result["raised"] = true;
+            var description = DescribeCoveringWindow(onTop);
+            result["topmostAbove"] = description;
+            result["note"] = $"Raised above every normal window, but the always-on-top window {Label(description)} still overlaps it; "
+                + "neither raise nor focus moves a normal window above it. Inspect again to confirm the resulting window state.";
+        }
+        else if (covering == IntPtr.Zero)
+        {
+            result["raised"] = true;
+            result["note"] = "Raised; no other window overlaps it from above, apart from its own dialogs and click-through overlays. "
+                + "Inspect again to confirm the resulting window state.";
+        }
+        else
+        {
+            var description = DescribeCoveringWindow(covering);
+            result["coveredBy"] = description;
+            result["note"] = $"Windows kept this window behind {Label(description)}, which overlaps it from above. "
+                + (description["foreground"]!.GetValue<bool>()
+                    ? "A raise can be blocked by Windows' foreground rules. " : "")
+                + "Use action \"focus\" to bring it forward and give it keyboard focus.";
+        }
+        return result;
+
+        void Raise()
+        {
+            // HWND_TOP; SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE on both attempts.
+            if (!SetWindowPos(handle, IntPtr.Zero, 0, 0, 0, 0, 0x0013)) throw Win.LastError("Cannot raise seat window");
+        }
+    }
+
+    // App titles can contain terminal controls; the note is also the CLI summary.
+    private static string Label(JsonObject window) =>
+        $"\"{string.Concat(window["title"]!.GetValue<string>().Select(c => char.IsControl(c) ? ' ' : c))}\" ({window["process"]!.GetValue<string>()})";
+
+    /// <summary>The nearest always-on-top window over a normal target, which no raise can pass; null for a topmost target.</summary>
+    internal static int? FirstTopmostCovering(Rectangle target, bool targetTopmost, IReadOnlyList<ZOrderEntry> above) =>
+        targetTopmost ? null : FirstCovering(target, true, above.Select(entry => entry.Topmost ? entry : entry with { Visible = false }).ToList());
+
+    internal static int? FirstCovering(Rectangle target, bool targetTopmost, IReadOnlyList<ZOrderEntry> above)
+    {
+        if (target.Width <= 0 || target.Height <= 0) return null;
+        for (int i = 0; i < above.Count; i++)
+        {
+            var candidate = above[i];
+            if (!candidate.Visible || candidate.Minimized || candidate.Cloaked || candidate.OwnedByTarget
+                || (!targetTopmost && candidate.Topmost) || candidate.ClickThrough) continue;
+            var overlap = Rectangle.Intersect(target, candidate.Frame);
+            if (overlap.Width > 0 && overlap.Height > 0) return i;
+        }
+        return null;
+    }
+
+    private static (IntPtr Cover, IntPtr OnTop) CoveringWindows(IntPtr handle)
+    {
+        var frame = VisibleFrame(handle);
+        bool topmost = (Win.GetWindowLong(handle, Win.GWL_EXSTYLE) & WsExTopmost) != 0;
+        var handles = new List<IntPtr>();
+        var above = new List<ZOrderEntry>();
+        for (var candidate = GetWindow(handle, GwHwndPrev); candidate != IntPtr.Zero && above.Count < 512;
+             candidate = GetWindow(candidate, GwHwndPrev))
+        {
+            int style = Win.GetWindowLong(candidate, Win.GWL_EXSTYLE);
+            bool cloaked = Win.DwmGetWindowAttribute(candidate, DwmwaCloaked, out int cloak, sizeof(int)) == 0 && cloak != 0;
+            bool owned = false;
+            var owner = GetWindow(candidate, GwOwner);
+            for (int i = 0; owner != IntPtr.Zero && i < 32; i++, owner = GetWindow(owner, GwOwner))
+                if (owner == handle) { owned = true; break; }
+            handles.Add(candidate);
+            above.Add(new ZOrderEntry(Win.IsWindowVisible(candidate), IsIconic(candidate), cloaked, owned,
+                (style & WsExTopmost) != 0, (style & (WsExLayered | WsExTransparent)) == (WsExLayered | WsExTransparent),
+                VisibleFrame(candidate)));
+        }
+        return (FirstCovering(frame, topmost, above) is int index ? handles[index] : IntPtr.Zero,
+            FirstTopmostCovering(frame, topmost, above) is int onTop ? handles[onTop] : IntPtr.Zero);
+    }
+
+    private static Rectangle VisibleFrame(IntPtr handle)
+    {
+        if (Win.DwmGetWindowAttribute(handle, DwmwaExtendedFrameBounds, out Win.Rect frame, Marshal.SizeOf<Win.Rect>()) == 0)
+            return Rectangle.FromLTRB(frame.Left, frame.Top, frame.Right, frame.Bottom);
+        return GetWindowRect(handle, out var rect)
+            ? Rectangle.FromLTRB(rect.Left, rect.Top, rect.Right, rect.Bottom) : Rectangle.Empty;
+    }
+
+    private static JsonObject DescribeCoveringWindow(IntPtr handle)
+    {
+        var title = new StringBuilder(201); // GetWindowText reserves one character for the terminator.
+        Win.GetWindowText(handle, title, title.Capacity);
+        var className = new StringBuilder(256);
+        GetClassName(handle, className, className.Capacity);
+        var result = new JsonObject
+        {
+            ["title"] = title.ToString(), ["process"] = "unknown", ["className"] = className.ToString(),
+            ["foreground"] = Win.GetForegroundWindow() == handle
+        };
+        try
+        {
+            GetWindowThreadProcessId(handle, out uint pid);
+            using var process = Process.GetProcessById(checked((int)pid));
+            result["process"] = process.ProcessName;
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception) { }
+        // The covering window can close during observation or fail the seat-session check.
+        try { result["target"] = Identify(handle).ToJson(); }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception) { }
+        return result;
+    }
+
     private static void FocusVerifiedWindow(IntPtr handle)
     {
         if (Win.GetForegroundWindow() == handle) return;
         bool requested = Win.SetForegroundWindow(handle);
         if (WaitForForeground(handle, requested ? 500 : 0)) return;
+        WithForegroundInput(handle, () =>
+        {
+            BringWindowToTop(handle);
+            Win.SetForegroundWindow(handle);
+            WaitForForeground(handle, 500);
+        });
+    }
+
+    private static void WithForegroundInput(IntPtr handle, Action action)
+    {
         // A fresh worker does not own the foreground input queue. Temporarily join
         // the verified seat foreground thread; never attach across sessions. This
         // runs in the disposable worker so a hung app cannot stall the host.
@@ -165,9 +306,7 @@ internal static class WindowAccess
         bool targetAttached = targetThread != current && targetThread != thread && AttachThreadInput(current, targetThread, true);
         try
         {
-            BringWindowToTop(handle);
-            Win.SetForegroundWindow(handle);
-            WaitForForeground(handle, 500);
+            action();
         }
         finally
         {

@@ -42,7 +42,7 @@ seat: select the `seat_*` tools explicitly.
 | --- | --- |
 | `seat_windows` | Lists visible seat windows, including minimized ones; filters by title/process `query` or `pid`. Returns window IDs, process names, bounds and window state. |
 | `seat_observe` | Reads one window's control tree, text and state, plus an optional seat screenshot. |
-| `seat_window` | Requests `focus`, `raise`, `restore`, `maximize`, `minimize`, `close`, or `move`. Raise changes stacking without requesting focus. Moving requires `x`, `y`, `width`, `height`. Focus stays inside the seat. |
+| `seat_window` | Requests `focus`, `raise`, `restore`, `maximize`, `minimize`, `close`, or `move`. Raise tries to change stacking without requesting focus; if Windows keeps it behind another window, it reports `raised: false` and `coveredBy` with that window's `windowId`; use `focus` to bring it forward with keyboard focus. An always-on-top window still over it is named in `topmostAbove`. Moving requires `x`, `y`, `width`, `height`. Focus stays inside the seat. |
 | `seat_element` | Acts on an observed control using `snapshotId`, `elementId` and one of its offered actions. |
 
 | Control action | Extra arguments | Typical control |

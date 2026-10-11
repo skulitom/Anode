@@ -131,7 +131,7 @@ internal static class Tools
                 ("includeOffscreen", "boolean", "Include controls outside the visible viewport. Default false.", false))),
 
         new("seat_window", "Anode: focus, move or close a window", "desktop.window", false, Effect.Action,
-            "Focus, raise, restore, maximize, minimize, move or request closing one verified seat window. Raise brings it forward without requesting keyboard focus. Never focuses the parent desktop. "
+            "Focus, raise, restore, maximize, minimize, move or request closing one verified seat window. Raise tries to bring it forward without requesting keyboard focus; when Windows keeps it behind another window, it reports raised: false and coveredBy with that window's windowId; focus then brings it forward with keyboard focus. An always-on-top window still over it is named in topmostAbove. Never focuses the parent desktop. "
             + "Move requires x, y, width and height in seat pixels. Inspect again to confirm; close may display an unsaved-changes dialog.",
             Schema(("windowId", "string", "Window ID from seat_windows.", true),
                 ("action", "string", "focus, raise, restore, maximize, minimize, close, or move.", true),

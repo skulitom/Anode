@@ -129,6 +129,8 @@ internal static class SelfTest
         Check(results, "Steam namespace links", SteamChecks.Links);
         Check(results, "desktop references", DesktopChecks.References);
         Check(results, "desktop dispatch", () => DesktopChecks.Dispatch().GetAwaiter().GetResult());
+        Check(results, "desktop raise coverage", DesktopChecks.RaiseCoverage);
+        Check(results, "desktop raise reply", () => DesktopChecks.RaiseReply().GetAwaiter().GetResult());
         Check(results, "desktop worker deadline", () => DesktopChecks.WorkerTimeout().GetAwaiter().GetResult());
         Check(results, "desktop report escaping", DesktopChecks.Presentation);
         Check(results, "desktop unknown control types", DesktopChecks.UnknownControlTypes);
