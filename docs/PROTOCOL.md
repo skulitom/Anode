@@ -272,7 +272,11 @@ dropped without an error.
 
 Buttons: `left`, `right`, `middle`, `x1`, `x2`. Key names: letters, digits, `f1`–`f24`, `num0`–`num9`,
 `enter`, `esc`, `space`, `tab`, `backspace`, `del`, `ins`, `home`, `end`, `pgup`, `pgdn`, arrows,
-`ctrl`, `shift`, `alt`, `win`, `apps`, punctuation by name or by symbol, and `vk<hex>` for anything else.
+`ctrl`, `shift`, `alt`, `win`, `apps`, punctuation by symbol or by name (`grave` or `backtick` for
+`` ` ``, `minus`, `equals`, `lbracket`, `rbracket`, `backslash`, `semicolon`, `quote`, `comma`, `period`,
+`slash`), Windows' names such as `VK_OEM_3`, `oem3` or `VK_RETURN`, and `vk<hex>` (`vk01` to `vkFE`) for
+anything else. A chord with an empty part, such as `ctrl++`, is refused before anything is pressed; the
+plus key is `plus`.
 
 ### Programs
 

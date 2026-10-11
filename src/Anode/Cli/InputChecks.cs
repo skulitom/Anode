@@ -289,4 +289,49 @@ internal static class InputChecks
         return string.Create(CultureInfo.InvariantCulture,
             $"5 ms waits take {median:0.0} ms (median, {(precise ? "high-resolution timer" : "fallback sleep")}); a busy thread holds the next character, a free one releases it");
     }
+
+    /// <summary>
+    /// The names agents tried for the ` key (grave, oem3, backtick, Oem3: all refused before), Windows' constant names,
+    /// the vk&lt;hex&gt; range, and chords with an empty part, which pressed what was left. MCP, the daemon and the CLI refuse
+    /// a bad chord before it reaches the seat.
+    /// </summary>
+    public static string KeyChords()
+    {
+        (string Name, ushort Expected)[] cases =
+        {
+            ("grave", 0xC0), ("backtick", 0xC0), ("oem3", 0xC0), ("Oem3", 0xC0), ("VK_OEM_3", 0xC0), ("`", 0xC0), ("tilde", 0xC0),
+            ("equals", 0xBB), ("VK_OEM_PLUS", 0xBB), ("plus", 0xBB), ("hyphen", 0xBD), ("apostrophe", 0xDE), ("oem102", 0xE2),
+            ("VK_RETURN", 0x0D), ("page_up", 0x21), ("caps-lock", 0x14), ("vk_5", 0x35), ("vkC0", 0xC0), ("vk5", 0x05), ("vkFE", 0xFE)
+        };
+        foreach (var (name, expected) in cases)
+        {
+            ushort actual = KeyCodes.Resolve(name);
+            Require(actual == expected, $"'{name}' resolved to 0x{actual:X2}, expected 0x{expected:X2}");
+        }
+        foreach (string name in new[] { "grav", "vk0", "vkFF", "vk100", "vkadd", "vk", "vk_", "vk_nosuch", "-_-" })
+        {
+            string? error = null;
+            try { KeyCodes.Resolve(name); }
+            catch (ArgumentException ex) { error = ex.Message; }
+            Require(error is not null, $"'{name}' was accepted as a key");
+            Require(error!.Contains("grave", StringComparison.Ordinal) && error.Contains("vk<hex>", StringComparison.Ordinal),
+                "the unknown-key error doesn't name the punctuation keys and vk<hex>: " + error);
+        }
+
+        Require(KeyCodes.Chord(" ctrl + shift + grave ").SequenceEqual(new ushort[] { 0xA2, 0xA0, 0xC0 }), "a chord lost or reordered its keys");
+        foreach (string chord in new[] { "ctrl++", "ctrl+", "+a", "ctrl+ +s", "+", "", " " })
+            Require(KeyCodes.ChordProblem(chord) is not null, $"'{chord}' was accepted, though part of it names no key");
+        Require(KeyCodes.ChordProblem("ctrl++")!.Contains("ctrl+plus", StringComparison.Ordinal), "the empty-part error doesn't name the plus key");
+        Require(KeyCodes.ChordProblem("ctrl+bogus")!.StartsWith("Unknown key 'bogus'", StringComparison.Ordinal), "an unknown key in a chord wasn't named");
+
+        Require(Tools.ValidateArguments("seat_key", new JsonObject { ["keys"] = "ctrl+grave" }) is null, "seat_key refused ctrl+grave");
+        Require(Tools.ValidateArguments("seat_key", new JsonObject { ["keys"] = "ctrl++" }) is not null, "seat_key accepted ctrl++");
+        Require(Tools.ValidateOperation("input.key", new JsonObject { ["keys"] = "ctrl+oem33" }) is not null, "the daemon would send an unknown key to the seat");
+        Cli.CheckArguments("key", new[] { "VK_OEM_3" });
+        bool refused = false;
+        try { Cli.CheckArguments("key", new[] { "ctrl++" }); }
+        catch (UsageException) { refused = true; }
+        Require(refused, "anode key accepted ctrl++");
+        return $"{cases.Length} names resolve; unknown names, out-of-range codes and empty chord parts are refused before the seat";
+    }
 }

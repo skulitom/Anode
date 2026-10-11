@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **`seat_key` knows the backtick key by the names agents try.** Anode had the `` ` `` key only as
+  `` ` `` or `tilde`, and its "Unknown key" error listed letters, digits and a few names, so agents
+  tried `grave`, `backtick`, `oem3` and `Oem3` in turn and gave up. Punctuation keys now also go by
+  Windows' names (`VK_OEM_3`, `oem3`) and plain ones (`grave`, `backtick`, `equals`, `hyphen`,
+  `apostrophe`), Windows' constant names such as `VK_RETURN` work, and the error lists punctuation
+  and `vk<hex>`. A chord with an empty part, such as `ctrl++`, pressed ctrl alone and reported
+  success; it is now refused, and the plus key is `plus`. `seat_key`, `anode key` and the daemon
+  check the chord before anything reaches the seat, and a `vk<hex>` code outside `vk01` to `vkFE`
+  is refused.
 - **`anode quit` ends Anode while the sign-in dialog is open.** With the credential dialog of
   `anode start --sign-in` waiting for an answer, `quit` stopped the seat but Anode kept running, and
   the CLI gave up after 60 seconds with "Anode accepted quit but is still running". Windows' dialog
