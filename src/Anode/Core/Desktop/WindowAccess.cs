@@ -156,24 +156,30 @@ internal static class WindowAccess
             while (IsIconic(handle) && watch.ElapsedMilliseconds < 500) Thread.Sleep(20);
         }
         Raise();
-        if (CoveringWindow(handle) != IntPtr.Zero) WithForegroundInput(handle, Raise);
-        var covering = CoveringWindow(handle);
+        if (CoveringWindows(handle).Cover != IntPtr.Zero) WithForegroundInput(handle, Raise);
+        var (covering, onTop) = CoveringWindows(handle);
         var result = new JsonObject { ["requested"] = "raise", ["raised"] = false };
         if (IsIconic(handle))
             result["note"] = "The window is still minimized. Use action \"restore\" or \"focus\", then inspect again.";
+        else if (covering == IntPtr.Zero && onTop != IntPtr.Zero)
+        {
+            // Always-on-top windows stay above every normal window, whatever raise or focus do.
+            result["raised"] = true;
+            var description = DescribeCoveringWindow(onTop);
+            result["topmostAbove"] = description;
+            result["note"] = $"Raised above every normal window, but the always-on-top window {Label(description)} still overlaps it; "
+                + "neither raise nor focus moves a normal window above it. Inspect again to confirm the resulting window state.";
+        }
         else if (covering == IntPtr.Zero)
         {
             result["raised"] = true;
-            result["note"] = "Raised; no window in the same stacking band overlaps it from above. Inspect again to confirm the resulting window state.";
+            result["note"] = "Raised; no window overlaps it from above. Inspect again to confirm the resulting window state.";
         }
         else
         {
             var description = DescribeCoveringWindow(covering);
             result["coveredBy"] = description;
-            // App titles can contain terminal controls; this note is also the CLI summary.
-            string title = string.Concat(description["title"]!.GetValue<string>().Select(c => char.IsControl(c) ? ' ' : c));
-            string process = description["process"]!.GetValue<string>();
-            result["note"] = $"Windows kept this window behind \"{title}\" ({process}), which overlaps it from above. "
+            result["note"] = $"Windows kept this window behind {Label(description)}, which overlaps it from above. "
                 + (description["foreground"]!.GetValue<bool>()
                     ? "A raise can be blocked by Windows' foreground rules. " : "")
                 + "Use action \"focus\" to bring it forward and give it keyboard focus.";
@@ -186,6 +192,14 @@ internal static class WindowAccess
             if (!SetWindowPos(handle, IntPtr.Zero, 0, 0, 0, 0, 0x0013)) throw Win.LastError("Cannot raise seat window");
         }
     }
+
+    // App titles can contain terminal controls; the note is also the CLI summary.
+    private static string Label(JsonObject window) =>
+        $"\"{string.Concat(window["title"]!.GetValue<string>().Select(c => char.IsControl(c) ? ' ' : c))}\" ({window["process"]!.GetValue<string>()})";
+
+    /// <summary>The nearest always-on-top window over a normal target, which no raise can pass; null for a topmost target.</summary>
+    internal static int? FirstTopmostCovering(Rectangle target, bool targetTopmost, IReadOnlyList<ZOrderEntry> above) =>
+        targetTopmost ? null : FirstCovering(target, true, above.Select(entry => entry.Topmost ? entry : entry with { Visible = false }).ToList());
 
     internal static int? FirstCovering(Rectangle target, bool targetTopmost, IReadOnlyList<ZOrderEntry> above)
     {
@@ -201,7 +215,7 @@ internal static class WindowAccess
         return null;
     }
 
-    private static IntPtr CoveringWindow(IntPtr handle)
+    private static (IntPtr Cover, IntPtr OnTop) CoveringWindows(IntPtr handle)
     {
         var frame = VisibleFrame(handle);
         bool topmost = (Win.GetWindowLong(handle, Win.GWL_EXSTYLE) & WsExTopmost) != 0;
@@ -221,7 +235,8 @@ internal static class WindowAccess
                 (style & WsExTopmost) != 0, (style & (WsExLayered | WsExTransparent)) == (WsExLayered | WsExTransparent),
                 VisibleFrame(candidate)));
         }
-        return FirstCovering(frame, topmost, above) is int index ? handles[index] : IntPtr.Zero;
+        return (FirstCovering(frame, topmost, above) is int index ? handles[index] : IntPtr.Zero,
+            FirstTopmostCovering(frame, topmost, above) is int onTop ? handles[onTop] : IntPtr.Zero);
     }
 
     private static Rectangle VisibleFrame(IntPtr handle)

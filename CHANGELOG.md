@@ -8,7 +8,8 @@
   waits for a minimized window to restore and retries once with the seat's foreground input
   attached, still without activating the window. It answers `raised: true`, or `raised: false`
   with the covering window in `coveredBy`, including its `windowId`; `focus` then brings the window
-  forward with keyboard focus.
+  forward with keyboard focus. An always-on-top window that still overlaps it is named in
+  `topmostAbove`.
 - **`seat_key` knows the backtick key by the names agents try.** Anode had the `` ` `` key only as
   `` ` `` or `tilde`, and its "Unknown key" error listed letters, digits and a few names, so agents
   tried `grave`, `backtick`, `oem3` and `Oem3` in turn and gave up. Punctuation keys now also go by

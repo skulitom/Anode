@@ -96,16 +96,24 @@ internal static class DesktopChecks
             "A normal raise was expected to pass the topmost band.");
         Require(WindowAccess.FirstCovering(target, true, [cover with { Topmost = true }]) == 0
             && WindowAccess.FirstCovering(target, true, [cover]) == 0, "A window above a topmost target was skipped.");
+        // An always-on-top window no raise can pass is reported apart, so raised: true never hides it.
+        var onTop = cover with { Topmost = true };
+        Require(WindowAccess.FirstTopmostCovering(target, false, [onTop, cover]) == 0
+            && WindowAccess.FirstCovering(target, false, [onTop, cover]) == 1, "An always-on-top cover was mixed up with a normal one.");
+        Require(WindowAccess.FirstTopmostCovering(target, false, [cover, onTop with { Cloaked = true }, onTop with { Frame = new Rectangle(110, 10, 100, 100) }]) is null,
+            "A normal, cloaked or edge-sharing window counted as an always-on-top cover.");
+        Require(WindowAccess.FirstTopmostCovering(target, true, [onTop]) is null, "A topmost target reported a separate always-on-top cover.");
         Require(WindowAccess.FirstCovering(new Rectangle(10, 10, 0, 100), false, [cover]) is null
             && WindowAccess.FirstCovering(new Rectangle(10, 10, 100, 0), false, [cover]) is null
             && WindowAccess.FirstCovering(target, false, []) is null, "An empty frame or z-order reported coverage.");
-        return "nearest overlapping window, visibility, cloaking, owners, overlays, stacking bands and frame edges checked without windows";
+        return "nearest overlapping window, visibility, cloaking, owners, overlays, stacking bands, always-on-top covers and frame edges checked without windows";
     }
 
     public static async Task<string> RaiseReply()
     {
         var target = new WindowTarget(100, 50, 123);
         var covering = new WindowTarget(200, 60, 456);
+        var overlay = new WindowTarget(300, 70, 789);
         const string note = "Windows kept this window behind Fixture. Use action \"focus\" to bring it forward.";
         var plain = new JsonObject { ["requested"] = "raise", ["raised"] = true, ["note"] = "Raised; inspect again." };
         int actions = 0;
@@ -115,8 +123,14 @@ internal static class DesktopChecks
                 return Task.FromResult(new JsonObject { ["windows"] = new JsonArray(new JsonObject { ["target"] = target.ToJson() }) });
             Require(request.Str("op") == "window", "Unexpected worker operation.");
             actions++;
-            Require(WindowTarget.FromJson(request.Obj("target")!) == (actions == 1 ? target : covering),
+            Require(WindowTarget.FromJson(request.Obj("target")!) == (actions == 2 ? covering : target),
                 "The covering window ID did not resolve to its private target.");
+            if (actions == 3)
+                return Task.FromResult(new JsonObject
+                {
+                    ["requested"] = "raise", ["raised"] = true, ["note"] = "Raised, but an always-on-top window overlaps it.",
+                    ["topmostAbove"] = new JsonObject { ["target"] = overlay.ToJson(), ["title"] = "Overlay", ["process"] = "overlay" }
+                });
             return Task.FromResult(actions == 1 ? new JsonObject
             {
                 ["requested"] = "raise", ["raised"] = false, ["note"] = note,
@@ -141,7 +155,12 @@ internal static class DesktopChecks
         Require(actions == 2 && uncovered.Str("summary") == plain.Str("note"), "The covering window ID or plain summary was not dispatched.");
         uncovered.Remove("summary");
         Require(JsonNode.DeepEquals(uncovered, plain), "A raise reply without coveredBy changed.");
-        return "covering targets become reusable public window IDs, details and summary notes survive, uncovered replies stay unchanged";
+        var under = (await desktop.HandleAsync("desktop.window", new() { ["windowId"] = id, ["action"] = "raise" })).Obj("result")!;
+        var topmostAbove = under.Obj("topmostAbove")!;
+        Require(actions == 3 && under.Bool("raised") == true && !topmostAbove.ContainsKey("target")
+            && topmostAbove.Str("windowId") is { } overlayId && overlayId != id && overlayId != coveringId && topmostAbove.Str("title") == "Overlay",
+            "An always-on-top cover leaked its private reference or lost its window ID.");
+        return "covering and always-on-top targets become reusable public window IDs, details and summary notes survive, uncovered replies stay unchanged";
     }
 
     public static async Task<string> WorkerTimeout()
