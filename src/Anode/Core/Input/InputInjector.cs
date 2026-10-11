@@ -291,12 +291,7 @@ internal static class InputInjector
     /// </summary>
     public static void Press(string chord, int holdMs = 40, bool useScanCode = true)
     {
-        ushort[] keys = chord.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(KeyCodes.Resolve)
-            .ToArray();
-
-        if (keys.Length == 0) throw new ArgumentException("No key was given.");
-
+        ushort[] keys = KeyCodes.Chord(chord);
         var down = keys.Select(vk => KeyEvent(vk, false, useScanCode)).ToArray();
         foreach (ushort key in keys) HeldKeys.Add((key, useScanCode));
         try { Send(down); Thread.Sleep(Math.Max(1, holdMs)); }
@@ -371,21 +366,51 @@ internal static class KeyCodes
 {
     private static readonly Dictionary<string, ushort> Map = Build();
 
-    public static ushort Resolve(string name)
+    public static ushort Resolve(string name) => TryResolve(name, out ushort vk) ? vk : throw new ArgumentException(Unknown(name));
+
+    /// <summary>
+    /// The keys of a chord such as <c>ctrl+shift+esc</c>. An empty part is refused, not dropped:
+    /// <c>ctrl++</c> used to press ctrl alone and report success.
+    /// </summary>
+    public static ushort[] Chord(string chord) => ChordProblem(chord) is { } problem
+        ? throw new ArgumentException(problem)
+        : chord.Split('+', StringSplitOptions.TrimEntries).Select(Resolve).ToArray();
+
+    /// <summary>Why a chord can't be pressed, or null. MCP, the daemon and the CLI ask before anything reaches the seat.</summary>
+    public static string? ChordProblem(string chord)
+    {
+        string[] names = chord.Split('+', StringSplitOptions.TrimEntries);
+        if (names.All(name => name.Length == 0)) return "No key was given.";
+        if (names.Any(name => name.Length == 0))
+            return $"'{Clip(chord)}' has an empty key between its + signs. Join keys with +, and name the plus key 'plus', as in ctrl+plus.";
+        return names.FirstOrDefault(name => !TryResolve(name, out _)) is { } unknown ? Unknown(unknown) : null;
+    }
+
+    private static bool TryResolve(string name, out ushort vk)
     {
         string key = name.Trim().ToLowerInvariant();
-        if (Map.TryGetValue(key, out ushort vk)) return vk;
-        if (key.Length == 1)
+        // Windows' constant names (VK_OEM_3, VK_RETURN) name a key after the prefix; vk<hex> below is a code.
+        bool constant = key.Length > 3 && key.StartsWith("vk_", StringComparison.Ordinal);
+        if (constant) key = key[3..];
+        // VK_OEM_PLUS, page_up and caps-lock spell the names below with separators.
+        if (key.Length > 1) key = key.Replace("_", "").Replace("-", "");
+        if (Map.TryGetValue(key, out vk)) return true;
+        if (!constant && key.Length > 2 && key.StartsWith("vk", StringComparison.Ordinal)
+            && ushort.TryParse(key[2..], System.Globalization.NumberStyles.HexNumber, null, out ushort raw) && raw is > 0 and < 0xFF)
         {
-            char c = char.ToUpperInvariant(key[0]);
-            if (c is >= 'A' and <= 'Z' or >= '0' and <= '9') return c;
+            vk = raw;
+            return true;
         }
-        if (key.StartsWith("vk", StringComparison.Ordinal) &&
-            ushort.TryParse(key[2..], System.Globalization.NumberStyles.HexNumber, null, out ushort raw))
-            return raw;
-
-        throw new ArgumentException($"Unknown key '{name}'. Try a letter, a digit, f1-f24, or a name like enter, esc, space, tab, ctrl, alt, shift, win, up, down, left, right.");
+        return false;
     }
+
+    private static string Clip(string text) => text.Length > 40 ? text[..40] + "..." : text;
+
+    private static string Unknown(string name) =>
+        $"Unknown key '{Clip(name.Trim())}'. Use a letter, a digit, f1-f24, num0-num9, a name such as enter, esc, space, tab, "
+        + "backspace, del, home, pgup, up, ctrl, alt, shift or win, a punctuation key by its symbol or name (` grave, - minus, "
+        + "= equals, [ lbracket, ] rbracket, \\ backslash, ; semicolon, ' quote, , comma, . period, / slash), "
+        + "a Windows name such as VK_OEM_3, or vk<hex> such as vkC0.";
 
     private static Dictionary<string, ushort> Build()
     {
@@ -407,17 +432,24 @@ internal static class KeyCodes
             ["numlock"] = 0x90, ["scrolllock"] = 0x91,
             ["multiply"] = 0x6A, ["add"] = 0x6B, ["subtract"] = 0x6D,
             ["decimal"] = 0x6E, ["divide"] = 0x6F,
-            ["semicolon"] = 0xBA, [";"] = 0xBA,
-            ["plus"] = 0xBB, ["="] = 0xBB,
-            ["comma"] = 0xBC, [","] = 0xBC,
-            ["minus"] = 0xBD, ["-"] = 0xBD,
-            ["period"] = 0xBE, ["."] = 0xBE,
-            ["slash"] = 0xBF, ["/"] = 0xBF,
-            ["tilde"] = 0xC0, ["`"] = 0xC0,
-            ["lbracket"] = 0xDB, ["["] = 0xDB,
-            ["backslash"] = 0xDC, ["\\"] = 0xDC,
-            ["rbracket"] = 0xDD, ["]"] = 0xDD,
-            ["quote"] = 0xDE, ["'"] = 0xDE
+            // The punctuation keys of a US layout, with the names agents try first: Windows' VK_OEM_n and .NET's
+            // Keys.OemXxx (VK_OEM_3 is the ` key) and plain English.
+            ["semicolon"] = 0xBA, [";"] = 0xBA, ["oem1"] = 0xBA, ["oemsemicolon"] = 0xBA,
+            ["plus"] = 0xBB, ["="] = 0xBB, ["equals"] = 0xBB, ["oemplus"] = 0xBB,
+            ["comma"] = 0xBC, [","] = 0xBC, ["oemcomma"] = 0xBC,
+            ["minus"] = 0xBD, ["-"] = 0xBD, ["hyphen"] = 0xBD, ["dash"] = 0xBD, ["oemminus"] = 0xBD,
+            ["period"] = 0xBE, ["."] = 0xBE, ["dot"] = 0xBE, ["oemperiod"] = 0xBE,
+            ["slash"] = 0xBF, ["/"] = 0xBF, ["oem2"] = 0xBF, ["oemquestion"] = 0xBF,
+            ["tilde"] = 0xC0, ["`"] = 0xC0, ["grave"] = 0xC0, ["backtick"] = 0xC0, ["backquote"] = 0xC0,
+            ["oem3"] = 0xC0, ["oemtilde"] = 0xC0,
+            ["lbracket"] = 0xDB, ["["] = 0xDB, ["oem4"] = 0xDB, ["oemopenbrackets"] = 0xDB,
+            ["backslash"] = 0xDC, ["\\"] = 0xDC, ["oem5"] = 0xDC, ["oempipe"] = 0xDC,
+            ["rbracket"] = 0xDD, ["]"] = 0xDD, ["oem6"] = 0xDD, ["oemclosebrackets"] = 0xDD,
+            ["quote"] = 0xDE, ["'"] = 0xDE, ["apostrophe"] = 0xDE, ["oem7"] = 0xDE, ["oemquotes"] = 0xDE,
+            ["oem8"] = 0xDF, ["oem102"] = 0xE2, ["oembackslash"] = 0xE2,
+            // Other Windows constant names, for VK_PRIOR and the like.
+            ["prior"] = 0x21, ["next"] = 0x22, ["snapshot"] = 0x2C, ["capital"] = 0x14,
+            ["lcontrol"] = 0xA2, ["rcontrol"] = 0xA3, ["lmenu"] = 0xA4, ["rmenu"] = 0xA5
         };
 
         for (int i = 1; i <= 24; i++) map[$"f{i}"] = (ushort)(0x6F + i);       // F1 = 0x70
