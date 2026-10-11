@@ -2,11 +2,22 @@
 
 ## Unreleased
 
-- **`seat_window` `raise` says when it didn't take.** Raise could report `requested` while Windows
-  kept the window behind the foreground window, because its desktop worker had no foreground rights.
-  It now waits for a minimized window to restore, retries with the seat's foreground input attached
-  without requesting focus, and reports `raised: false` with the overlapping window in `coveredBy`
-  and its `windowId` when still covered; use `focus` to bring it forward with keyboard focus.
+- **`seat_window` `raise` says when it didn't take.** Raise answered `requested` while Windows
+  kept the window behind the foreground window: Anode's desktop worker has no foreground rights,
+  which Windows requires to bring a window to the top, and the call succeeds anyway. Raise now
+  waits for a minimized window to restore and retries once with the seat's foreground input
+  attached, still without activating the window. It answers `raised: true`, or `raised: false`
+  with the covering window in `coveredBy`, including its `windowId`; `focus` then brings the window
+  forward with keyboard focus.
+- **`seat_key` knows the backtick key by the names agents try.** Anode had the `` ` `` key only as
+  `` ` `` or `tilde`, and its "Unknown key" error listed letters, digits and a few names, so agents
+  tried `grave`, `backtick`, `oem3` and `Oem3` in turn and gave up. Punctuation keys now also go by
+  Windows' names (`VK_OEM_3`, `oem3`) and plain ones (`grave`, `backtick`, `equals`, `hyphen`,
+  `apostrophe`), Windows' constant names such as `VK_RETURN` work, and the error lists punctuation
+  and `vk<hex>`. A chord with an empty part, such as `ctrl++`, pressed ctrl alone and reported
+  success; it is now refused, and the plus key is `plus`. `seat_key`, `anode key` and the daemon
+  check the chord before anything reaches the seat, and a `vk<hex>` code outside `vk01` to `vkFE`
+  is refused.
 - **`anode quit` ends Anode while the sign-in dialog is open.** With the credential dialog of
   `anode start --sign-in` waiting for an answer, `quit` stopped the seat but Anode kept running, and
   the CLI gave up after 60 seconds with "Anode accepted quit but is still running". Windows' dialog

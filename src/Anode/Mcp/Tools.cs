@@ -329,7 +329,7 @@ internal static class Tools
             "Press a keyboard key or shortcut in the focused app on Anode's background Windows desktop (the seat), "
             + "for example \"enter\", \"f5\" or \"ctrl+shift+esc\". Keys are sent as scan codes so games see them.",
             Schema(
-                ("keys", "string", "A key name, or names joined with +.", true),
+                ("keys", "string", "A key name, or names joined with +. Punctuation goes by symbol or name (ctrl+` or ctrl+grave, ctrl+plus); Windows names such as VK_OEM_3 and vk<hex> codes work too.", true),
                 ("holdMs", "integer", "How long to hold the key down. Default 40.", false))),
 
         new("seat_type", "Anode: type text", "input.text", false, Effect.Action,
@@ -468,6 +468,7 @@ internal static class Tools
         var tool = All.First(t => t.Name == name);
         if (ValidateValue(arguments, tool.Schema, "arguments") is { } error) return error;
         if (name == "seat_audio_play") return Core.Audio.AudioClip.ValidateSource(arguments);
+        if (name == "seat_key") return Core.Input.KeyCodes.ChordProblem(arguments.Str("keys")!);
         bool Has(string field) => arguments.ContainsKey(field);
         if (name == "seat_lease")
         {

@@ -931,7 +931,7 @@ internal static partial class Cli
         Row("Drive the seat", "scroll", "", 1, null,
             ("anode scroll [notches]", "turn the wheel; negative scrolls down (default -3)")),
         Row("Drive the seat", "key", null, 0,
-            "Pass one token and join keys with +. Keys go out as scan codes so games see them.",
+            "Pass one token and join keys with +. Punctuation goes by symbol or name (ctrl+grave, ctrl+plus), or as vk<hex>. Keys go out as scan codes so games see them.",
             ("anode key <chord>", "press a key or chord, e.g. anode key ctrl+shift+esc")),
         Row("Drive the seat", "type", null, 0,
             "Arguments are joined with single spaces; quote text to keep it exact. Characters go out 15 ms apart and pause "
@@ -1194,6 +1194,7 @@ internal static partial class Cli
                 throw new UsageException(name == "run" ? "run requires a program." : "type requires text.");
             if (name == "key" && args.Length != 1)
                 throw new UsageException("key takes one chord, such as ctrl+shift+esc; join keys with + and no spaces.");
+            if (name == "key" && Core.Input.KeyCodes.ChordProblem(args[0]) is { } problem) throw new UsageException(problem);
             return;
         }
 

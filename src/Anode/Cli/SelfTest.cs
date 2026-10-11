@@ -47,6 +47,7 @@ internal static class SelfTest
             return $"{cases.Length} names resolve, unknown names rejected";
         });
 
+        Check(results, "key chords", InputChecks.KeyChords);
         Check(results, "text typing pace", InputChecks.Pacing);
         Check(results, "text typing limits", InputChecks.Limits);
         Check(results, "text typing waits", InputChecks.Waits);
