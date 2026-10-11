@@ -199,7 +199,8 @@ foreground fallback. Limits, states and actions are documented in
 Window action `raise` tries to bring a window forward without requesting keyboard focus; if Windows
 keeps it behind another window, it reports `raised: false` and `coveredBy` with that window's `windowId`
 (when still identifiable), and `focus` then brings it forward with keyboard focus. An always-on-top window
-that still overlaps a raised window is named in `topmostAbove`; neither action moves a window above it. Focus is verified
+that still overlaps a raised window is named in `topmostAbove`; neither action moves a window above it.
+Neither field counts the window's own dialogs or click-through overlays. Focus is verified
 against the actual foreground window. A known foreground GameInput helper is reported as an input
 blocker; synthetic input fails explicitly instead of claiming it reached an application.
 

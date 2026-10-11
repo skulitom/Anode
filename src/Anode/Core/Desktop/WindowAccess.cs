@@ -173,7 +173,8 @@ internal static class WindowAccess
         else if (covering == IntPtr.Zero)
         {
             result["raised"] = true;
-            result["note"] = "Raised; no window overlaps it from above. Inspect again to confirm the resulting window state.";
+            result["note"] = "Raised; no other window overlaps it from above, apart from its own dialogs and click-through overlays. "
+                + "Inspect again to confirm the resulting window state.";
         }
         else
         {
