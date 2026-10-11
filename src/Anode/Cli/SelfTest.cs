@@ -183,6 +183,7 @@ internal static class SelfTest
         Check(results, "setup listener repair", DiagnosticsChecks.SetupListener);
         Check(results, "startup disconnect", () => DiagnosticsChecks.StartupFailure().GetAwaiter().GetResult());
         Check(results, "seat cleanup", () => DiagnosticsChecks.SeatCleanup().GetAwaiter().GetResult());
+        Check(results, "quit with a held window", () => DiagnosticsChecks.QuitHeldWindow().GetAwaiter().GetResult());
         Check(results, "startup status polling", () => DiagnosticsChecks.StartupPolling().GetAwaiter().GetResult());
         Check(results, "startup daemon discovery", () => StartupChecks.DaemonDiscovery().GetAwaiter().GetResult());
         Check(results, "startup host connection", () => StartupChecks.HostConnection().GetAwaiter().GetResult());

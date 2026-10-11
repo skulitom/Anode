@@ -463,6 +463,56 @@ internal static class DiagnosticsChecks
         return "absent sessions are harmless; uncertain failures remain visible; Stop disconnects despite logoff failure";
     }
 
+    public static async Task<string> QuitHeldWindow()
+    {
+        var quit = new JsonObject { ["op"] = "quit" };
+        var grace = TimeSpan.FromMilliseconds(100);
+        async Task Settle(Func<bool> done)
+        {
+            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(2);
+            while (!done() && DateTime.UtcNow < deadline) await Task.Delay(10);
+        }
+
+        // The window's loop ends when asked: quit stops the seat and leaves the process to end by itself.
+        int logoffs = 0, ends = 0, exits = 0;
+        AnodeDaemon? ordinary = null;
+        using (ordinary = new AnodeDaemon(new SeatOptions(), () => null, () => null, () => Task.CompletedTask,
+                   _ => { logoffs++; return null; }, () => { }, endMessageLoop: () => { ends++; ordinary!.MessageLoopEnded(); },
+                   exitProcess: _ => exits++, quitGrace: grace))
+        {
+            Require((await ordinary.HandleControlAsync(quit)).Bool("ok") == true, "quit was refused");
+            await Settle(() => ends > 0);
+            await Task.Delay(grace * 3);
+            Require(logoffs == 1 && ends == 1 && exits == 0, "quit did not stop the seat and end the loop, or ended a process that was exiting");
+        }
+
+        // B-031: the credential dialog of `--sign-in` holds the window's thread and keeps the exit request.
+        int heldLogoffs = 0, heldEnds = 0, disconnects = 0;
+        var exited = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var held = new AnodeDaemon(new SeatOptions { PromptForCredentials = true }, () => null, () => null,
+            () => Task.CompletedTask, _ => { heldLogoffs++; return null; }, () => disconnects++,
+            endMessageLoop: () => heldEnds++, exitProcess: code => exited.TrySetResult(code), quitGrace: grace);
+        Task<JsonObject> signingIn = held.StartSeatAsync();
+        Require((await held.StatusAsync()).Bool("signInPrompt") == true, "the test seat is not waiting for a sign-in");
+        Require((await held.HandleControlAsync(quit)).Bool("ok") == true, "quit was refused during sign-in");
+        var stillThere = await held.StartSeatAsync();
+        Require(stillThere.Bool("ok") == false && stillThere.Str("error")!.Contains("quitting"),
+            "a start while quitting was not refused: " + stillThere.ToJsonString());
+        // Once the seat has stopped: the loop is asked to end only after that.
+        await Settle(() => heldEnds > 0);
+        var acquired = await held.HandleControlAsync(new JsonObject { ["op"] = "lease", ["agentId"] = "A", ["action"] = "acquire" });
+        Require(acquired.Bool("ok") == false && acquired.Str("error")!.Contains("quitting"),
+            "an acquisition while quitting was not refused: " + acquired.ToJsonString());
+        Require((await held.HandleControlAsync(quit)).Bool("ok") == true, "a second quit was refused");
+        int code = await exited.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Require(code == 0 && heldEnds == 1 && heldLogoffs == 1 && disconnects == 1,
+            $"quit did not end a process whose window stayed held (exit {code}, {heldEnds} loop ends, {heldLogoffs} stops)");
+        Require((await signingIn.WaitAsync(TimeSpan.FromSeconds(2))).Bool("ok") == false, "the pending sign-in outlived quit");
+        await held.ReconnectAsync(promptForCredentials: true);
+        Require((await held.StatusAsync()).Str("state") == "stopped", "Sign in brought the seat back while quitting");
+        return "quit stops the seat, ends the process when a dialog holds the window, and refuses new starts meanwhile";
+    }
+
     public static async Task<string> StartupPolling()
     {
         foreach (string state in new[] { "error", "logon-error", "stopped", "detached", "transport-failure" })

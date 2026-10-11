@@ -126,7 +126,9 @@ option. `--sign-in` cannot be combined with `--hidden`. Windows may request cred
 when you create another seat. Anode waits for Windows to complete login before launching its host;
 a connected viewer or reserved child-session ID alone does not mean sign-in has succeeded.
 Ordinary starts disable Windows credential prompting; use **Sign in…** or `--sign-in` when you intend to
-interact with the dialog. Stop requests viewer disconnection even if Windows logoff fails.
+interact with the dialog. Stop requests viewer disconnection even if Windows logoff fails. `anode quit`
+works while the dialog is open: when the dialog keeps Anode's window busy, Anode ends its process
+about 5 seconds after the seat stops.
 
 Microsoft documents the PIN
 limitation for [picture-in-picture child sessions](https://learn.microsoft.com/en-us/power-automate/desktop-flows/run-desktop-flows-pip#limitations-of-child-session-mode).
