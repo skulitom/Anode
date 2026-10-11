@@ -50,9 +50,9 @@ jobs:
       # launch quoting, session identity, desktop reference/worker limits, report
       # escaping and readable child-session APIs. Live accessibility uses the
       # opt-in scripts/test-desktop.ps1 fixture inside an existing seat.
-      # Screen capture, the Task Scheduler hand-off and
-      # the ViGEm gamepad need a real interactive desktop and a driver, so they are left
-      # to `anode selftest` on a developer machine.
+      # Screen capture and the Task Scheduler hand-off run in the environment-selftest
+      # job below; the ViGEm gamepad needs a driver, so it is left to `anode selftest`
+      # on a developer machine.
       - name: Self-test
         run: |
           ./dist/anode.exe version | Out-Host
@@ -88,3 +88,33 @@ jobs:
             artifacts/release/anode-windows-x64.mcpb
             artifacts/release/server.registry.json
           if-no-files-found: error
+
+  # The hosted runner's job runs in its signed-in console session, with Explorer and a desktop, so the
+  # self-test's environment checks work there: screen capture, screen geometry and the Task Scheduler
+  # hand-off that daemon launches depend on. A separate job keeps the build job's time. It needs no
+  # setup and starts no seat: Windows can't sign a seat in on a hosted runner. The Debug build is the
+  # dev channel, with its own pipes and logs.
+  environment-selftest:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build the dev channel
+        run: dotnet build Anode.sln -c Debug --nologo
+
+      - name: Self-test with the runner's desktop (no gamepad)
+        timeout-minutes: 10
+        run: |
+          $anode = 'src/Anode/bin/Debug/net10.0-windows/win-x64/anode.exe'
+          & $anode version | Out-Host
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $anode selftest --no-gamepad | Out-Host
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
