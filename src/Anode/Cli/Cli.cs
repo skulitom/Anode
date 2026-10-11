@@ -912,7 +912,7 @@ internal static partial class Cli
             ("", "Limits: --max-elements 1-500 (default 200), --max-depth 0-20 (default 8), --max-text 0-20000 characters "
                 + "(default 6000). --offscreen adds controls outside the visible area.")),
         Row("Work in the seat", "window", "x# y# width# height# json", 2,
-            "raise brings the window forward without keyboard focus. close may leave an unsaved-changes dialog; inspect again.",
+            "raise tries to bring the window forward without keyboard focus; if Windows keeps it behind another window, raised: false and coveredBy.windowId identify the cover; use focus to bring it forward. close may leave an unsaved-changes dialog; inspect again.",
             ("anode window <windowId> <focus|raise|restore|maximize|minimize|close>", "act on one seat window"),
             ("anode window <windowId> move --x N --y N --width N --height N", "move and resize it, in seat pixels")),
         Row("Work in the seat", "element", "value= number= direction= amount= json", 3,

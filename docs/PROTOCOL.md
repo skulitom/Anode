@@ -183,7 +183,7 @@ is still restoring when the operation's deadline passes, it fails with `errorCod
 | --- | --- | --- |
 | `desktop.windows` | `query`, `pid` | `{windows: [{windowId, pid, process, title, bounds, foreground, minimized, maximized}], summary}` |
 | `desktop.observe` | `windowId`, `maxElements`, `maxDepth`, `maxTextChars`, `includeOffscreen`, `includeScreenshot`, `maxWidth` | `{windowId, snapshotId, expiresInSeconds, window, elements, observedAt, truncated, warnings, skippedRepeats?, screenshot?, screenshotError?, summary}` |
-| `desktop.window` | `windowId`, `action`, optional move geometry `x`, `y`, `width`, `height` | `{requested, note, summary}` |
+| `desktop.window` | `windowId`, `action`, optional move geometry `x`, `y`, `width`, `height` | `{requested, raised?, coveredBy?: {title, process, className, foreground, windowId?}, note, summary}`; `raised` and `coveredBy` describe a raise's outcome |
 | `desktop.element` | `snapshotId`, `elementId`, `action`, optional `value`, `number`, `direction`, `amount` | `{performed, note, value?, summary}`; `value` is what the control reads after a `set_value` it reformatted |
 | `desktop.capabilities` | `probeCapture` (default true) | `{version, session, workingDirectory, screen, capture, input, supported, limitations, summary}` |
 | `desktop.wait` | `windowId`, selectors `automationId`, `name`, `role`, `textContains`, `state`, `waitMs` | `{matched, waitElapsedMs, ...observation, summary}` |
@@ -196,7 +196,9 @@ the accessible tree available and adds `screenshotError`; it does not trigger a
 foreground fallback. Limits, states and actions are documented in
 [Desktop tools](DESKTOP-TOOLS.md).
 
-Window action `raise` brings a window forward without requesting keyboard focus. Focus is verified
+Window action `raise` tries to bring a window forward without requesting keyboard focus; if Windows
+keeps it behind another window, it reports `raised: false` and `coveredBy` with that window's `windowId`
+(when still identifiable), and `focus` then brings it forward with keyboard focus. Focus is verified
 against the actual foreground window. A known foreground GameInput helper is reported as an input
 blocker; synthetic input fails explicitly instead of claiming it reached an application.
 

@@ -75,6 +75,75 @@ internal static class DesktopChecks
         return "validation precedes workers, private references stay private, timed-out actions consume their observation";
     }
 
+    public static string RaiseCoverage()
+    {
+        var target = new Rectangle(10, 10, 100, 100);
+        var cover = new WindowAccess.ZOrderEntry(true, false, false, false, false, false, new Rectangle(20, 20, 100, 100));
+        Require(WindowAccess.FirstCovering(target, false, [cover]) == 0, "An overlapping normal window was not reported.");
+        var skipped = new List<WindowAccess.ZOrderEntry>
+        {
+            cover with { Visible = false }, cover with { Cloaked = true }, cover with { Minimized = true },
+            cover with { OwnedByTarget = true }, cover with { ClickThrough = true },
+            cover with { Frame = new Rectangle(200, 10, 100, 100) },
+            cover with { Frame = new Rectangle(110, 10, 100, 100) }
+        };
+        Require(WindowAccess.FirstCovering(target, false, skipped) is null, "An excluded window or shared edge counted as coverage.");
+        skipped.Add(cover);
+        Require(WindowAccess.FirstCovering(target, false, skipped) == 7, "Skipped windows stopped the z-order walk.");
+        skipped.Add(cover);
+        Require(WindowAccess.FirstCovering(target, false, skipped) == 7, "The nearest covering window did not win.");
+        Require(WindowAccess.FirstCovering(target, false, [cover with { Topmost = true }]) is null,
+            "A normal raise was expected to pass the topmost band.");
+        Require(WindowAccess.FirstCovering(target, true, [cover with { Topmost = true }]) == 0
+            && WindowAccess.FirstCovering(target, true, [cover]) == 0, "A window above a topmost target was skipped.");
+        Require(WindowAccess.FirstCovering(new Rectangle(10, 10, 0, 100), false, [cover]) is null
+            && WindowAccess.FirstCovering(new Rectangle(10, 10, 100, 0), false, [cover]) is null
+            && WindowAccess.FirstCovering(target, false, []) is null, "An empty frame or z-order reported coverage.");
+        return "nearest overlapping window, visibility, cloaking, owners, overlays, stacking bands and frame edges checked without windows";
+    }
+
+    public static async Task<string> RaiseReply()
+    {
+        var target = new WindowTarget(100, 50, 123);
+        var covering = new WindowTarget(200, 60, 456);
+        const string note = "Windows kept this window behind Fixture. Use action \"focus\" to bring it forward.";
+        var plain = new JsonObject { ["requested"] = "raise", ["raised"] = true, ["note"] = "Raised; inspect again." };
+        int actions = 0;
+        var desktop = new DesktopTools((request, _) =>
+        {
+            if (request.Str("op") == "windows")
+                return Task.FromResult(new JsonObject { ["windows"] = new JsonArray(new JsonObject { ["target"] = target.ToJson() }) });
+            Require(request.Str("op") == "window", "Unexpected worker operation.");
+            actions++;
+            Require(WindowTarget.FromJson(request.Obj("target")!) == (actions == 1 ? target : covering),
+                "The covering window ID did not resolve to its private target.");
+            return Task.FromResult(actions == 1 ? new JsonObject
+            {
+                ["requested"] = "raise", ["raised"] = false, ["note"] = note,
+                ["coveredBy"] = new JsonObject
+                {
+                    ["target"] = covering.ToJson(), ["title"] = "Fixture", ["process"] = "fixture",
+                    ["className"] = "X", ["foreground"] = true
+                }
+            } : (JsonObject)plain.DeepClone());
+        });
+        var windows = (await desktop.HandleAsync("desktop.windows", new())).Obj("result")!["windows"]!.AsArray();
+        string id = windows[0]!["windowId"]!.GetValue<string>();
+        var reply = (await desktop.HandleAsync("desktop.window", new() { ["windowId"] = id, ["action"] = "raise" })).Obj("result")!;
+        var coveredBy = reply.Obj("coveredBy")!;
+        string coveringId = coveredBy.Str("windowId") ?? throw new InvalidOperationException("Covering window has no public ID.");
+        Require(!coveredBy.ContainsKey("target") && coveringId != id, "The covering window leaked or reused the wrong reference.");
+        Require(reply.Str("requested") == "raise" && reply.Bool("raised") == false && reply.Str("summary") == note
+            && reply.Str("note") == note, "The raise outcome or summary note was lost.");
+        Require(coveredBy.Str("title") == "Fixture" && coveredBy.Str("process") == "fixture"
+            && coveredBy.Str("className") == "X" && coveredBy.Bool("foreground") == true, "Covering window details were lost.");
+        var uncovered = (await desktop.HandleAsync("desktop.window", new() { ["windowId"] = coveringId, ["action"] = "raise" })).Obj("result")!;
+        Require(actions == 2 && uncovered.Str("summary") == plain.Str("note"), "The covering window ID or plain summary was not dispatched.");
+        uncovered.Remove("summary");
+        Require(JsonNode.DeepEquals(uncovered, plain), "A raise reply without coveredBy changed.");
+        return "covering targets become reusable public window IDs, details and summary notes survive, uncovered replies stay unchanged";
+    }
+
     public static async Task<string> WorkerTimeout()
     {
         var info = new ProcessStartInfo(Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.System), @"WindowsPowerShell\v1.0\powershell.exe"))

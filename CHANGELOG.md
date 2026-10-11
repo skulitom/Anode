@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **`seat_window` `raise` says when it didn't take.** Raise could report `requested` while Windows
+  kept the window behind the foreground window, because its desktop worker had no foreground rights.
+  It now waits for a minimized window to restore, retries with the seat's foreground input attached
+  without requesting focus, and reports `raised: false` with the overlapping window in `coveredBy`
+  and its `windowId` when still covered; use `focus` to bring it forward with keyboard focus.
 - **`anode quit` ends Anode while the sign-in dialog is open.** With the credential dialog of
   `anode start --sign-in` waiting for an answer, `quit` stopped the seat but Anode kept running, and
   the CLI gave up after 60 seconds with "Anode accepted quit but is still running". Windows' dialog

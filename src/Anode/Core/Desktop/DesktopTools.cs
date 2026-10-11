@@ -70,6 +70,11 @@ internal sealed class DesktopTools
                 args["op"] = op == "desktop.observe" ? "observe" : "window";
                 if (op == "desktop.window") _references.InvalidateObservations();
                 result = await _worker(args, cancel).ConfigureAwait(false);
+                if (op == "desktop.window" && result.Obj("coveredBy") is { } coveredBy && coveredBy.Obj("target") is { } coveringTarget)
+                {
+                    coveredBy["windowId"] = _references.RememberWindow(WindowTarget.FromJson(coveringTarget));
+                    coveredBy.Remove("target");
+                }
                 if (op == "desktop.observe")
                 {
                     result["windowId"] = windowId;
