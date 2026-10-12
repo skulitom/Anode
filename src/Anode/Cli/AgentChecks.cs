@@ -515,12 +515,15 @@ internal static class AgentChecks
     public static async Task<string> McpLeaseHelper()
     {
         int actions = 0;
+        bool waitMatches = false;
         var lease = new DesktopLease();
         string pipe = "anode-selftest-" + Guid.NewGuid().ToString("N");
-        using var daemon = new JsonPipeServer(pipe, request => lease.HandleAsync(request, (_, _) =>
+        using var daemon = new JsonPipeServer(pipe, request => lease.HandleAsync(request, (admitted, _) =>
         {
             Interlocked.Increment(ref actions);
-            return Task.FromResult(JsonLine.Ok(new JsonObject { ["summary"] = "Observed." }));
+            var result = new JsonObject { ["summary"] = "Observed." };
+            if (admitted.Str("op") == "desktop.wait") result["matched"] = waitMatches;
+            return Task.FromResult(JsonLine.Ok(result));
         }));
         daemon.Start();
         using var first = McpChecks.Isolated(pipe, "first");
@@ -549,20 +552,43 @@ internal static class AgentChecks
         var granted = await waiting.WaitAsync(TimeSpan.FromSeconds(5));
         Require(granted.Bool("isError") != true && second.HoldsLease, "the waiting agent did not get the released desktop");
 
-        // After a handoff, input aimed by an earlier look waits for a fresh observation.
+        // After a handoff, input aimed by an earlier look waits for a fresh observation, and so does
+        // input the client sent behind it.
         await Call(second, "seat_lease", new JsonObject { ["action"] = "release" });
         int before = actions;
         var blind = await Call(first, "seat_type", new JsonObject { ["text"] = "blind" });
         Require(blind.Bool("isError") == true && McpChecks.Text(blind) == McpServer.LookFirst && first.HoldsLease && actions == before,
             "input acted blind after Anode took the lease");
-        Require((await Call(first, "seat_type", new JsonObject { ["text"] = "seen" })).Bool("isError") != true && actions == before + 1,
-            "input under a held lease did not run");
+        var queued = await Call(first, "seat_key", new JsonObject { ["keys"] = "ctrl+a" });
+        Require(queued.Bool("isError") == true && McpChecks.Text(queued) == McpServer.LookFirst && actions == before,
+            "input sent behind a refused blind action ran before the agent looked");
+        Require((await Call(first, "seat_windows")).Bool("isError") != true
+            && (await Call(first, "seat_type", new JsonObject { ["text"] = "seen" })).Bool("isError") != true && actions == before + 2,
+            "input after a fresh look did not run");
+
+        // A launch that takes the lease runs at once and says input waits; a wait that did not match is no look.
+        await Call(first, "seat_lease", new JsonObject { ["action"] = "release" });
+        before = actions;
+        var click = new JsonObject { ["x"] = 1, ["y"] = 1 };
+        var wait = new JsonObject { ["windowId"] = "w1", ["name"] = "OK", ["waitMs"] = 0 };
+        var launched = await Call(first, "seat_run", new JsonObject { ["path"] = @"C:\Windows\notepad.exe" });
+        Require(launched.Bool("isError") != true && McpChecks.Text(launched).Contains(McpServer.LookBeforeInput) && actions == before + 1,
+            "a launch that took the lease did not run, or did not say input waits for a look");
+        Require(McpChecks.Text(await Call(first, "seat_click", click)) == McpServer.LookFirst && actions == before + 1,
+            "a click ran blind after a launch took the lease");
+        await Call(first, "seat_wait", wait);
+        Require(McpChecks.Text(await Call(first, "seat_click", click)) == McpServer.LookFirst && actions == before + 2,
+            "a wait that did not match counted as a look");
+        waitMatches = true;
+        await Call(first, "seat_wait", wait);
+        Require((await Call(first, "seat_click", click)).Bool("isError") != true && actions == before + 4,
+            "a matched wait, which returns a fresh observation, did not count as a look");
 
         // A session that ends hands the desktop on at once rather than after expiry.
         await first.ReleaseAsync();
         Require(!first.HoldsLease && (await Call(second, "seat_lease", new JsonObject { ["action"] = "acquire", ["waitSeconds"] = 0 })).Bool("isError") != true,
             "an ended session kept the desktop until expiry");
-        return "desktop tools take a free desktop, busy desktops name their owner, waiting agents get it on release, input looks first after a handoff, ended sessions hand it on";
+        return "desktop tools take a free desktop, busy desktops name their owner, waiting agents get it on release, input waits for a look after Anode takes the lease, ended sessions hand it on";
     }
 
     public static async Task<string> McpOwnership()
@@ -585,15 +611,20 @@ internal static class AgentChecks
         Require((await Call(a, "seat_type", new JsonObject { ["text"] = "missing lease" })).Bool("isError") == true && actions == 0 && launches == 0,
             "unowned input reached the daemon or started it");
         string token = (await Call(a, "seat_lease", acquire)).Obj("structuredContent")!.Str("leaseToken")!;
-        Require((await Call(a, "seat_type", new JsonObject { ["text"] = "owned" })).Bool("isError") != true && actions == 1, "MCP did not attach its cached identity and token");
+        // The refused input took the lease for A, so A's input waits for a look, which an acquire is not.
+        Require((await Call(a, "seat_type", new JsonObject { ["text"] = "unseen" })).Bool("isError") == true && actions == 0,
+            "an explicit acquire counted as a look at the desktop");
+        Require((await Call(a, "seat_windows", new JsonObject())).Bool("isError") != true
+            && (await Call(a, "seat_type", new JsonObject { ["text"] = "owned" })).Bool("isError") != true && actions == 2,
+            "MCP did not attach its cached identity and token");
         Require((await Call(b, "seat_lease", new JsonObject { ["action"] = "acquire", ["waitSeconds"] = 0 })).Obj("structuredContent")?.Str("errorCode") == "seat_busy",
             "MCP hid ownership contention");
         using var resumed = McpChecks.Isolated(pipe, "A");
         Require((await Call(resumed, "seat_lease", acquire)).Obj("structuredContent")?.Str("leaseToken") == token, "stable MCP identity could not resume ownership");
         await Call(resumed, "seat_lease", new JsonObject { ["action"] = "release" });
         await Call(b, "seat_lease", acquire);
-        Require((await Call(a, "seat_type", new JsonObject { ["text"] = "stale" })).Bool("isError") == true && actions == 1, "old MCP connection acted after handoff");
-        Require((await Call(b, "seat_type", new JsonObject { ["text"] = "new owner" })).Bool("isError") != true && actions == 2, "new MCP owner could not act");
+        Require((await Call(a, "seat_type", new JsonObject { ["text"] = "stale" })).Bool("isError") == true && actions == 2, "old MCP connection acted after handoff");
+        Require((await Call(b, "seat_type", new JsonObject { ["text"] = "new owner" })).Bool("isError") != true && actions == 3, "new MCP owner could not act");
         Require(launches == 0, "MCP ownership started a daemon");
 
         // The user quits Anode while an agent still caches its token: desktop calls must not relaunch it.

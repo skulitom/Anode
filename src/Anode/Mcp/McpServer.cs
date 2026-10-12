@@ -33,7 +33,10 @@ internal sealed class McpServer : IDisposable
         "Anode took the desktop lease for this agent; each desktop action keeps it. Release it with seat_lease action=release when you finish.";
     internal const string LookFirst =
         "Anode took the desktop lease for this agent, but the desktop may have changed since you last looked. "
-        + "Observe it (seat_screenshot or seat_observe), then repeat this action.";
+        + "Pointer, keyboard and gamepad input waits until you observe it (seat_screenshot, seat_observe or seat_windows); "
+        + "then repeat this action.";
+    internal const string LookBeforeInput =
+        "Pointer, keyboard and gamepad input waits until you observe the desktop (seat_screenshot, seat_observe or seat_windows).";
 
     /// <summary>How long an explicit acquire waits in line when the agent does not say.</summary>
     internal const int DefaultWaitSeconds = 30;
@@ -48,6 +51,8 @@ internal sealed class McpServer : IDisposable
     private readonly string? _workspace;
     private string? _agentName;
     private string? _leaseToken;
+    // Set when this server takes the lease for the agent, cleared by the agent's next look at the desktop.
+    private bool _lookPending;
     // The client's negotiated MCP version; results use only the content types it defines.
     private string _protocol = McpSession.LatestProtocol;
     private readonly string _controlPipe;
@@ -222,11 +227,14 @@ internal sealed class McpServer : IDisposable
         if (takesLease)
         {
             if (await TakeLeaseAsync(client, toolName, cancel).ConfigureAwait(false) is { } refused) return refused;
-            // Input aimed by an earlier look could land on whatever another agent left on screen.
-            if (Tools.ActsOnScreen(op)) return TextResult(LookFirst, isError: true);
+            _lookPending = true;
             note = TookLease;
             payload = Envelope(arguments, leaseAction);
         }
+        // Input aimed by an earlier look could land on whatever another agent left on screen. That holds
+        // for every input until the agent looks again, not only the call that took the lease: a client
+        // may already have sent the next keys.
+        if (_lookPending && Tools.ActsOnScreen(op)) return TextResult(LookFirst, isError: true);
 
         int timeout = toolName is "steam_launch" or "seat_start" or "seat_display" or "android_emulator" ? 180_000 : 60_000;
         // The daemon gives the seat 60 seconds unless told otherwise; Steam may first have to start on the desktop,
@@ -252,6 +260,9 @@ internal sealed class McpServer : IDisposable
         }
 
         var result = response.Obj("result");
+        if (Tools.Looks(op, result)) _lookPending = false;
+        // A launch, window or job call that took the lease ran at once; say what it holds back.
+        else if (takesLease) note += " " + LookBeforeInput;
         if (leaseAction is "acquire" or "renew") _leaseToken = result?.Str("leaseToken");
         if (leaseAction == "release") _leaseToken = null;
         if (toolName == "seat_status" && result is not null)

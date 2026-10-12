@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Input waits for a look after Anode takes the lease, not just the first call.** When a lease
+  lapsed and an agent's next click made Anode take the lease again, that click was refused with a
+  request to observe first, but the keys and text the client had already sent behind it ran, and
+  could land on whatever window had come forward meanwhile. Now, from the moment Anode takes the
+  lease for an agent, its pointer, keyboard and gamepad input is refused until it observes the
+  desktop (`seat_screenshot`, `seat_observe`, `seat_windows`, or a `seat_wait` that matched),
+  including after a launch, window or job call that took the lease, whose reply now says so. The
+  Android guide notes that adb run from your own shell doesn't keep the lease.
 - **`seat_window` `raise` says when it didn't take.** Raise answered `requested` while Windows
   kept the window behind the foreground window: Anode's desktop worker has no foreground rights,
   which Windows requires to bring a window to the top, and the call succeeds anyway. Raise now
