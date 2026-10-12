@@ -18,6 +18,29 @@ internal static class SelfTest
 {
     public static int Run(string[] args)
     {
+        // The checks' stand-ins log seats, launches and failures that never happened. Those lines go to
+        // a file of their own, kept and named only when a check fails, not to the user's log.
+        string checkLog = Path.Combine(Path.GetTempPath(), $"anode-selftest-{System.Environment.ProcessId}.log");
+        List<(string Name, bool Ok, string Detail)> results;
+        using (Log.Divert(checkLog)) results = RunChecks(args);
+
+        Console.WriteLine("Anode self-test\n");
+        foreach (var (name, ok, detail) in results)
+            Console.WriteLine($"  [{(ok ? "ok  " : "FAIL")}] {name,-26} {detail}");
+
+        int failures = results.Count(r => !r.Ok);
+        if (failures == 0)
+            try { File.Delete(checkLog); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* left in the temporary folder */ }
+        Console.WriteLine();
+        Console.WriteLine(failures == 0
+            ? "All local checks passed. `anode doctor` covers the machine settings a seat still needs."
+            : $"{failures} check(s) failed. The checks' log is {checkLog}.");
+        return failures == 0 ? 0 : 1;
+    }
+
+    private static List<(string Name, bool Ok, string Detail)> RunChecks(string[] args)
+    {
         var options = new Args(args);
         bool quick = options.Flag("quick");
         bool includeGamepad = !quick && !options.Flag("no-gamepad");
@@ -192,6 +215,7 @@ internal static class SelfTest
         Check(results, "startup host connection", () => StartupChecks.HostConnection().GetAwaiter().GetResult());
         Check(results, "startup state notification", () => StartupChecks.StateNotifications().GetAwaiter().GetResult());
         Check(results, "log diagnostics", () => DiagnosticsChecks.Logging().GetAwaiter().GetResult());
+        Check(results, "self-test log", DiagnosticsChecks.SelfTestLog);
         Check(results, "rendering backup locations", DiagnosticsChecks.RenderingBackups);
         Check(results, "MCP stdio", () => TransportChecks.McpStdio().GetAwaiter().GetResult());
         Check(results, "MCP validation", () => McpChecks.Validation().GetAwaiter().GetResult());
@@ -247,17 +271,7 @@ internal static class SelfTest
             uint? existing = ChildSession.TryGetId();
             return $"readable; feature {(enabled ? "enabled" : "disabled")}, current child session {(existing?.ToString() ?? "none")}";
         });
-
-        Console.WriteLine("Anode self-test\n");
-        foreach (var (name, ok, detail) in results)
-            Console.WriteLine($"  [{(ok ? "ok  " : "FAIL")}] {name,-26} {detail}");
-
-        int failures = results.Count(r => !r.Ok);
-        Console.WriteLine();
-        Console.WriteLine(failures == 0
-            ? "All local checks passed. `anode doctor` covers the machine settings a seat still needs."
-            : $"{failures} check(s) failed.");
-        return failures == 0 ? 0 : 1;
+        return results;
     }
 
     private static void Check(List<(string, bool, string)> results, string name, Func<string> body)

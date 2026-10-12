@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **`anode selftest` no longer fills your log with things that never happened.** Each quick
+  self-test wrote about 110 lines into `anode.log` from its stand-ins: Steam games and emulators
+  launched, Chrome opened on Play Console, "Windows could not sign the seat in (disconnect reason
+  2055)", "logoff failed: Access is denied". TROUBLESHOOTING's first steps run the self-test and
+  then point at that log. The checks now log to `%TEMP%\anode-selftest-<pid>.log`, deleted when
+  every check passes and named in the output when one fails.
 - **`seat_window` `raise` says when it didn't take.** Raise answered `requested` while Windows
   kept the window behind the foreground window: Anode's desktop worker has no foreground rights,
   which Windows requires to bring a window to the top, and the call succeeds anyway. Raise now
