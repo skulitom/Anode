@@ -62,9 +62,10 @@ and restart the agent session.
 ## Observe, act, verify
 
 - Hold the lease throughout observe/act/verify. After release or expiry, reacquire and obtain
-  fresh window/control references; if Anode takes the lease for you during an input call, it asks
-  you to observe first. Old queued actions are refused. An in-flight action must finish before the
-  lease can transfer. When a result says other agents are waiting, finish and release promptly.
+  fresh window/control references; once Anode takes the lease for you, or your lease ends, it
+  refuses pointer, keyboard and gamepad input until you observe the desktop. Old queued actions
+  are refused. An in-flight action must finish before the lease can transfer. When a result says
+  other agents are waiting, finish and release promptly.
 - Prefer `seat_observe` and the offered `seat_element` actions for accessible controls. References
   expire and actions consume their snapshot, including on failure; observe again before acting.
 - Use `seat_wait` for delayed controls/text instead of repeated screenshots or fixed sleeps.
