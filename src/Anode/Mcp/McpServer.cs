@@ -33,10 +33,10 @@ internal sealed class McpServer : IDisposable
         "Anode took the desktop lease for this agent; each desktop action keeps it. Release it with seat_lease action=release when you finish.";
     internal const string LookFirst =
         "The desktop may have changed since you last looked: Anode took the desktop lease for this agent, or your previous lease ended. "
-        + "Pointer, keyboard and gamepad input waits until you observe it (seat_screenshot, seat_observe or seat_windows); "
+        + "Pointer, keyboard and gamepad input waits until you observe it (seat_screenshot, seat_observe, or seat_windows without a filter); "
         + "then repeat this action.";
     internal const string LookBeforeInput =
-        "Pointer, keyboard and gamepad input waits until you observe the desktop (seat_screenshot, seat_observe or seat_windows).";
+        "Pointer, keyboard and gamepad input waits until you observe the desktop (seat_screenshot, seat_observe, or seat_windows without a filter).";
 
     /// <summary>How long an explicit acquire waits in line when the agent does not say.</summary>
     internal const int DefaultWaitSeconds = 30;
