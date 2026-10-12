@@ -80,9 +80,10 @@ ends it; adb starts a new one the next time anything, such as Android Studio on 
 it.
 
 An emulator keeps running when its agent's lease ends, since a lease can expire between two steps of
-a long test. Each Anode call keeps the lease, but adb run from your own shell is not an Anode call: in
-a long adb session, renew the lease (`seat_lease` with `action: "renew"`) or use `action: "adb"`. Stop it when the test is done: emulators are heavy, and one at a time is kinder to the
-machine.
+a long test. Each desktop action keeps the lease; adb run from your own shell is not one, and
+neither are `seat_job` reads or status calls. In a long adb session, renew the lease (`seat_lease`
+with `action: "renew"`) or use `action: "adb"`. Stop the emulator when the test is done: emulators
+are heavy, and one at a time is kinder to the machine.
 
 ### When an emulator does not finish booting
 

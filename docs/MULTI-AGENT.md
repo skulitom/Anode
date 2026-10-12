@@ -52,11 +52,13 @@ Use separate agent IDs for independent tasks. Agents deliberately using the same
 If an agent calls a pointer, keyboard or gamepad tool without a lease and Anode takes one for it,
 that call is refused with a request to observe first: the input was aimed at a screen the agent
 saw before another agent may have changed it. Observation, launch, window, control and job tools
-proceed at once. Either way, from the moment Anode takes the lease for an agent, its pointer,
-keyboard and gamepad input is refused until it looks at the desktop with `seat_screenshot`,
-`seat_observe`, `seat_windows` or a `seat_wait` that matched. That covers input the client had
-already sent behind the first refused call. An explicit acquire is not a look. Only acquisition and `seat_start` start a seat over MCP. Status, capabilities,
-process and Steam diagnostics report a stopped seat instead.
+proceed at once. Either way, from the moment Anode takes the lease for an agent, or the agent's
+lease ends, its pointer, keyboard and gamepad input is refused until it looks at the desktop with
+`seat_screenshot`, `seat_observe`, an unfiltered `seat_windows` or a `seat_wait` that matched.
+That covers input the client had already sent behind the first refused call, and input after an
+explicit acquire, which is not a look. A look counts once it has run, so input sent in the same
+batch after a look runs after it. Only acquisition and `seat_start` start a seat over MCP. Status,
+capabilities, process and Steam diagnostics report a stopped seat instead.
 
 ## CLI workflow
 

@@ -419,7 +419,7 @@ internal static class Tools
                 ["name"] = tool.Name,
                 ["title"] = tool.Title,
                 ["description"] = tool.Description
-                    + (ActsOnScreen(tool.Op) ? " Uses the desktop lease; after Anode takes it for you, input waits until you observe the desktop, then repeat the action."
+                    + (ActsOnScreen(tool.Op) ? " Uses the desktop lease; after Anode takes it for you, or your lease ends, input waits until you observe the desktop."
                         : AgentAccess.RequiresLease(tool.Op) ? " Uses the desktop lease, which Anode takes for you when the desktop is free."
                         : tool.StartsDaemon ? " Starts a hidden seat if needed." : ""),
                 ["inputSchema"] = tool.Schema.DeepClone(),
@@ -448,9 +448,11 @@ internal static class Tools
 
     /// <summary>
     /// Whether a successful reply showed the agent the desktop as it is now: a screenshot, an
-    /// observation, the window list, or a wait that matched and so returned a fresh observation.
+    /// observation, the whole window list (a filtered one can leave out the window that came
+    /// forward), or a wait that matched and so returned a fresh observation.
     /// </summary>
-    internal static bool Looks(string op, JsonObject? result) => op is "screenshot" or "desktop.observe" or "desktop.windows"
+    internal static bool Looks(string op, JsonObject arguments, JsonObject? result) => op is "screenshot" or "desktop.observe"
+        || op == "desktop.windows" && arguments["query"] is null && arguments["pid"] is null
         || op == "desktop.wait" && result?.Bool("matched") == true;
 
     /// <summary>Whether an operation only reads, as its tool's read-only hint says: stopping it partway changed nothing.</summary>

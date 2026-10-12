@@ -32,7 +32,7 @@ internal sealed class McpServer : IDisposable
     internal const string TookLease =
         "Anode took the desktop lease for this agent; each desktop action keeps it. Release it with seat_lease action=release when you finish.";
     internal const string LookFirst =
-        "Anode took the desktop lease for this agent, but the desktop may have changed since you last looked. "
+        "The desktop may have changed since you last looked: Anode took the desktop lease for this agent, or your previous lease ended. "
         + "Pointer, keyboard and gamepad input waits until you observe it (seat_screenshot, seat_observe or seat_windows); "
         + "then repeat this action.";
     internal const string LookBeforeInput =
@@ -51,7 +51,7 @@ internal sealed class McpServer : IDisposable
     private readonly string? _workspace;
     private string? _agentName;
     private string? _leaseToken;
-    // Set when this server takes the lease for the agent, cleared by the agent's next look at the desktop.
+    // Set when this server takes the lease for the agent or the agent's lease ends, cleared by its next look at the desktop.
     private bool _lookPending;
     // The client's negotiated MCP version; results use only the content types it defines.
     private string _protocol = McpSession.LatestProtocol;
@@ -253,18 +253,24 @@ internal sealed class McpServer : IDisposable
             // A person stopped the seat while Anode kept running.
             if (response.Str("errorCode") == "seat_stopped")
                 return Unavailable(toolName, leaseAction, leaseGated, daemonRunning: true);
-            if (response.Str("errorCode") is "lease_expired" or "stale_lease") _leaseToken = null;
+            if (response.Str("errorCode") is "lease_expired" or "stale_lease") DropLease();
             var error = TextResult(response.Str("error") ?? "The request failed.", isError: true);
             error["structuredContent"] = response.DeepClone();
             return error;
         }
 
         var result = response.Obj("result");
-        if (Tools.Looks(op, result)) _lookPending = false;
+        if (Tools.Looks(op, arguments, result)) _lookPending = false;
         // A launch, window or job call that took the lease ran at once; say what it holds back.
         else if (takesLease) note += " " + LookBeforeInput;
-        if (leaseAction is "acquire" or "renew") _leaseToken = result?.Str("leaseToken");
-        if (leaseAction == "release") _leaseToken = null;
+        if (leaseAction is "acquire" or "renew")
+        {
+            string? token = result?.Str("leaseToken");
+            // A new token means the lease this agent held ended, though no call told it so.
+            if (_leaseToken is not null && token != _leaseToken) _lookPending = true;
+            _leaseToken = token;
+        }
+        if (leaseAction == "release") DropLease();
         if (toolName == "seat_status" && result is not null)
         {
             result["agentId"] = _agentId;
@@ -275,6 +281,13 @@ internal sealed class McpServer : IDisposable
             note = (note is null ? "" : note + " ") + (waiting == 1 ? "Another agent is" : $"{waiting} other agents are")
                 + " waiting for the desktop; release it with seat_lease action=release when you finish.";
         return WithNote(Present(toolName, result, _protocol), note);
+    }
+
+    /// <summary>Forgets an ended lease. The desktop may change hands before the next one, so input then waits for a look.</summary>
+    private void DropLease()
+    {
+        if (_leaseToken is not null) _lookPending = true;
+        _leaseToken = null;
     }
 
     private JsonObject Envelope(JsonObject arguments, string? leaseAction)
@@ -415,7 +428,7 @@ internal sealed class McpServer : IDisposable
     /// </summary>
     private JsonObject Unavailable(string toolName, string? leaseAction, bool leaseGated, bool daemonRunning)
     {
-        if (leaseGated || leaseAction is "renew" or "release") _leaseToken = null;
+        if (leaseGated || leaseAction is "renew" or "release") DropLease();
         if (leaseGated || leaseAction == "renew") return TextResult(daemonRunning ? SeatStoppedLease : LeaseEnded, isError: true);
         if (leaseAction == "release")
             return TextResult(daemonRunning ? "The seat is stopped, so there is no desktop lease to release."
@@ -508,7 +521,7 @@ internal sealed class McpServer : IDisposable
                     : "Anode is not running; there is no seat to stop.", _launchPending);
             _launchPending = false;
             var response = await client.RequestAsync("seat.stop", arguments, 60_000, cancel).ConfigureAwait(false);
-            if (response.Bool("ok") == true) _leaseToken = null;
+            if (response.Bool("ok") == true) DropLease();
             return response.Bool("ok") == true
                 ? TextResult(response.Obj("result")?.ToJsonString() ?? "ok")
                 : TextResult(response.Str("error") ?? "Could not stop the seat.", true);

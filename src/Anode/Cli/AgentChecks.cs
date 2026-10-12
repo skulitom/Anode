@@ -584,6 +584,17 @@ internal static class AgentChecks
         Require((await Call(first, "seat_click", click)).Bool("isError") != true && actions == before + 4,
             "a matched wait, which returns a fresh observation, did not count as a look");
 
+        // A released lease acquired again waits for a look too; a filtered window list is no look.
+        await Call(first, "seat_lease", new JsonObject { ["action"] = "release" });
+        await Call(first, "seat_lease", new JsonObject { ["action"] = "acquire" });
+        await Call(first, "seat_windows", new JsonObject { ["query"] = "notepad" });
+        Require(McpChecks.Text(await Call(first, "seat_click", click)) == McpServer.LookFirst && actions == before + 5,
+            "input ran blind after a released lease was acquired again, or a filtered window list counted as a look");
+        var none = new JsonObject();
+        Require(Tools.Looks("screenshot", none, null) && Tools.Looks("desktop.observe", none, null) && Tools.Looks("desktop.windows", none, null)
+            && !Tools.Looks("desktop.windows", new JsonObject { ["pid"] = 4 }, null) && !Tools.Looks("run", none, null)
+            && !Tools.Looks("desktop.element", none, null) && !Tools.Looks("lease", none, null), "the looks that clear held input are wrong");
+
         // A session that ends hands the desktop on at once rather than after expiry.
         await first.ReleaseAsync();
         Require(!first.HoldsLease && (await Call(second, "seat_lease", new JsonObject { ["action"] = "acquire", ["waitSeconds"] = 0 })).Bool("isError") != true,
@@ -612,9 +623,9 @@ internal static class AgentChecks
             "unowned input reached the daemon or started it");
         string token = (await Call(a, "seat_lease", acquire)).Obj("structuredContent")!.Str("leaseToken")!;
         // The refused input took the lease for A, so A's input waits for a look, which an acquire is not.
-        Require((await Call(a, "seat_type", new JsonObject { ["text"] = "unseen" })).Bool("isError") == true && actions == 0,
+        Require(McpChecks.Text(await Call(a, "seat_type", new JsonObject { ["text"] = "unseen" })) == McpServer.LookFirst && actions == 0,
             "an explicit acquire counted as a look at the desktop");
-        Require((await Call(a, "seat_windows", new JsonObject())).Bool("isError") != true
+        Require((await Call(a, "seat_screenshot", new JsonObject())).Bool("isError") != true
             && (await Call(a, "seat_type", new JsonObject { ["text"] = "owned" })).Bool("isError") != true && actions == 2,
             "MCP did not attach its cached identity and token");
         Require((await Call(b, "seat_lease", new JsonObject { ["action"] = "acquire", ["waitSeconds"] = 0 })).Obj("structuredContent")?.Str("errorCode") == "seat_busy",
@@ -625,6 +636,14 @@ internal static class AgentChecks
         await Call(b, "seat_lease", acquire);
         Require((await Call(a, "seat_type", new JsonObject { ["text"] = "stale" })).Bool("isError") == true && actions == 2, "old MCP connection acted after handoff");
         Require((await Call(b, "seat_type", new JsonObject { ["text"] = "new owner" })).Bool("isError") != true && actions == 3, "new MCP owner could not act");
+        // A lost its lease, so after it acquires again its input waits for a look.
+        await Call(b, "seat_lease", new JsonObject { ["action"] = "release" });
+        await Call(a, "seat_lease", acquire);
+        Require(McpChecks.Text(await Call(a, "seat_type", new JsonObject { ["text"] = "after losing it" })) == McpServer.LookFirst && actions == 3,
+            "input ran blind after a lost lease was acquired again");
+        Require((await Call(a, "seat_observe", new JsonObject { ["windowId"] = "w1" })).Bool("isError") != true
+            && (await Call(a, "seat_type", new JsonObject { ["text"] = "seen again" })).Bool("isError") != true && actions == 5,
+            "input after observing the reacquired desktop did not run");
         Require(launches == 0, "MCP ownership started a daemon");
 
         // The user quits Anode while an agent still caches its token: desktop calls must not relaunch it.
