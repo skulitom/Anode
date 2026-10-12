@@ -56,9 +56,10 @@ proceed at once. Either way, from the moment Anode takes the lease for an agent,
 lease ends, its pointer, keyboard and gamepad input is refused until it looks at the desktop with
 `seat_screenshot`, `seat_observe`, an unfiltered `seat_windows` or a `seat_wait` that matched.
 That covers input the client had already sent behind the first refused call, and input after an
-explicit acquire, which is not a look. A look counts once it has run, so input sent in the same
-batch after a look runs after it. Only acquisition and `seat_start` start a seat over MCP. Status,
-capabilities, process and Steam diagnostics report a stopped seat instead.
+explicit acquire that follows the end of a lease, since an acquire is not a look. A look counts
+once it has run, so input sent in the same batch after a look runs after it. Only acquisition and
+`seat_start` start a seat over MCP. Status, capabilities, process and Steam diagnostics report a
+stopped seat instead.
 
 ## CLI workflow
 

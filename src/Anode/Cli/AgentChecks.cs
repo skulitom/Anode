@@ -594,6 +594,10 @@ internal static class AgentChecks
         Require(Tools.Looks("screenshot", none, null) && Tools.Looks("desktop.observe", none, null) && Tools.Looks("desktop.windows", none, null)
             && !Tools.Looks("desktop.windows", new JsonObject { ["pid"] = 4 }, null) && !Tools.Looks("run", none, null)
             && !Tools.Looks("desktop.element", none, null) && !Tools.Looks("lease", none, null), "the looks that clear held input are wrong");
+        // A renew keeps the same lease, so it holds nothing back.
+        await Call(first, "seat_windows");
+        await Call(first, "seat_lease", new JsonObject { ["action"] = "renew" });
+        Require((await Call(first, "seat_click", click)).Bool("isError") != true && actions == before + 7, "a renew of the same lease held input back");
 
         // A session that ends hands the desktop on at once rather than after expiry.
         await first.ReleaseAsync();

@@ -9,8 +9,8 @@
   lease for an agent, or the agent's lease ends, its pointer, keyboard and gamepad input is refused
   until it observes the desktop (`seat_screenshot`, `seat_observe`, an unfiltered `seat_windows`,
   or a `seat_wait` that matched). That includes input after a launch, window or job call that took
-  the lease, whose reply now says so, and after an explicit acquire. The Android guide notes that
-  adb run from your own shell doesn't keep the lease.
+  the lease, whose reply now says so, and after acquiring again once a lease ended. The Android
+  guide notes that adb run from your own shell doesn't keep the lease.
 - **`seat_window` `raise` says when it didn't take.** Raise answered `requested` while Windows
   kept the window behind the foreground window: Anode's desktop worker has no foreground rights,
   which Windows requires to bring a window to the top, and the call succeeds anyway. Raise now
