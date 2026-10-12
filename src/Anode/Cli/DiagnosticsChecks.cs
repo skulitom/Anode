@@ -584,6 +584,34 @@ internal static class DiagnosticsChecks
         finally { Directory.Delete(directory, recursive: true); }
     }
 
+    /// <summary>
+    /// The self-test's checks log made-up seats, launches and failures, so their lines go to a file of
+    /// their own, never the user's log; a diversion inside it ends where it began.
+    /// </summary>
+    public static string SelfTestLog()
+    {
+        string? own = Log.Diverted;
+        Require(own is not null && !string.Equals(Path.GetDirectoryName(Path.GetFullPath(own)), Env.StateDirectory, StringComparison.OrdinalIgnoreCase),
+            "the self-test's checks write to the user's log");
+        string directory = Path.Combine(Path.GetTempPath(), "anode-selftest-divert-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            string outer = Path.Combine(directory, "outer.log"), inner = Path.Combine(directory, "inner.log");
+            using (Log.Divert(outer))
+            {
+                using (Log.Divert(inner)) Log.Info("inner line");
+                Log.Info("outer line");
+            }
+            Require(Log.Diverted == own, "a diversion did not end where it began");
+            string innerText = File.ReadAllText(inner), outerText = File.ReadAllText(outer);
+            Require(innerText.Contains("inner line") && !innerText.Contains("outer line")
+                && outerText.Contains("outer line") && !outerText.Contains("inner line"), "diverted lines reached the wrong file");
+            return "the checks log to a file of their own, not the user's log; nested diversions end where they began";
+        }
+        finally { Directory.Delete(directory, recursive: true); }
+    }
+
     private static async Task<(int Code, string Error)> RunProbe(string directory, string marker)
     {
         using var process = Process.Start(new ProcessStartInfo(Env.ExecutablePath, ProbeArguments(directory, marker))

@@ -148,8 +148,33 @@ internal static class Log
     private static string _role = "anode";
     private static string? _lastWriteError;
     private static int _reportedFailure;
+    private static string? _diverted;
 
     public static string? LastWriteError => Volatile.Read(ref _lastWriteError);
+
+    /// <summary>The file this process's lines go to instead of the log, or null.</summary>
+    internal static string? Diverted { get { lock (Gate) return _diverted; } }
+
+    /// <summary>
+    /// Sends this process's lines to another file until the result is disposed. The self-test's stand-ins
+    /// log seats, launches and failures that never happened, which have no place in the user's log.
+    /// </summary>
+    internal static IDisposable Divert(string path)
+    {
+        lock (Gate)
+        {
+            var restore = new Diversion(_diverted);
+            _diverted = path;
+            return restore;
+        }
+    }
+
+    private sealed class Diversion : IDisposable
+    {
+        private readonly string? _previous;
+        public Diversion(string? previous) => _previous = previous;
+        public void Dispose() { lock (Gate) _diverted = _previous; }
+    }
 
     public static void SetRole(string role) => _role = role;
 
@@ -163,18 +188,20 @@ internal static class Log
     private static void Write(string level, string message)
     {
         string line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {level} [{_role}] pid={System.Environment.ProcessId} {message}";
+        string path = Env.LogPath;
         try
         {
             lock (Gate)
             {
+                path = _diverted ?? Env.LogPath;
                 Env.EnsureStateDirectory();
-                Append(Env.LogPath, line);
+                Append(path, line);
                 Volatile.Write(ref _lastWriteError, null);
             }
         }
         catch (Exception ex)
         {
-            string error = $"Cannot write Anode log '{Env.LogPath}': {ex.GetType().Name}: {ex.Message}";
+            string error = $"Cannot write Anode log '{path}': {ex.GetType().Name}: {ex.Message}";
             Volatile.Write(ref _lastWriteError, error);
             // A detached process may have no stderr. Status also exposes this error.
             if (Interlocked.Exchange(ref _reportedFailure, 1) == 0)

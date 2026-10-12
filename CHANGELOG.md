@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **`anode selftest` no longer fills your log with things that never happened.** Each quick
+  self-test wrote about 110 lines into `anode.log` from its stand-ins: Steam games and emulators
+  launched, Chrome opened on Play Console, "Windows could not sign the seat in (disconnect reason
+  2055)", "logoff failed: Access is denied". TROUBLESHOOTING's first steps run the self-test and
+  then point at that log. The checks now log to `%TEMP%\anode-selftest-<pid>.log`, deleted when
+  every check passes and named in the output when one fails; only the real `anode mcp` server one
+  check starts still logs its start and stop.
 - **Input waits for a look after Anode takes the lease, not just the first call.** When a lease
   lapsed and an agent's next click made Anode take the lease again, that click was refused with a
   request to observe first, but the keys and text the client had already sent behind it ran, and

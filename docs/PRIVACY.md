@@ -60,7 +60,9 @@ Android Studio. `--state-dir` does not move them:
 - `AnodeAndroidStudio`: Android Studio's settings, caches, plugins and logs for Studio in the seat,
   including any account you signed in to there.
 
-`anode configure` also leaves timestamped backups beside the client settings it changes.
+`anode configure` also leaves timestamped backups beside the client settings it changes. When a
+check of `anode selftest` fails, the checks' own log stays in your temporary folder as
+`anode-selftest-<pid>.log`; it describes the checks' stand-ins, not your seat.
 Command-job output is held only in the seat host's memory. Screenshots and inspection reports are
 written to disk only when you ask for a file, for example `anode shot seat.png` or
 `anode inspect <windowId> --html report.html`.

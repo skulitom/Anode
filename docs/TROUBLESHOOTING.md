@@ -20,6 +20,10 @@ when that is acceptable. `anode doctor --json` and
 
 The log is at `%LOCALAPPDATA%\Anode\anode.log`. Every role writes to it with a timestamp and a tag
 (`daemon`, `seat`, `cli`, `mcp`), so a failed bring-up leaves a trail across both sessions.
+`anode selftest` keeps its checks' lines out of it, since their stand-ins report seats, launches and
+failures that never happened: they go to `%TEMP%\anode-selftest-<pid>.log`, which is deleted when
+every check passes and named in the output when one fails. Only the real `anode mcp` server one
+check starts still logs its start and stop here.
 Detached launches pass the resolved state directory to the daemon and seat host. `anode status --json`
 includes `logPath` and `logError`; a non-null `logError` gives the actual write failure. The first write
 failure also goes to stderr. A diagnostic path can be selected with `anode start --state-dir C:\AnodeLogs`.
