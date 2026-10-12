@@ -21,6 +21,8 @@ internal static class SelfTest
         // The checks' stand-ins log seats, launches and failures that never happened. Those lines go to
         // a file of their own, kept and named only when a check fails, not to the user's log.
         string checkLog = Path.Combine(Path.GetTempPath(), $"anode-selftest-{System.Environment.ProcessId}.log");
+        // A failed run long ago may have left a file under this process ID; don't mix two runs.
+        Remove(checkLog);
         List<(string Name, bool Ok, string Detail)> results;
         using (Log.Divert(checkLog)) results = RunChecks(args);
 
@@ -29,14 +31,18 @@ internal static class SelfTest
             Console.WriteLine($"  [{(ok ? "ok  " : "FAIL")}] {name,-26} {detail}");
 
         int failures = results.Count(r => !r.Ok);
-        if (failures == 0)
-            try { File.Delete(checkLog); }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* left in the temporary folder */ }
+        if (failures == 0) Remove(checkLog);
         Console.WriteLine();
         Console.WriteLine(failures == 0
             ? "All local checks passed. `anode doctor` covers the machine settings a seat still needs."
             : $"{failures} check(s) failed. The checks' log is {checkLog}.");
         return failures == 0 ? 0 : 1;
+    }
+
+    private static void Remove(string path)
+    {
+        try { File.Delete(path); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* left in the temporary folder */ }
     }
 
     private static List<(string Name, bool Ok, string Detail)> RunChecks(string[] args)
