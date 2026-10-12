@@ -644,6 +644,15 @@ internal static class AgentChecks
         Require((await Call(a, "seat_observe", new JsonObject { ["windowId"] = "w1" })).Bool("isError") != true
             && (await Call(a, "seat_type", new JsonObject { ["text"] = "seen again" })).Bool("isError") != true && actions == 5,
             "input after observing the reacquired desktop did not run");
+        // The daemon refuses a lease A no longer holds; once A acquires again, its input waits for a look.
+        await Call(resumed, "seat_lease", acquire);
+        await Call(resumed, "seat_lease", new JsonObject { ["action"] = "release" });
+        await Call(resumed, "seat_lease", acquire);
+        Require((await Call(a, "seat_type", new JsonObject { ["text"] = "old token" })).Obj("structuredContent")?.Str("errorCode") == "stale_lease" && actions == 5,
+            "a stale token was not refused");
+        await Call(a, "seat_lease", acquire);
+        Require(McpChecks.Text(await Call(a, "seat_type", new JsonObject { ["text"] = "after a stale lease" })) == McpServer.LookFirst && actions == 5,
+            "input ran blind after the daemon refused a lost lease and the agent acquired again");
         Require(launches == 0, "MCP ownership started a daemon");
 
         // The user quits Anode while an agent still caches its token: desktop calls must not relaunch it.
