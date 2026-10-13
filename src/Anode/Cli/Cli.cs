@@ -547,7 +547,7 @@ internal static partial class Cli
         var options = new Args(args);
         string? target = Words("shot", args).FirstOrDefault();
         target ??= Path.Combine(Directory.GetCurrentDirectory(),
-            $"anode-{DateTime.Now:yyyyMMdd-HHmmss}.{(options.Flag("jpeg") ? "jpg" : "png")}");
+            $"anode-{DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}.{(options.Flag("jpeg") ? "jpg" : "png")}");
 
         var payload = new JsonObject { ["format"] = options.Flag("jpeg") ? "jpeg" : "png" };
         if (options.Int("width") is int width) payload["maxWidth"] = width;

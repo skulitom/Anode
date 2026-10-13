@@ -95,7 +95,7 @@ internal static partial class Cli
         if (action == "screenshot" && result.Obj("screenshot") is { } picture)
         {
             string target = call.File ?? Path.Combine(Directory.GetCurrentDirectory(),
-                $"{call.Payload.Str("serial")}-{DateTime.Now:yyyyMMdd-HHmmss}.{(call.Payload.Str("format") == "jpeg" ? "jpg" : "png")}");
+                $"{call.Payload.Str("serial")}-{DateTime.Now.ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture)}.{(call.Payload.Str("format") == "jpeg" ? "jpg" : "png")}");
             File.WriteAllBytes(target, Convert.FromBase64String(picture.Str("data")!));
             Console.WriteLine($"{target}  ({picture.Int("width")}x{picture.Int("height")} of {picture.Int("sourceWidth")}x{picture.Int("sourceHeight")})");
             return 0;

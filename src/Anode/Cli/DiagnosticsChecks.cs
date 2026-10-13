@@ -737,6 +737,38 @@ internal static class DiagnosticsChecks
         finally { Directory.Delete(directory, recursive: true); }
     }
 
+    /// <summary>
+    /// A log line's time reads the same in every culture, so the log sorts and parses alike everywhere: Thai Windows
+    /// would write the Buddhist year (2569), Saudi Windows the Hijri one, and Finnish Windows dots between the hours,
+    /// minutes and seconds.
+    /// </summary>
+    public static string LogTimestamps()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "anode-selftest-stamps-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var culture = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            foreach (string name in new[] { "th-TH", "ar-SA", "fi-FI" })
+            {
+                string path = Path.Combine(directory, name + ".log");
+                System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.GetCultureInfo(name);
+                int year = DateTime.Now.Year;
+                using (Log.Divert(path)) Log.Info("stamped line");
+                string line = File.ReadAllText(path).TrimEnd();
+                var stamp = System.Text.RegularExpressions.Regex.Match(line, @"^(\d{4})-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} INFO ");
+                Require(stamp.Success && Math.Abs(int.Parse(stamp.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) - year) <= 1,
+                    $"the {name} culture changed the log's timestamp: {line}");
+            }
+            return "log lines carry a Gregorian, colon-separated time under the Thai, Saudi and Finnish cultures";
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = culture;
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static async Task<(int Code, string Error)> RunProbe(string directory, string marker)
     {
         using var process = Process.Start(new ProcessStartInfo(Env.ExecutablePath, ProbeArguments(directory, marker))
