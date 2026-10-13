@@ -250,7 +250,11 @@ internal static class DiagnosticsChecks
             daemon.OnViewerConnected();
             daemon.OnViewerLoginComplete();
             Ready(daemon);
+            daemon.OnViewerDisconnected(3);
             await daemon.StopSeatAsync("injected detached test; no live seat");
+            status = await daemon.StatusAsync();
+            Require(status.Str("state") == "stopped" && status.Str("lastError") is null,
+                "a stopped seat still reported the detached seat's reconnect advice: " + status.Str("lastError"));
             await daemon.ReconnectAsync();
             Require((await daemon.StatusAsync()).Bool("signInPrompt") == false && logoffs == 1,
                 "Stop retained the ended seat's password sign-in");

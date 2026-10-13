@@ -1127,9 +1127,10 @@ internal sealed class AnodeDaemon : IDisposable
     {
         lock (_lifecycleGate)
         {
-            _state = state;
             if (state is "error" or "logon-error" or "detached") _lastError = message;
-            else if (state == "ready") _lastError = string.Empty;
+            // The detached message says the seat still runs and how to reconnect it, which a stop makes untrue.
+            else if (state == "ready" || (state == "stopping" && _state == "detached")) _lastError = string.Empty;
+            _state = state;
             NotifyStateChanged();
         }
         _window?.SetStatus(message);
