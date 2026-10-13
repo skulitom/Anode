@@ -261,17 +261,17 @@ or [suggest an improvement](https://github.com/skulitom/Anode/issues/new?templat
 Anode is free software under the [MIT license](LICENSE), and it stays that way. Every release and all the code in this
 repository can be used, changed and shipped by anyone, including inside companies, at no charge.
 
-**Using Anode at work?** The optional **Anode Business licence** costs £50 per developer per year. It doesn't unlock
-anything and it doesn't change the MIT terms: you never need it to use Anode. It gives you:
+**Using Anode at work?** The optional **Anode Business licence** costs £50 per developer per year
+([on Gumroad](https://skulitom.gumroad.com/l/anode-business)). It doesn't unlock anything and it doesn't change the MIT
+terms: you never need it to use Anode. It gives you:
 
 - a licence record (the terms, your receipt with the number of seats) and an invoice, for procurement and compliance;
 - priority triage: issues whose title starts with `[business]` are looked at first once the licence is confirmed,
   which you can do privately by email (best effort, no service level; the terms explain how).
 
-**It isn't on sale yet.** If your company would buy it, open an
-[issue](https://github.com/skulitom/Anode/issues/new) titled `[business] interest`. Issues are public, so leave out
-anything private. The [Business licence terms](docs/BUSINESS-LICENCE.md) are already published, and licensing
-questions are welcome as issues with "licensing" in the title.
+Read the [Business licence terms](docs/BUSINESS-LICENCE.md) first if you like. Licensing questions are welcome as
+[issues](https://github.com/skulitom/Anode/issues/new): put "licensing" in the title. Issues are public, so never post
+your licence key or anything private in one.
 
 ## Credits and license
 
