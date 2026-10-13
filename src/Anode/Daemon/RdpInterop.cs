@@ -127,6 +127,17 @@ internal static class Dispatch
 /// </summary>
 internal static class RdpDisconnect
 {
+    public static string? ExplainExtended(int extended) => extended switch
+    {
+        15 => "The seat's display driver didn't start in time. Windows ended the viewer's connection.",
+        16 => "The seat's Desktop Window Manager crashed. Windows ended the viewer's connection.",
+        17 => "The seat's display driver failed. Windows ended the viewer's connection.",
+        18 => "The seat's display driver couldn't be used for remoting. Windows ended the viewer's connection.",
+        23 => "The seat's Winlogon crashed. Windows ended the viewer's connection.",
+        24 => "The seat's CSRSS crashed. Windows ended the viewer's connection.",
+        _ => null
+    };
+
     public static string Explain(int reason) => reason switch
     {
         0 => "No reason given.",

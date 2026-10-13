@@ -26,6 +26,7 @@ internal sealed class AnodeDaemon : IDisposable
     private int _stopVersion;
     private bool _reconnecting;
     private bool _promptForCredentials;
+    private bool _seatSignedInWithPassword;
     private int _connectionAttempt;
     private TaskCompletionSource _stateChanged = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Func<uint?> _findChild;
@@ -241,6 +242,7 @@ internal sealed class AnodeDaemon : IDisposable
                 return;
             }
             if (_stopRequested || _reconnecting || _bringUpCancellation.IsCancellationRequested) return;
+            _seatSignedInWithPassword = _promptForCredentials;
         }
         // Connected only confirms the RDP transport. A reserved child-session ID
         // can exist before Windows has logged in and cannot host a process yet.
@@ -303,17 +305,25 @@ internal sealed class AnodeDaemon : IDisposable
                 else if (starting) SetState("error", $"The seat could not start. {why}");
                 else
                 {
+                    _seatSignedInWithPassword = false;
                     _lastError = $"The seat is gone. {why}";
                     SetState("stopped", _lastError);
                 }
             }
             else
             {
-                SetState("detached", $"The viewer disconnected but the seat is still running. {why} Press Reconnect in the viewer (open it with `anode show` or the tray icon) to watch it again.");
+                SetState("detached", ViewerDetachedMessage(why));
             }
         }
         _window?.SetSeatInfo(_sessionId, _hostReady);
     }
+
+    private string ViewerDetachedMessage(string why) =>
+        $"The viewer disconnected but the seat is still running. {why} Until the viewer reconnects, Windows doesn't draw the seat: "
+        + "screenshots fail, browser pages show no controls and the display can't change; programs and command jobs keep running. "
+        + (_seatSignedInWithPassword || _options.PromptForCredentials
+            ? "To reconnect, the user opens the viewer (`anode show` or the tray icon), presses Reconnect and enters their Windows password; an agent can't do this step."
+            : "To reconnect, press Reconnect in the viewer (open it with `anode show` or the tray icon).");
 
     private void FailStartup(string state, string message)
     {
@@ -471,7 +481,7 @@ internal sealed class AnodeDaemon : IDisposable
                     }
                     PrepareStart();
                     _reconnecting = true;
-                    _promptForCredentials = promptForCredentials || _options.PromptForCredentials;
+                    _promptForCredentials = promptForCredentials || _options.PromptForCredentials || _seatSignedInWithPassword;
                     cancel = _bringUpCancellation.Token;
                     _hostReady = false;
                     DisposeSeatClient();
@@ -552,8 +562,11 @@ internal sealed class AnodeDaemon : IDisposable
             _sessionId = null;
             // A new seat starts at the display Anode was started with.
             _display = null;
+            _seatSignedInWithPassword = false;
             _startDisplay = null;
             _window?.SetSeatInfo(null, false);
+            // A display change or a lost host connection can report detached while the stop runs; its advice ends here.
+            lock (_lifecycleGate) if (_state == "detached") _lastError = string.Empty;
             SetState("stopped", was is null
                 ? "There was no seat to stop."
                 : $"Seat {was} was signed out. Everything that was running in it is closed.");
@@ -900,10 +913,15 @@ internal sealed class AnodeDaemon : IDisposable
         lock (_lifecycleGate)
         {
             if (_stopRequested || !_hostReady) return JsonLine.Fail($"The seat is not ready ({_state}), so its display cannot change.");
+            // A disconnected viewer can't change the display live. A reconnect is how an automatically signed-in seat comes
+            // back, including the seat host's return to the old display after a failed one; a password seat needs the user.
+            if (_state == "detached" && _window?.Viewer.ConnectionState is null or 0
+                && (!reconnect || _promptForCredentials || _seatSignedInWithPassword))
+                return JsonLine.Fail($"The seat's display can't change while its viewer is disconnected. {_lastError}");
             if (_reconnecting || _changingDisplay) return JsonLine.Fail("The viewer is already reconnecting. Change the display once it is back.");
             // Windows could not sign this seat in by itself, so a new connection would need the password again: from a
             // dialog on the user's desktop, in the middle of an agent's task. Never disconnect a viewer that cannot come back.
-            if (reconnect && _promptForCredentials)
+            if (reconnect && (_promptForCredentials || _seatSignedInWithPassword))
                 return JsonLine.Fail("Reconnecting the viewer at the new size would need the Windows password, because this seat signed in "
                     + "through the credential dialog, so the viewer was left connected. To test this display, start a seat at it: "
                     + $"anode quit (which closes the seat's apps), then anode start --sign-in --width {width} --height {height} --scale {scale}.");
@@ -987,8 +1005,7 @@ internal sealed class AnodeDaemon : IDisposable
         {
             string message = $"The viewer could not reconnect at {target}. {ex.Message}";
             if (await OnViewerAsync(() => window.Viewer.ConnectionState).ConfigureAwait(false) == 1) throw new InvalidOperationException(message, ex);
-            SetState("detached", $"The viewer could not reconnect after a display change ({ex.Message}). The seat is still running; "
-                + "press Reconnect in the viewer (open it with `anode show` or the tray icon) to watch it again.");
+            SetState("detached", ViewerDetachedMessage($"The viewer could not reconnect after a display change ({ex.Message})."));
             throw new ViewerDetachedException(message, ex);
         }
     }
@@ -1112,9 +1129,10 @@ internal sealed class AnodeDaemon : IDisposable
     {
         lock (_lifecycleGate)
         {
+            if (state is "error" or "logon-error" or "detached") _lastError = message;
+            // The detached message says the seat still runs and how to reconnect it, which a stop makes untrue.
+            else if (state == "ready" || (state == "stopping" && _state == "detached")) _lastError = string.Empty;
             _state = state;
-            if (state is "error" or "logon-error") _lastError = message;
-            else if (state == "ready") _lastError = string.Empty;
             NotifyStateChanged();
         }
         _window?.SetStatus(message);

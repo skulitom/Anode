@@ -123,6 +123,7 @@ anode start --sign-in
 ```
 
 A running Anode refuses `--sign-in`; use **Sign in…** instead.
+A seat signed in through the credential dialog asks for the Windows password again at every **Reconnect**.
 
 Anode shows the native Windows credential dialog. Enter your account password there; the PIN may not
 work. Anode does not retrieve or save the password and disables the dialog's save-credentials
@@ -398,7 +399,19 @@ to **borderless windowed**. This affects both the viewer and `seat_screenshot`.
 
 ## Capture and input
 
+### The seat is detached and screenshots fail
+
+The seat keeps running, but Windows stops drawing it once its viewer connection ends; `seat_status`
+gives the reason and recovery steps in `lastError`. The cause can be Windows itself, for example
+extended reason 17 means the seat's display driver failed. To reconnect, the user opens the viewer
+with `anode show` or the tray icon and presses **Reconnect**, which asks for the Windows password
+again when the seat signed in through the credential dialog; agents cannot do that step.
+Don't quit Anode to recover: that signs the seat out and closes its programs. Command jobs and
+`adb` keep working meanwhile.
+
 ### Hidden viewer capture fails
+
+If `anode status` says `detached`, see [The seat is detached and screenshots fail](#the-seat-is-detached-and-screenshots-fail).
 
 The seat can be `ready` while its display cannot be captured. RDP may suppress
 rendering when its client is minimized; a hidden ActiveX viewer can also leave

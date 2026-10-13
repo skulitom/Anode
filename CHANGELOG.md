@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **Reconnect works on a seat that signed in with your password, and a detached seat says why
+  screenshots fail.** When a seat that had signed in through **Sign in…** lost its viewer, its
+  message said to press **Reconnect**, but Reconnect tried automatic sign-in, which can't work
+  for that seat (disconnect reason 2055 on every press), and reported "The seat could not start"
+  though the seat was still running. Reconnect now asks for the password again, and the seat and
+  its programs carry on. Agents saw only `state: detached` and a capture error blaming a hidden
+  or minimized viewer; `seat_status` now gives the reason and the user's reconnect step in
+  `lastError`, the capture error says the viewer is disconnected, and `seat_display` on such a
+  seat gives the same explanation instead of advising `anode quit`. Windows' own causes are
+  named: extended reason 17, for example, now reads "The seat's display driver failed" instead
+  of blaming an administrator or the network.
 - **Log times read the same in every Windows language.** `anode.log` and the emulator log stamped
   each line in the format of Windows' regional settings: on Thai Windows the year came out as 2569,
   on Saudi Windows as a Hijri year, and on Finnish Windows the time as 23.34.16, so logs from

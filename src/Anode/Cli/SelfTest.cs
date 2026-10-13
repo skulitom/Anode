@@ -99,6 +99,7 @@ internal static class SelfTest
         Check(results, "channel names", ChannelChecks.Names);
         Check(results, "one seat per session", ChannelChecks.Seat);
 
+        Check(results, "capture unavailable message", DiagnosticsChecks.CaptureUnavailableMessage);
         if (includeEnvironment) Check(results, "screen capture", () =>
         {
             var shot = ScreenCapture.Capture(maxWidth: 640, format: "jpeg", jpegQuality: 70);
@@ -210,6 +211,8 @@ internal static class SelfTest
         Check(results, "RDP extended settings", DiagnosticsChecks.RdpSettings);
         Check(results, "RDP event callbacks", DiagnosticsChecks.RdpCallbacks);
         Check(results, "viewer sign-in", () => DiagnosticsChecks.ViewerSignIn().GetAwaiter().GetResult());
+        Check(results, "daemon detached viewer", () => DiagnosticsChecks.DetachedViewer().GetAwaiter().GetResult());
+        Check(results, "rdp extended reasons", DiagnosticsChecks.RdpExtendedReasons);
         Check(results, "RDP handshake diagnostics", DiagnosticsChecks.RdpHandshakeFailure);
         Check(results, "RDP listener probe", () => DiagnosticsChecks.Listener().GetAwaiter().GetResult());
         Check(results, "setup listener repair", DiagnosticsChecks.SetupListener);
