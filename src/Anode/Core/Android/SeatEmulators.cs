@@ -532,7 +532,7 @@ internal sealed class SeatEmulators
             };
             foreach (string argument in arguments) info.ArgumentList.Add(argument);
             _log = new StreamWriter(new FileStream(logPath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite), new UTF8Encoding(false)) { AutoFlush = true };
-            _log.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {executable} {string.Join(' ', arguments)}");
+            _log.WriteLine($"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)} {executable} {string.Join(' ', arguments)}");
             _process = Process.Start(info) ?? throw new InvalidOperationException("Could not start the Android emulator.");
             _process.OutputDataReceived += (_, line) => Record(line.Data);
             _process.ErrorDataReceived += (_, line) => Record(line.Data);

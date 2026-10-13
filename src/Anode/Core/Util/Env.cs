@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.ComponentModel;
@@ -187,7 +188,8 @@ internal static class Log
 
     private static void Write(string level, string message)
     {
-        string line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {level} [{_role}] pid={System.Environment.ProcessId} {message}";
+        // One format in every culture: a Thai Windows would otherwise write year 2569, a Finnish one 23.34.16.
+        string line = $"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture)} {level} [{_role}] pid={System.Environment.ProcessId} {message}";
         string path = Env.LogPath;
         try
         {
