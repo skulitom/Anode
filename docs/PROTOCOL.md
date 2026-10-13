@@ -119,6 +119,7 @@ See [Microsoft's pipe option documentation](https://learn.microsoft.com/en-us/do
 
 `state` moves through `starting` → `connecting` → `signing-in` → `starting-agent` → `ready`, and can
 land on `detached` (seat alive, viewer disconnected), `stopping`, `stopped`, `error` or `logon-error`.
+`detached` also fills `lastError` with why the viewer disconnected and how to reconnect.
 A viewer disconnect during startup becomes `error`, preserving the disconnect code and explanation
 in `lastError`. Startup waits return that failure immediately. `logError` reports the most recent
 log-write failure and clears after a successful write; `logPath` is the actual resolved destination.

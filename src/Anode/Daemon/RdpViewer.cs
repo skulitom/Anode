@@ -186,6 +186,8 @@ internal sealed class RdpViewer : AxHost
         {
             object control = Ocx;
             int extended = Convert.ToInt32(Dispatch.Get(control, "ExtendedDisconnectReason") ?? 0);
+            if (RdpDisconnect.ExplainExtended(extended) is { } explanation)
+                return $"{explanation} (extended reason {extended})";
             string? description = Dispatch.Call(control, "GetErrorDescription", reason, extended) as string;
             if (string.IsNullOrWhiteSpace(description)) return null;
             return $"{description.Replace('\r', ' ').Replace('\n', ' ').Trim()} (extended reason {extended})";

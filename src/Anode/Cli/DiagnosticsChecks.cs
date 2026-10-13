@@ -6,6 +6,7 @@ using System.ServiceProcess;
 using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
 using Anode.Core.Bridge;
+using Anode.Core.Capture;
 using Anode.Core.Launch;
 using Anode.Core.Session;
 using Anode.Core.Util;
@@ -148,10 +149,11 @@ internal static class DiagnosticsChecks
         Require(hostStarts == 1, "interactive login did not start the host");
 
         await daemon.ReconnectAsync();
-        Require((await daemon.StatusAsync()).Bool("signInPrompt") == false && logoffs == 0,
-            "ordinary Reconnect retained the manual prompt or signed the seat out");
+        Require((await daemon.StatusAsync()).Bool("signInPrompt") == true && logoffs == 0,
+            "ordinary Reconnect forgot the seat's password sign-in or signed the seat out");
         daemon.OnViewerLogonError(0);
-        Require((await daemon.StatusAsync()).Str("state") == "logon-error", "ordinary reconnect allowed interactive retries");
+        Require((await daemon.StatusAsync()).Str("state") is "connecting" or "signing-in",
+            "ordinary Reconnect rejected a credential retry for the password seat");
 
         await daemon.ReconnectAsync(promptForCredentials: true);
         await daemon.StopSeatAsync("injected sign-in test; no live seat");
@@ -167,7 +169,118 @@ internal static class DiagnosticsChecks
         using var blocked = new AnodeDaemon(new SeatOptions(), () => null, () => "listener missing");
         await blocked.ReconnectAsync(promptForCredentials: true);
         Require((await blocked.StatusAsync()).Str("lastError") == "listener missing", "manual sign-in bypassed prerequisites");
-        return "manual sign-in retries, login gating, Stop and later unattended startup verified without connecting a viewer";
+        return "manual sign-in and Reconnect retries, login gating, Stop and later unattended startup verified without connecting a viewer";
+    }
+
+    public static async Task<string> DetachedViewer()
+    {
+        // Only real host bring-up sets ready. Supply that result here without a window, host pipe or live seat.
+        static void Ready(AnodeDaemon daemon)
+        {
+            const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+            typeof(AnodeDaemon).GetField("_hostReady", flags)!.SetValue(daemon, true);
+            typeof(AnodeDaemon).GetMethod("SetState", flags)!.Invoke(daemon, new object[] { "ready", "injected host ready" });
+        }
+        static JsonObject Display(string method) => new()
+        {
+            ["width"] = 1920, ["height"] = 1080, ["scale"] = 100, ["method"] = method
+        };
+
+        foreach (bool password in new[] { true, false })
+        {
+            uint? child = 42;
+            int hostStarts = 0, logoffs = 0, displayChanges = 0;
+            using var daemon = new AnodeDaemon(new SeatOptions(), () => child, () => null,
+                () => { hostStarts++; return Task.CompletedTask; },
+                _ => { logoffs++; return null; }, () => { },
+                (_, _, _) => { displayChanges++; return Task.CompletedTask; });
+            if (password) await daemon.ReconnectAsync(promptForCredentials: true);
+            daemon.OnViewerConnected();
+            daemon.OnViewerLoginComplete();
+            Require(hostStarts == 1, "completed login did not reach the injected host");
+            Ready(daemon);
+            Require((await daemon.StatusAsync()).Str("state") == "ready", "injected host was not ready");
+
+            daemon.OnViewerDisconnected(3);
+            var status = await daemon.StatusAsync();
+            string error = status.Str("lastError") ?? "";
+            Require(status.Str("state") == "detached" && error.Contains("still running") && error.Contains("screenshots")
+                && error.Contains("password") == password && error.Contains(password ? "presses Reconnect" : "press Reconnect"),
+                "detached status lost the capture failure or the appropriate reconnect instructions: " + status.ToJsonString());
+            foreach (string method in new[] { "live", "reconnect" })
+            {
+                var refused = await daemon.DisplayAsync(Display(method));
+                Require(refused.Bool("ok") == false && refused.Str("error")!.Contains("viewer is disconnected")
+                    && refused.Str("error")!.Contains(error) && displayChanges == 0,
+                    "a detached display change reached the viewer or lost its recovery instructions");
+            }
+
+            if (password)
+            {
+                Task<JsonObject> starting = daemon.StartSeatAsync();
+                Require((await daemon.StatusAsync()).Bool("signInPrompt") == false,
+                    "an unattended start inherited the password seat's prompt");
+                // A host recovery need not receive a new viewer login event; it must retain how the seat signed in.
+                Ready(daemon);
+                Require((await starting.WaitAsync(TimeSpan.FromSeconds(2))).Bool("ok") == true,
+                    "the injected host did not complete unattended startup");
+                Require((await daemon.StatusAsync()).Str("lastError") is null, "ready retained the detached error");
+                var refused = await daemon.DisplayAsync(Display("reconnect"));
+                Require(refused.Bool("ok") == false && refused.Str("error")!.Contains("Windows password") && displayChanges == 0,
+                    "resetting the attempt's prompt allowed a display reconnect on a password seat");
+                daemon.OnViewerDisconnected(3);
+            }
+
+            await daemon.ReconnectAsync();
+            status = await daemon.StatusAsync();
+            Require(status.Bool("signInPrompt") == password && status.Str("lastError") is null && logoffs == 0,
+                "Reconnect forgot the seat's sign-in choice, retained the detached error or signed the seat out");
+            daemon.OnViewerConnected();
+            daemon.OnViewerLoginComplete();
+            Ready(daemon);
+            await daemon.StopSeatAsync("injected detached test; no live seat");
+            await daemon.ReconnectAsync();
+            Require((await daemon.StatusAsync()).Bool("signInPrompt") == false && logoffs == 1,
+                "Stop retained the ended seat's password sign-in");
+
+            if (password)
+            {
+                await daemon.ReconnectAsync(promptForCredentials: true);
+                daemon.OnViewerConnected();
+                daemon.OnViewerLoginComplete();
+                Ready(daemon);
+                child = null;
+                daemon.OnViewerDisconnected(3);
+                Require((await daemon.StatusAsync()).Str("state") == "stopped", "an absent seat was reported detached");
+                await daemon.ReconnectAsync();
+                Require((await daemon.StatusAsync()).Bool("signInPrompt") == false,
+                    "a seat that disappeared retained its password sign-in");
+            }
+        }
+        return "detached status, capture guidance, display refusals, password and automatic reconnects, Stop and ended-seat cleanup; no live seat";
+    }
+
+    public static string RdpExtendedReasons()
+    {
+        foreach (int reason in new[] { 15, 16, 17, 18, 23, 24 })
+            Require(RdpDisconnect.ExplainExtended(reason)?.Contains("Windows ended the viewer's connection.") == true,
+                $"extended reason {reason} lost its explanation");
+        Require(RdpDisconnect.ExplainExtended(17)!.Contains("display driver"), "extended reason 17 lost the failed display driver");
+        foreach (int reason in new[] { 0, 3, 5, 256 })
+            Require(RdpDisconnect.ExplainExtended(reason) is null, $"extended reason {reason} replaced the control's description");
+        return "six Windows display/session failures explained; other extended reasons keep the control's description";
+    }
+
+    public static string CaptureUnavailableMessage()
+    {
+        string detached = ScreenCapture.UnavailableMessage(true);
+        Require(detached.Contains("disconnected") && detached.Contains("seat_status") && !detached.Contains("minimized"),
+            "disconnected capture blamed a minimized viewer or omitted the recovery instructions");
+        Require(ScreenCapture.UnavailableMessage(false) == "The seat's display is unavailable for capture. RDP may have suspended rendering while its viewer was hidden or minimized, "
+            + "or the seat may be locked. Restarting the updated Anode daemon applies its background-rendering preference. "
+            + "No foreground capture or viewer activation was attempted. Use seat_observe with includeScreenshot=false for accessible controls; do not guess screen coordinates.",
+            "capture with no known disconnection changed its existing diagnosis");
+        return "disconnected capture points to seat_status; unknown causes keep the hidden/minimized diagnosis; no screen captured";
     }
 
     public static string RdpHandshakeFailure()
