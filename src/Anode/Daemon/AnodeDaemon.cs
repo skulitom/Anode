@@ -565,6 +565,8 @@ internal sealed class AnodeDaemon : IDisposable
             _seatSignedInWithPassword = false;
             _startDisplay = null;
             _window?.SetSeatInfo(null, false);
+            // A display change or a lost host connection can report detached while the stop runs; its advice ends here.
+            lock (_lifecycleGate) if (_state == "detached") _lastError = string.Empty;
             SetState("stopped", was is null
                 ? "There was no seat to stop."
                 : $"Seat {was} was signed out. Everything that was running in it is closed.");

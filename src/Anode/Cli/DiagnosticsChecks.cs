@@ -251,6 +251,7 @@ internal static class DiagnosticsChecks
             daemon.OnViewerLoginComplete();
             Ready(daemon);
             daemon.OnViewerDisconnected(3);
+            Require((await daemon.StatusAsync()).Str("state") == "detached", "the seat did not detach before the stop");
             await daemon.StopSeatAsync("injected detached test; no live seat");
             status = await daemon.StatusAsync();
             Require(status.Str("state") == "stopped" && status.Str("lastError") is null,
