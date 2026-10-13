@@ -911,7 +911,10 @@ internal sealed class AnodeDaemon : IDisposable
         lock (_lifecycleGate)
         {
             if (_stopRequested || !_hostReady) return JsonLine.Fail($"The seat is not ready ({_state}), so its display cannot change.");
-            if (_state == "detached" && _window?.Viewer.ConnectionState is null or 0)
+            // A disconnected viewer can't change the display live. A reconnect is how an automatically signed-in seat comes
+            // back, including the seat host's return to the old display after a failed one; a password seat needs the user.
+            if (_state == "detached" && _window?.Viewer.ConnectionState is null or 0
+                && (!reconnect || _promptForCredentials || _seatSignedInWithPassword))
                 return JsonLine.Fail($"The seat's display can't change while its viewer is disconnected. {_lastError}");
             if (_reconnecting || _changingDisplay) return JsonLine.Fail("The viewer is already reconnecting. Change the display once it is back.");
             // Windows could not sign this seat in by itself, so a new connection would need the password again: from a

@@ -207,12 +207,24 @@ internal static class DiagnosticsChecks
             Require(status.Str("state") == "detached" && error.Contains("still running") && error.Contains("screenshots")
                 && error.Contains("password") == password && error.Contains(password ? "presses Reconnect" : "press Reconnect"),
                 "detached status lost the capture failure or the appropriate reconnect instructions: " + status.ToJsonString());
-            foreach (string method in new[] { "live", "reconnect" })
+            var live = await daemon.DisplayAsync(Display("live"));
+            Require(live.Bool("ok") == false && live.Str("error")!.Contains("viewer is disconnected")
+                && live.Str("error")!.Contains(error) && displayChanges == 0,
+                "a live display change on a detached seat reached the viewer or lost its recovery instructions");
+            var reconnected = await daemon.DisplayAsync(Display("reconnect"));
+            if (password)
             {
-                var refused = await daemon.DisplayAsync(Display(method));
-                Require(refused.Bool("ok") == false && refused.Str("error")!.Contains("viewer is disconnected")
-                    && refused.Str("error")!.Contains(error) && displayChanges == 0,
-                    "a detached display change reached the viewer or lost its recovery instructions");
+                Require(reconnected.Bool("ok") == false && reconnected.Str("error")!.Contains("viewer is disconnected")
+                    && reconnected.Str("error")!.Contains(error) && displayChanges == 0,
+                    "a display reconnect on a detached password seat reached the viewer or lost its recovery instructions");
+            }
+            else
+            {
+                // How an automatic seat comes back, as the seat host asks after a failed display reconnect.
+                Require(reconnected.Bool("ok") == true && displayChanges == 1 && (await daemon.StatusAsync()).Str("state") == "ready",
+                    "a detached automatic seat could not reconnect its viewer for a display change: " + reconnected.ToJsonString());
+                daemon.OnViewerDisconnected(3);
+                Require((await daemon.StatusAsync()).Str("state") == "detached", "the recovered seat did not detach again");
             }
 
             if (password)
