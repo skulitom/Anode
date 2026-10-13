@@ -91,7 +91,7 @@ internal static class BackgroundRendering
                 + (Env.StateDirectoryChosen ? "." : ", or in the Anode folder of a packaged app such as the Claude desktop app.");
         if (backups.Count > 1)
             throw new InvalidOperationException("Daemons started by different packaged apps each saved a background-rendering backup:"
-                + string.Concat(backups.Select(path => $"{System.Environment.NewLine}  {path} (saved {File.GetLastWriteTime(path):yyyy-MM-dd HH:mm}, "
+                + string.Concat(backups.Select(path => $"{System.Environment.NewLine}  {path} (saved {File.GetLastWriteTime(path).ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture)}, "
                     + $"previous value {SavedValue(path)})"))
                 + $"{System.Environment.NewLine}Nothing was changed. Restore the one with the value you want with anode rendering --restore "
                 + "--state-dir \"<its folder>\", then delete the other backups, which are out of date once the value is back.");

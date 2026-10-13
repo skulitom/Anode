@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Log times read the same in every Windows language.** `anode.log` and the emulator log stamped
+  each line in the format of Windows' regional settings: on Thai Windows the year came out as 2569,
+  on Saudi Windows as a Hijri year, and on Finnish Windows the time as 23.34.16, so logs from
+  different PCs didn't sort or parse alike. Screenshot file names and the date `rendering --restore`
+  gives for a backup had the same flaw. They now always use the Gregorian `2026-10-13 23:34:16`
+  form.
 - **`anode selftest` no longer fills your log with things that never happened.** Each quick
   self-test wrote about 110 lines into `anode.log` from its stand-ins: Steam games and emulators
   launched, Chrome opened on Play Console, "Windows could not sign the seat in (disconnect reason

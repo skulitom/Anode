@@ -222,6 +222,7 @@ internal static class SelfTest
         Check(results, "startup state notification", () => StartupChecks.StateNotifications().GetAwaiter().GetResult());
         Check(results, "log diagnostics", () => DiagnosticsChecks.Logging().GetAwaiter().GetResult());
         Check(results, "self-test log", DiagnosticsChecks.SelfTestLog);
+        Check(results, "log timestamps", DiagnosticsChecks.LogTimestamps);
         Check(results, "rendering backup locations", DiagnosticsChecks.RenderingBackups);
         Check(results, "MCP stdio", () => TransportChecks.McpStdio().GetAwaiter().GetResult());
         Check(results, "MCP validation", () => McpChecks.Validation().GetAwaiter().GetResult());
