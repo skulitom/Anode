@@ -123,33 +123,49 @@ function Find-Chrome {
     $false
 }
 
+# The message of a failed script's last error, from its output lines (Error, Text). stderr also carries harmless lines
+# (anode's "Report: ..." and "Screenshot: ...", npm warnings), so the message is the error lines just before the last
+# "At <file>:<line> char:<n>", back to output, a blank line or one of those. The console wraps long lines mid-word.
+function Get-ScriptFailure($Lines) {
+    $at = -1
+    for ($i = $Lines.Count - 1; $i -gt 0; $i--) { if ($Lines[$i].Error -and $Lines[$i].Text -match '^At \S') { $at = $i; break } }
+    if ($at -lt 1) { return Get-FirstText @(@($Lines | Where-Object { $_.Error -and $_.Text.Trim() } | ForEach-Object { $_.Text }) | Select-Object -Last 1) }
+    $parts = @()
+    for ($j = $at - 1; $j -ge 0 -and $parts.Count -lt 8; $j--) {
+        $text = [string]$Lines[$j].Text
+        if (-not $Lines[$j].Error -or -not $text.Trim() -or $text -match '^(Report|Screenshot): |^npm (warn|notice|err)') { break }
+        $parts = @($text) + $parts
+    }
+    # A wrapped piece fills the console's width (at least 80 columns); any other line break was in the message itself.
+    $width = [Math]::Max(80, [int]($parts | Measure-Object -Property Length -Maximum).Maximum)
+    $message = ''
+    for ($k = 0; $k -lt $parts.Count; $k++) {
+        $message += $parts[$k]
+        if ($k -lt $parts.Count - 1 -and $parts[$k].Length -lt $width) { $message += ' ' }
+    }
+    $message.Trim()
+}
+
 # A live script runs in Windows PowerShell 5.1, as the owner runs it, with its output shown and logged as it comes.
 # It passes when it exits 0 and the result.json it wrote during this run says "passed": true.
 function Invoke-ScriptCheck($Check, [string[]]$Arguments) {
     $since = [DateTime]::UtcNow.AddSeconds(-2)
     $writer = New-LogWriter $Check.log
-    $errors = New-Object Collections.Generic.List[string]
+    $lines = New-Object Collections.Generic.List[object]
     $saved = $ErrorActionPreference
     try {
         $writer.WriteLine('> ' + (Format-Command $windowsPowerShell $Arguments))
         $ErrorActionPreference = 'Continue'
         & $windowsPowerShell @Arguments 2>&1 | ForEach-Object {
             $line = "$_"
-            if ($_ -is [Management.Automation.ErrorRecord] -and $line.Trim()) { $errors.Add($line.Trim()) }
+            $lines.Add([pscustomobject]@{ Error = $_ -is [Management.Automation.ErrorRecord]; Text = $line })
             $writer.WriteLine($line)
             Write-Host $line
         }
         $code = $LASTEXITCODE
         $writer.WriteLine("(exit $code)")
     } finally { $ErrorActionPreference = $saved; $writer.Dispose() }
-    if ($code -ne 0) {
-        # stderr also carries harmless lines (anode's "Report: ...", npm warnings), so the reason is the message of the
-        # script's last error: the line before its last "At <file>:<line> char:<n>", which the console may wrap.
-        $reason = $null
-        for ($i = $errors.Count - 1; $i -gt 0; $i--) { if ($errors[$i] -match '^At \S') { $reason = $errors[$i - 1]; break } }
-        if (-not $reason -and $errors.Count) { $reason = $errors[$errors.Count - 1] }
-        throw (Get-FirstText @($reason, "exited $code"))
-    }
+    if ($code -ne 0) { throw (Get-FirstText @((Get-ScriptFailure $lines), "exited $code")) }
     $resultFile = @(Get-ChildItem -LiteralPath (Join-Path $commitDirectory $Check.name) -Filter 'result.json' -Recurse -File -ErrorAction SilentlyContinue |
         Where-Object { $_.LastWriteTimeUtc -ge $since } | Sort-Object LastWriteTimeUtc) | Select-Object -Last 1
     if (-not $resultFile) { throw 'it exited 0 but wrote no result.json' }
