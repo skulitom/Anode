@@ -212,6 +212,7 @@ internal static class SelfTest
         Check(results, "RDP event callbacks", DiagnosticsChecks.RdpCallbacks);
         Check(results, "viewer sign-in", () => DiagnosticsChecks.ViewerSignIn().GetAwaiter().GetResult());
         Check(results, "daemon detached viewer", () => DiagnosticsChecks.DetachedViewer().GetAwaiter().GetResult());
+        Check(results, "stop during display change", () => DiagnosticsChecks.StopDuringDisplayChange().GetAwaiter().GetResult());
         Check(results, "rdp extended reasons", DiagnosticsChecks.RdpExtendedReasons);
         Check(results, "RDP handshake diagnostics", DiagnosticsChecks.RdpHandshakeFailure);
         Check(results, "RDP listener probe", () => DiagnosticsChecks.Listener().GetAwaiter().GetResult());

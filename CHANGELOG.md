@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **A seat stopped during a display change stays stopped.** If an agent's `seat_display`
+  reconnect failed at the moment someone stopped the seat, the failure could land after the stop
+  and report the signed-out seat as `detached`, with advice to press **Reconnect**; and if the
+  seat was started again straight away, the late failure could end that start ("Seat startup
+  ended in state 'detached'"), or a late success carry the old seat's display into the new one.
+  The same could happen when a lost seat-host connection was noticed during a stop. A change
+  that ends after a stop now only answers "The seat was stopped while its display was changing."
 - **Reconnect works on a seat that signed in with your password, and a detached seat says why
   screenshots fail.** When a seat that had signed in through **Sign in…** lost its viewer, its
   message said to press **Reconnect**, but Reconnect tried automatic sign-in, which can't work
