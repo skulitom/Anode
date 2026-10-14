@@ -77,6 +77,9 @@ jobs:
       - name: Check documentation
         run: ./scripts/check-docs.ps1 -Anode dist/anode.exe
 
+      - name: Check the release-check script (dry run)
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-release-check.ps1
+
       # The .mcpb is for manual Claude Desktop testing only; release.yml does not publish it yet.
       - uses: actions/upload-artifact@v4
         with:
