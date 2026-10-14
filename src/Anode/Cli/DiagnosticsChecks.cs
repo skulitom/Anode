@@ -284,10 +284,10 @@ internal static class DiagnosticsChecks
         static JsonObject Reconnect() => new() { ["width"] = 1920, ["height"] = 1080, ["scale"] = 100, ["method"] = "reconnect" };
         // A daemon whose viewer runs `during` (a stop, say) while it changes the display, then reconnects or, when it
         // strands, fails the way the real viewer does when the reconnect leaves it without a connection.
-        static AnodeDaemon Seat(Func<AnodeDaemon, Task> during, bool strands)
+        static AnodeDaemon Seat(Func<AnodeDaemon, Task> during, bool strands, Func<string?>? blocked = null)
         {
             AnodeDaemon? daemon = null;
-            daemon = new AnodeDaemon(new SeatOptions(), () => 42, () => null, () => Task.CompletedTask, _ => null, () => { },
+            daemon = new AnodeDaemon(new SeatOptions(), () => 42, blocked ?? (() => null), () => Task.CompletedTask, _ => null, () => { },
                 async (_, _, _) =>
                 {
                     await during(daemon!);
@@ -333,7 +333,35 @@ internal static class DiagnosticsChecks
             await Stop(daemon);
             Require((await starting!.WaitAsync(TimeSpan.FromSeconds(2))).Bool("ok") == false, "the injected start did not end at its stop");
         }
-        return "a stranded display reconnect reports detached; one ending after a stop, or after a stop and a new start, leaves that state and display alone; no live seat";
+
+        // A reconnect that brings a detached viewer back doesn't make a seat ready whose host was lost meanwhile.
+        using (var daemon = Seat(seat =>
+               {
+                   typeof(AnodeDaemon).GetField("_hostReady", DaemonFields)!.SetValue(seat, false);
+                   typeof(AnodeDaemon).GetMethod("SetState", DaemonFields)!.Invoke(seat, new object[] { "detached", "Lost contact with the seat host." });
+                   return Task.CompletedTask;
+               }, strands: false))
+        {
+            daemon.OnViewerDisconnected(3);
+            var reply = await daemon.DisplayAsync(Reconnect());
+            var status = await daemon.StatusAsync();
+            Require(reply.Bool("ok") == true && status.Str("state") == "detached" && status.Str("lastError") == "Lost contact with the seat host.",
+                "a viewer reconnect reported a seat ready whose host was lost: " + status.ToJsonString());
+        }
+
+        // Only a stop counts: a Reconnect refused by a missing prerequisite also cancels the bring-up, and leaves the seat's host serving.
+        string? missing = null;
+        using (var daemon = Seat(_ => Task.CompletedTask, strands: false, () => missing))
+        {
+            missing = "listener missing";
+            await daemon.ReconnectAsync();
+            missing = null;
+            var live = await daemon.DisplayAsync(new JsonObject { ["width"] = 1920, ["height"] = 1080, ["scale"] = 100, ["method"] = "live" });
+            Require(live.Bool("ok") == true && typeof(AnodeDaemon).GetField("_display", DaemonFields)!.GetValue(daemon) is not null,
+                "a display change after a refused Reconnect was reported as stopped: " + live.ToJsonString());
+        }
+        return "a stranded display reconnect reports detached; one ending after a stop, or after a stop and a new start, leaves that state and display alone; "
+            + "a lost host stays detached; a refused Reconnect is no stop; no live seat";
     }
 
     public static string RdpExtendedReasons()
