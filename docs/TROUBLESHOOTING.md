@@ -482,13 +482,16 @@ A program reads typed characters at its own speed. `seat_type` (CLI: `anode type
 apart and pauses while the focused program is busy, a pace Chrome keeps up with even in a long field.
 If text still arrives wrong:
 
-- **Type slower.** Pass a larger `perCharMs`. Use `perCharMs: 0` only for a program you know keeps up:
-  it sends characters without a pause.
+- **Type slower.** Pass a larger `perCharMs` to `seat_type`. Use `perCharMs: 0` only for a program you
+  know keeps up: it sends characters without a pause. `anode type` has no pacing option and always
+  sends characters 15 ms apart; don't add one, since every word after `type` is typed as text. From
+  the CLI, send smaller pieces or set the value (below).
 - **Send smaller pieces.** One call types at most about 3,000 characters at the default pace, so that it
   answers within the request's time. Longer text is refused before anything is typed; send it in
   several calls.
 - **Skip the keyboard.** For a form field, `seat_element` `set_value` on the observed control sets the
-  whole value at once.
+  whole value at once (CLI: `anode element <snapshotId> <elementId> set_value --value TEXT`, after
+  `anode inspect`).
 - **`typing_stopped`.** The focused program stopped responding for 5 seconds, typing ran out of the
   call's time, or Windows refused the input partway. The error gives `typed` and `total` (a newline or an
   emoji counts as one character) and `nextIndex`, the UTF-16 index where the untyped rest starts. When
