@@ -1,5 +1,66 @@
 # Release readiness
 
+## The next release: the owner's live check
+
+CI covers everything that needs no seat (see the build and package validation below). The checks
+that need a real seat run in one command, `scripts\release-check.ps1`, on the release candidate: the
+commit that sets the new version (`git log -1 --format=%H -S '<Version>X.Y.Z</Version>' --
+src/Anode/Anode.csproj`). It needs a free seat with nothing open you need, no game running in it,
+and Node.js and Chrome installed. It takes the desktop lease, changes the seat's display (unless
+`-SkipDisplay`) and, on first use, installs Playwright under `artifacts` (a download).
+
+1. **Build the candidate** (about 5 minutes):
+
+   ```powershell
+   git clone https://github.com/skulitom/Anode anode-X.Y.Z
+   cd anode-X.Y.Z
+   $candidate = git log -1 --format=%H -S '<Version>X.Y.Z</Version>' -- src/Anode/Anode.csproj
+   git checkout $candidate
+   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build.ps1 -OutputDirectory artifacts\pkg-build -ArchiveDirectory artifacts\pkg-release -QuickTest -Package
+   ```
+
+2. **Install it.** Close the agent apps and sessions that use Anode first; the installer stops
+   rather than replace a running copy. `anode quit` closes every program in the seat.
+
+   ```powershell
+   anode quit | Out-Host
+   powershell -NoProfile -ExecutionPolicy Bypass -File artifacts\pkg-release\install.ps1 -PackagePath artifacts\pkg-release\anode-windows-x64.zip -ChecksumPath artifacts\pkg-release\SHA256SUMS
+   ```
+
+   In a new terminal, in the same folder, start the seat (`anode start --hidden`). Windows may ask
+   you to sign in to it once.
+
+3. **Run the live check** (about 15 minutes), in that terminal:
+
+   ```powershell
+   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\release-check.ps1
+   ```
+
+   It refuses a checkout with uncommitted changes, and an installed Anode whose version isn't the
+   checkout's. It then takes the lease and runs, stopping at the first failure:
+
+   | Check | Passes when |
+   | --- | --- |
+   | `test-desktop.ps1`: native controls, UI Automation, waits, `set_value` read-back | it reports `"passed": true` |
+   | `test-chrome-form.ps1`: a Chrome form's text field and drop-down list | it reports `"passed": true`; a warning is recorded, not a failure |
+   | `test-development.ps1 -InstallBrowserTools -VerifyInput`: command jobs, headed Chrome, real mouse, key and text input | it reports `"passed": true` |
+   | File Explorer: `inspect` on a new Explorer window, which it then closes | the window lists its controls |
+   | `test-display.ps1`: four display sizes and scales, then the startup display again | it reports `"passed": true` |
+
+   It releases the lease even when a check fails. `-SkipDisplay` leaves the display check out. To
+   check a build without installing it, run it as the dev channel while the main seat is closed:
+   `-Anode artifacts\pkg-build\anode.exe -Channel dev`
+   ([a separate dev Anode](DEVELOPMENT-TESTING.md#a-separate-dev-anode)).
+
+4. **Record and tag.** The evidence goes to `artifacts\release-check\<commit>\`: `summary.json`, each
+   check's log and output, and `summary.txt`, the block it prints at the end. That block names the
+   commit, the Anode version and each check's result; it goes into this record with the release.
+   When every check passed, its last line is the tag command for exactly the tested commit
+   ([release process](../CONTRIBUTING.md#release-process), step 6).
+
+`scripts\test-release-check.ps1` tests the script's dry run (`-DryRun`, which starts no Anode and no
+live check) in CI and on any PC.
+
 ## 0.11.2 release validation — 10 October 2026
 
 **Scope:** the fixes merged since 0.11.1 through #32, the quick-test cleanup in #33, the version
