@@ -59,7 +59,7 @@ foreach ($name in $checkNames) { $checks.Add([ordered]@{ name = $name; status = 
 $summary = [ordered]@{
     tool = 'anode-release-check'; schemaVersion = 1; dryRun = [bool]$DryRun; passed = $false; exitCode = $null
     commit = $null; candidateCommit = $null; headIsCandidate = $null; dirty = $null; version = $null; anodeVersion = $null
-    anodePath = $null; channel = $null; windows = [Environment]::OSVersion.Version.ToString(3)
+    anodeCommit = $null; seatVersion = $null; anodePath = $null; channel = $null; windows = [Environment]::OSVersion.Version.ToString(3)
     startedAt = $started.ToString('o', $invariant); finishedAt = $null; seat = $null
     lease = [ordered]@{ acquired = $false; released = $false }; checks = $null; tagCommand = $null; error = $null; notes = $null
 }
@@ -128,21 +128,28 @@ function Find-Chrome {
 function Invoke-ScriptCheck($Check, [string[]]$Arguments) {
     $since = [DateTime]::UtcNow.AddSeconds(-2)
     $writer = New-LogWriter $Check.log
-    $state = @{ FirstError = $null }
+    $errors = New-Object Collections.Generic.List[string]
     $saved = $ErrorActionPreference
     try {
         $writer.WriteLine('> ' + (Format-Command $windowsPowerShell $Arguments))
         $ErrorActionPreference = 'Continue'
         & $windowsPowerShell @Arguments 2>&1 | ForEach-Object {
             $line = "$_"
-            if ($_ -is [Management.Automation.ErrorRecord] -and -not $state.FirstError -and $line.Trim()) { $state.FirstError = $line.Trim() }
+            if ($_ -is [Management.Automation.ErrorRecord] -and $line.Trim()) { $errors.Add($line.Trim()) }
             $writer.WriteLine($line)
             Write-Host $line
         }
         $code = $LASTEXITCODE
         $writer.WriteLine("(exit $code)")
     } finally { $ErrorActionPreference = $saved; $writer.Dispose() }
-    if ($code -ne 0) { throw (Get-FirstText @($state.FirstError, "exited $code")) }
+    if ($code -ne 0) {
+        # stderr also carries harmless lines (anode's "Report: ...", npm warnings), so the reason is the message of the
+        # script's last error: the line before its last "At <file>:<line> char:<n>", which the console may wrap.
+        $reason = $null
+        for ($i = $errors.Count - 1; $i -gt 0; $i--) { if ($errors[$i] -match '^At \S') { $reason = $errors[$i - 1]; break } }
+        if (-not $reason -and $errors.Count) { $reason = $errors[$errors.Count - 1] }
+        throw (Get-FirstText @($reason, "exited $code"))
+    }
     $resultFile = @(Get-ChildItem -LiteralPath (Join-Path $commitDirectory $Check.name) -Filter 'result.json' -Recurse -File -ErrorAction SilentlyContinue |
         Where-Object { $_.LastWriteTimeUtc -ge $since } | Sort-Object LastWriteTimeUtc) | Select-Object -Last 1
     if (-not $resultFile) { throw 'it exited 0 but wrote no result.json' }
@@ -163,21 +170,22 @@ function Invoke-ScriptCheck($Check, [string[]]$Arguments) {
     }
 }
 
-# File Explorer's inspect, which failed in 0.11.1. Only the window this check opened is closed.
-$explorerPlan = @('anode windows --query Windows --json', 'anode run explorer.exe C:\Windows',
-    'anode windows --query Windows --json, every 500 ms for up to 15 s, until a new window of process explorer appears',
+# File Explorer's inspect, which failed in 0.11.1. Only the window this check opened is closed: every window open
+# before it, under any title, is excluded, so an Explorer window that takes the folder as a tab is never closed.
+$explorerPlan = @('anode windows --json', 'anode run explorer.exe C:\Windows',
+    'anode windows --json, every 500 ms for up to 15 s, until a window of process explorer appears that was not open before',
     'anode inspect <new window> --json', 'anode window <new window> close')
 function Invoke-ExplorerCheck($Check) {
     $writer = New-LogWriter $Check.log
     try {
-        $before = @((Invoke-AnodeJson @('windows', '--query', 'Windows', '--json') $writer).windows | ForEach-Object { [string]$_.windowId })
+        $before = @((Invoke-AnodeJson @('windows', '--json') $writer).windows | Where-Object { $_ } | ForEach-Object { [string]$_.windowId })
         $ran = Invoke-Anode @('run', 'explorer.exe', 'C:\Windows') $writer
         if ($ran.ExitCode -ne 0) { throw "anode run explorer.exe exited $($ran.ExitCode): $(Get-FirstText (@($ran.Errors) + $ran.Output))" }
         $windowId = $null
         try {
             $watch = [Diagnostics.Stopwatch]::StartNew()
             while ($true) {
-                $new = @((Invoke-AnodeJson @('windows', '--query', 'Windows', '--json') $writer).windows |
+                $new = @((Invoke-AnodeJson @('windows', '--json') $writer).windows |
                     Where-Object { $_ -and $_.process -eq 'explorer' -and [string]$_.windowId -notin $before })
                 if ($new.Count -gt 0 -or $watch.Elapsed.TotalSeconds -ge 15) { break }
                 Start-Sleep -Milliseconds 500
@@ -277,14 +285,17 @@ try {
     $commit = Invoke-Git @('rev-parse', 'HEAD')
     if ($commit -notmatch '^[0-9a-f]{40,64}$') { Stop-Run "git rev-parse HEAD printed '$commit', not a commit." }
     $summary.commit = $commit
-    $commitDirectory = Join-Path $OutputDirectory $commit
-    if (Test-Path -LiteralPath $commitDirectory) {
-        $stamp = (Get-Item -LiteralPath $commitDirectory).LastWriteTimeUtc.ToString('yyyyMMdd-HHmmss', $invariant)
-        $previous = "$commitDirectory-$stamp"
-        for ($n = 2; Test-Path -LiteralPath $previous; $n++) { $previous = "$commitDirectory-$stamp-$n" }
-        Move-Item -LiteralPath $commitDirectory -Destination $previous
+    # Until the commit's folder is free, the summary goes to the no-commit folder, never over earlier evidence.
+    $target = Join-Path $OutputDirectory $commit
+    if (Test-Path -LiteralPath $target) {
+        $stamp = (Get-Item -LiteralPath $target).LastWriteTimeUtc.ToString('yyyyMMdd-HHmmss', $invariant)
+        $previous = "$target-$stamp"
+        for ($n = 2; Test-Path -LiteralPath $previous; $n++) { $previous = "$target-$stamp-$n" }
+        try { Move-Item -LiteralPath $target -Destination $previous -ErrorAction Stop }
+        catch { Stop-Run "the previous evidence in $target could not be moved aside ($($_.Exception.Message)); close what holds it, or move the folder yourself, then run this again." }
         Write-Host "The previous run's evidence for this commit is now in $previous"
     }
+    $commitDirectory = $target
     $null = New-Item -ItemType Directory -Path $commitDirectory -Force
     $summary.dirty = [bool](Invoke-Git @('status', '--porcelain', '--untracked-files=no'))
     if ($summary.dirty -and -not $DryRun) { Stop-Run 'commit or stash first: the evidence must name a commit.' }
@@ -331,6 +342,14 @@ try {
         if ($printed.ExitCode -ne 0 -or $line -cne "anode $version") {
             Stop-Run "the Anode under test is $(Get-FirstText @($summary.anodeVersion, 'unknown')), the checkout is ${version}: install the candidate, or pass -Anode with the candidate build."
         }
+        # A build records its commit in the product version (0.11.2+<sha>); a build of another commit isn't this evidence.
+        $product = [string](Get-Item -LiteralPath $anodePath).VersionInfo.ProductVersion
+        if ($product -match '\+([0-9a-fA-F]{7,64})') {
+            $summary.anodeCommit = $Matches[1].ToLowerInvariant()
+            if (-not ($commit.StartsWith($summary.anodeCommit) -or $summary.anodeCommit.StartsWith($commit))) {
+                Stop-Run "the Anode under test was built from $($summary.anodeCommit.Substring(0, 7)), this checkout is $($commit.Substring(0, 7)): build and install the candidate from this checkout, or pass -Anode with that build."
+            }
+        } else { $notes.Add("The Anode under test doesn't record the commit it was built from (product version '$product').") }
         if (-not (Get-Command node -CommandType Application -ErrorAction SilentlyContinue)) { Stop-Run 'Node.js is not on PATH; test-development.ps1 needs it.' }
         if (-not (Find-Chrome)) { Stop-Run 'Chrome was not found in Program Files, Program Files (x86) or LocalAppData; the Chrome checks need it.' }
     }
@@ -360,8 +379,15 @@ try {
         }
         if (-not $status -or $status.state -ne 'ready' -or $null -eq $status.session -or $status.session -eq $status.parentSession) {
             $state = if ($status -and $status.state) { $status.state } else { 'unknown' }
-            $start = if ($summary.channel) { "anode --channel $($summary.channel) start --hidden" } else { 'anode start --hidden' }
+            $start = "& '$anodePath' " + $(if ($summary.channel) { "--channel $($summary.channel) " } else { '' }) + 'start --hidden'
             Stop-Run "the seat isn't ready (state $state): start it (``$start``), sign in if Windows asks, then run this again."
+        }
+        # The lease reaches whichever daemon already runs on this channel, so check that the seat runs this version too.
+        $seatVersion = $null
+        try { $seatVersion = [string]((Invoke-AnodeJson @('capabilities', '--json')).version) } catch { Stop-Run "anode capabilities failed: $($_.Exception.Message)" }
+        $summary.seatVersion = $seatVersion
+        if ($seatVersion -cne $version) {
+            Stop-Run "the running seat is Anode $(Get-FirstText @($seatVersion, 'unknown')), the checkout is ${version}: quit the Anode that runs it, start the candidate's, then run this again."
         }
     }
 
@@ -392,8 +418,8 @@ try {
             try {
                 $released = Invoke-Anode @('lease', 'release')
                 $summary.lease.released = $released.ExitCode -eq 0
-                if (-not $summary.lease.released) { $notes.Add("The lease was not released ($(Get-FirstText (@($released.Errors) + $released.Output + "exit $($released.ExitCode)"))); it ends 10 minutes after the last desktop command.") }
-            } catch { $notes.Add("The lease was not released ($($_.Exception.Message)); it ends 10 minutes after the last desktop command.") }
+                if (-not $summary.lease.released) { $notes.Add("The lease was not released ($(Get-FirstText (@($released.Errors) + $released.Output + "exit $($released.ExitCode)"))); it ends when its last renewal runs out, within 10 minutes.") }
+            } catch { $notes.Add("The lease was not released ($($_.Exception.Message)); it ends when its last renewal runs out, within 10 minutes.") }
         }
     }
     # Through Env:: PowerShell passes $null to SetEnvironmentVariable as '', which PowerShell 7's .NET keeps as an empty variable.

@@ -84,8 +84,8 @@ function Test-Common([string]$Label, $Run, [int]$ExitCode) {
     Check ($summary.tool -eq 'anode-release-check' -and $summary.schemaVersion -eq 1 -and $summary.dryRun -eq $true -and
         $summary.exitCode -eq $ExitCode -and $summary.passed -eq ($ExitCode -eq 0)) "$Label summary: dry run, exit code $ExitCode, passed $($ExitCode -eq 0)"
     Check ((@($summary.checks | ForEach-Object { $_.name }) -join ',') -eq ($checkNames -join ',')) "$Label summary lists the five checks in order"
-    Check ($summary.commit -eq $commit -and $summary.version -eq $version -and $null -eq $summary.anodeVersion -and $null -eq $summary.seat) `
-        "$Label summary names HEAD and the csproj version, and no Anode version or seat"
+    Check ($summary.commit -eq $commit -and $summary.version -eq $version -and $null -eq $summary.anodeVersion -and $null -eq $summary.anodeCommit -and
+        $null -eq $summary.seatVersion -and $null -eq $summary.seat) "$Label summary names HEAD and the csproj version, and no Anode version, build commit or seat"
     Check ($Run.Json -match '"startedAt":\s*"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z"' -and $Run.Json -match '"finishedAt":\s*"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z"') `
         "$Label summary times are ISO 8601 UTC"
     if ($shallowCheckout) { Check ($null -eq $summary.candidateCommit -and $null -eq $summary.headIsCandidate) "$Label shallow checkout: candidateCommit null" }

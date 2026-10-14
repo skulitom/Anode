@@ -6,7 +6,7 @@ CI covers everything that needs no seat (see the build and package validation be
 that need a real seat run in one command, `scripts\release-check.ps1`, on the release candidate: the
 commit that sets the new version (`git log -1 --format=%H -S '<Version>X.Y.Z</Version>' --
 src/Anode/Anode.csproj`). It needs a free seat with nothing open you need, no game running in it,
-and Node.js and Chrome installed. It takes the desktop lease, changes the seat's display (unless
+and the .NET 10 SDK, Node.js and Chrome installed. It takes the desktop lease, changes the seat's display (unless
 `-SkipDisplay`) and, on first use, installs Playwright under `artifacts` (a download).
 
 1. **Build the candidate** (about 5 minutes):
@@ -36,8 +36,9 @@ and Node.js and Chrome installed. It takes the desktop lease, changes the seat's
    powershell -NoProfile -ExecutionPolicy Bypass -File scripts\release-check.ps1
    ```
 
-   It refuses a checkout with uncommitted changes, and an installed Anode whose version isn't the
-   checkout's. It then takes the lease and runs, stopping at the first failure:
+   It refuses a checkout with uncommitted changes, an Anode whose version or build commit isn't the
+   checkout's, and a running seat of another version. It then takes the lease and runs, stopping at
+   the first failure:
 
    | Check | Passes when |
    | --- | --- |
@@ -55,7 +56,8 @@ and Node.js and Chrome installed. It takes the desktop lease, changes the seat's
 4. **Record and tag.** The evidence goes to `artifacts\release-check\<commit>\`: `summary.json`, each
    check's log and output, and `summary.txt`, the block it prints at the end. That block names the
    commit, the Anode version and each check's result; it goes into this record with the release.
-   When every check passed, its last line is the tag command for exactly the tested commit
+   When no check failed (a check skipped on purpose, such as with `-SkipDisplay`, still counts),
+   its last line is the tag command for exactly the tested commit
    ([release process](../CONTRIBUTING.md#release-process), step 6).
 
 `scripts\test-release-check.ps1` tests the script's dry run (`-DryRun`, which starts no Anode and no

@@ -103,8 +103,9 @@ anode lease release | Out-Host
 
 The scripts default to `dist\anode.exe`; pass `-Anode <path>` to test another build. They renew
 the lease they inherit through the environment and never acquire one or start a seat themselves.
-For a release candidate, `scripts\release-check.ps1` runs these checks in one command, with a File
-Explorer and a display check, and writes a summary naming the commit
+For a release candidate, `scripts\release-check.ps1` runs the desktop, Chrome form and development
+checks in one command, with a File Explorer and a display check (not the pointer-isolation check),
+and writes a summary naming the commit
 ([the owner's live check](RELEASE-READINESS.md#the-next-release-the-owners-live-check)); its `-DryRun`
 is tested by `scripts\test-release-check.ps1`.
 
