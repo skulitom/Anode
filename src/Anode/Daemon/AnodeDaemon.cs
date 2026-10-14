@@ -527,8 +527,7 @@ internal sealed class AnodeDaemon : IDisposable
 
     internal async Task<JsonObject> StopSeatAsync(string why)
     {
-        Interlocked.Increment(ref _stopVersion);
-        CancelBringUp();
+        CancelBringUp(countStop: true);
         // Close pending Windows prompts even if logoff fails or the session ID was
         // only reserved. Posting this first also prevents a late login completing.
         try { _disconnectViewer(); }
@@ -565,8 +564,6 @@ internal sealed class AnodeDaemon : IDisposable
             _seatSignedInWithPassword = false;
             _startDisplay = null;
             _window?.SetSeatInfo(null, false);
-            // A display change or a lost host connection can report detached while the stop runs; its advice ends here.
-            lock (_lifecycleGate) if (_state == "detached") _lastError = string.Empty;
             SetState("stopped", was is null
                 ? "There was no seat to stop."
                 : $"Seat {was} was signed out. Everything that was running in it is closed.");
@@ -677,10 +674,12 @@ internal sealed class AnodeDaemon : IDisposable
         }
     }
 
-    private void CancelBringUp()
+    private void CancelBringUp(bool countStop = false)
     {
         lock (_lifecycleGate)
         {
+            // Counted with the flag, so work that checks under the gate sees a stop as soon as it begins.
+            if (countStop) Interlocked.Increment(ref _stopVersion);
             _stopRequested = true;
             _bringUpCancellation.Cancel();
             NotifyStateChanged();
@@ -865,11 +864,21 @@ internal sealed class AnodeDaemon : IDisposable
         }
         var response = await SendOnAsync(seat, op, forwarded, timeout).ConfigureAwait(false);
 
-        if (response.Bool("ok") != true && !seat.IsConnected && ReferenceEquals(_seat, seat) && !_stopRequested)
+        if (response.Bool("ok") != true && !seat.IsConnected)
         {
-            _hostReady = false;
-            _window?.SetSeatInfo(_sessionId, false);
-            SetState("detached", "Lost contact with the seat host.");
+            bool lost;
+            lock (_lifecycleGate)
+            {
+                // Checked and set under the gate a stop takes first, so a stop can't begin in between and end up detached.
+                // A seat that stopped, or was started again since, no longer has this host connection.
+                lost = ReferenceEquals(_seat, seat) && !_stopRequested;
+                if (lost)
+                {
+                    _hostReady = false;
+                    SetState("detached", "Lost contact with the seat host.");
+                }
+            }
+            if (lost) _window?.SetSeatInfo(_sessionId, false);
         }
         return response;
     }
@@ -910,6 +919,7 @@ internal sealed class AnodeDaemon : IDisposable
         bool reconnect = request.Str("method") == "reconnect";
 
         CancellationToken cancel;
+        int stopVersion;
         lock (_lifecycleGate)
         {
             if (_stopRequested || !_hostReady) return JsonLine.Fail($"The seat is not ready ({_state}), so its display cannot change.");
@@ -927,35 +937,52 @@ internal sealed class AnodeDaemon : IDisposable
                     + $"anode quit (which closes the seat's apps), then anode start --sign-in --width {width} --height {height} --scale {scale}.");
             _changingDisplay = true;
             cancel = _bringUpCancellation.Token;
+            stopVersion = _stopVersion;
         }
+        // A stop counts itself under the gate. Its seat is over even once a new start has cleared _stopRequested, so the
+        // state checks below compare the count: a change that ends late must not report on the next seat.
+        bool StoppedSince() => stopVersion != Volatile.Read(ref _stopVersion);
+        static JsonObject Stopped() => JsonLine.Fail("The seat was stopped while its display was changing.");
         _window?.SetReconnectEnabled(false);
         _window?.SetStatus($"Changing the seat's display to {target}...");
         try
         {
             await _changeDisplay(target, reconnect, cancel).ConfigureAwait(false);
+            string message = $"Seat ready in session {_sessionId}. An agent asked for its display to be {target}. Programs you start here stay out of your way.";
             bool recovered;
             lock (_lifecycleGate)
             {
                 // Stop resets the display for the next seat; a change finishing alongside it must not undo that.
-                if (!_stopRequested) _display = target;
-                recovered = _state == "detached" && reconnect;
+                if (StoppedSince()) return Stopped();
+                _display = target;
+                // A seat that lost its host meanwhile stays detached: there is nothing for agents to reach.
+                recovered = _state == "detached" && reconnect && _hostReady;
+                if (recovered) SetState("ready", message);
             }
             Log.Info($"asked for seat display {target} {(reconnect ? "by reconnecting the viewer" : "live")}");
-            string message = $"Seat ready in session {_sessionId}. An agent asked for its display to be {target}. Programs you start here stay out of your way.";
-            if (recovered) SetState("ready", message);
-            else _window?.SetStatus(message);
+            if (!recovered) _window?.SetStatus(message);
             return JsonLine.Ok(new JsonObject { ["method"] = reconnect ? "reconnect" : "live", ["display"] = target.ToJson() });
         }
         catch (OperationCanceledException) when (cancel.IsCancellationRequested)
         {
-            return JsonLine.Fail("The seat was stopped while its display was changing.");
+            return Stopped();
         }
         catch (Exception ex)
         {
             Log.Warn($"could not change the seat display to {target} ({(reconnect ? "reconnect" : "live")}): {ex.Message}");
             var failure = JsonLine.Fail(ex.Message);
-            // The seat host then asks for the viewer back at the display the seat had.
-            if (ex is ViewerDetachedException) failure["errorCode"] = "viewer_detached";
+            if (ex is ViewerDetachedException)
+            {
+                lock (_lifecycleGate)
+                {
+                    // The failed reconnect asked the viewer for its state first, and a stop may have begun meanwhile: it signs
+                    // the seat out, so the seat isn't detached, and it may already have reported stopped.
+                    if (StoppedSince()) return Stopped();
+                    SetState("detached", ViewerDetachedMessage($"The viewer could not reconnect after a display change ({ex.InnerException?.Message ?? ex.Message})."));
+                }
+                // The seat host then asks for the viewer back at the display the seat had.
+                failure["errorCode"] = "viewer_detached";
+            }
             return failure;
         }
         finally
@@ -986,8 +1013,9 @@ internal sealed class AnodeDaemon : IDisposable
     /// <summary>
     /// Changes the display through the viewer. Live, the Remote Desktop control asks Windows for it as a monitor
     /// change. Otherwise the viewer disconnects and connects again at the new size, which keeps the session, its
-    /// apps and the seat host's pipe. When that connection fails the seat host, which measured the display the seat
-    /// had, asks for a reconnect at it; until one succeeds the viewer is reported detached.
+    /// apps and the seat host's pipe. When that connection fails and leaves the viewer without one, it throws
+    /// <see cref="ViewerDetachedException"/>: <see cref="DisplayAsync"/> reports the seat detached, unless it was
+    /// stopped meanwhile, and the seat host, which measured the display the seat had, asks for a reconnect at it.
     /// </summary>
     private async Task ChangeViewerDisplayAsync(DisplayMode target, bool reconnect, CancellationToken cancel)
     {
@@ -1005,13 +1033,12 @@ internal sealed class AnodeDaemon : IDisposable
         {
             string message = $"The viewer could not reconnect at {target}. {ex.Message}";
             if (await OnViewerAsync(() => window.Viewer.ConnectionState).ConfigureAwait(false) == 1) throw new InvalidOperationException(message, ex);
-            SetState("detached", ViewerDetachedMessage($"The viewer could not reconnect after a display change ({ex.Message})."));
             throw new ViewerDetachedException(message, ex);
         }
     }
 
-    /// <summary>A reconnect for a display change that failed and left the viewer without a connection.</summary>
-    private sealed class ViewerDetachedException(string message, Exception inner) : InvalidOperationException(message, inner);
+    /// <summary>A reconnect for a display change that failed and left the viewer without a connection; the inner exception says why.</summary>
+    internal sealed class ViewerDetachedException(string message, Exception inner) : InvalidOperationException(message, inner);
 
     private async Task ConnectViewerAsync(SeatWindow window, DisplayMode display, CancellationToken cancel)
     {
