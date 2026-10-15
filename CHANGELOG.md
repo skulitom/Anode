@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.3 — 2026-10-15
 
 - **A seat stopped during a display change stays stopped.** If an agent's `seat_display`
   reconnect failed at the moment someone stopped the seat, the failure could land after the stop
@@ -24,8 +24,10 @@
   each line in the format of Windows' regional settings: on Thai Windows the year came out as 2569,
   on Saudi Windows as a Hijri year, and on Finnish Windows the time as 23.34.16, so logs from
   different PCs didn't sort or parse alike. Screenshot file names and the date `rendering --restore`
-  gives for a backup had the same flaw. They now always use the Gregorian `2026-10-13 23:34:16`
-  form.
+  gives for a backup had the same flaw. Log lines now always read `2026-10-13 23:34:16`, and
+  screenshot names and backup dates always use the Gregorian calendar.
+- **.NET 10.0.13.** Release builds include Microsoft's October security update of the .NET 10
+  runtime (10.0.13, from 10.0.12).
 - **`anode selftest` no longer fills your log with things that never happened.** Each quick
   self-test wrote about 110 lines into `anode.log` from its stand-ins: Steam games and emulators
   launched, Chrome opened on Play Console, "Windows could not sign the seat in (disconnect reason
@@ -68,6 +70,11 @@
   thread is still held 5 seconds after quit, Anode removes its tray icon and ends its process.
   Once quit has begun, a start, an acquisition or **Sign in…** is refused with "Anode is quitting"
   instead of creating a seat that would outlive the exit.
+- **Docs and release tooling.** TROUBLESHOOTING's "type slower" advice now says `perCharMs` is a
+  `seat_type` option that `anode type` lacks. The README links the Anode Business licence.
+  `scripts\release-check.ps1` runs the release's live check as one command and writes evidence
+  that names the commit; CI runs the environment self-test on a GitHub-hosted Windows runner; the
+  quick checks take about 2.3 s less.
 
 ## 0.11.2 — 2026-10-10
 

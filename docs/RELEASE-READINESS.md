@@ -63,6 +63,56 @@ and the .NET 10 SDK, Node.js and Chrome installed. It takes the desktop lease, c
 `scripts\test-release-check.ps1` tests the script's dry run (`-DryRun`, which starts no Anode and no
 live check) in CI and on any PC.
 
+## 0.11.3 release validation
+
+**Scope:** everything merged since 0.11.2:
+- fixes: #34, #36 to #39, #41, #42 and #44;
+- documentation: #45 (TROUBLESHOOTING's typing advice);
+- licensing: #19 (the Anode Business licence terms, first released here; Anode stays MIT) and #40
+  (the README's Business link);
+- tooling and tests: #43 (`scripts\release-check.ps1`), #35 (the CI environment self-test) and #46
+  (faster quick checks);
+- the self-contained runtime, from .NET 10.0.12 to **10.0.13**, Microsoft's security update of
+  13 October 2026 (checked against
+  [Microsoft's release metadata](https://builds.dotnet.microsoft.com/dotnet/release-metadata/10.0/releases.json)
+  on 15 October 2026).
+
+No tools or commands were added; the tool count stays 41.
+
+### Live validation
+
+Recorded here on `main` after the owner's `scripts\release-check.ps1` run on the release commit
+(its `summary.txt`). The tag stays on the tested commit, so the copy of this file inside the
+release does not include it.
+
+### Build and package validation
+
+- `scripts\build.ps1 -QuickTest` on the candidate: **108 quick self-tests** passed, and the
+  documentation check passed (41 documents against 41 tools). `anode version` reports 0.11.3.
+- `scripts\release-check.ps1 -DryRun` and `scripts\test-release-check.ps1` passed (no Anode or
+  seat started).
+- The release workflow's own package steps (`build.ps1 -QuickTest -Package -Mcpb`,
+  `registry-entry.ps1`, `test-distribution.ps1 -Release`) passed. Claude Code ran the bundle's
+  `anode mcp` on a separate channel: it listed 41 tools and answered `seat_status`.
+- Windows CI on the candidate repeats the build, packaging, quick suite, installation,
+  distribution and documentation checks, and runs the environment self-test on a GitHub-hosted
+  Windows runner.
+
+### Coverage limits and known issues
+
+- The live check doesn't exercise these fixes, which rest on their regression checks with
+  stand-ins: Reconnect after a password sign-in (#42), `quit` with the sign-in dialog open (#34),
+  a seat stopped during a display change (#44), MCP input waiting for a look after a lease is
+  taken (#38), `raise` on a real UWP window (#37) and non-English Windows date formats (#41).
+- The environment self-test ran on CI's hosted runner, not inside a seat. Audio, the virtual
+  gamepad, Android, the foreground pointer phases and the Claude Desktop bundle test are not part
+  of the live check.
+- Known issues: a Chrome window's first observation can omit the page (observe again with
+  `maxDepth` 16); `invoke` on Windows' Open File security dialog reports success without running
+  anything; `anode type` has no pace option; `anode.log` is not rotated; after a Reconnect refused
+  for a missing prerequisite, a display change that reconnects the viewer can answer "The seat was
+  stopped".
+
 ## 0.11.2 release validation — 10 October 2026
 
 **Scope:** the fixes merged since 0.11.1 through #32, the quick-test cleanup in #33, the version
