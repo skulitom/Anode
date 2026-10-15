@@ -110,7 +110,8 @@ release does not include it.
 - Known issues: a Chrome window's first observation can omit the page (observe again with
   `maxDepth` 16); `invoke` on Windows' Open File security dialog reports success without running
   anything; `anode type` has no pace option; `anode.log` is not rotated; after a Reconnect refused
-  for a missing prerequisite, a display change can answer "The seat was stopped".
+  for a missing prerequisite, a display change that reconnects the viewer can answer "The seat was
+  stopped".
 
 ## 0.11.2 release validation — 10 October 2026
 
