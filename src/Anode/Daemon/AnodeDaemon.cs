@@ -464,7 +464,7 @@ internal sealed class AnodeDaemon : IDisposable
         catch (Exception ex)
         {
             Log.Error("could not read the seat's prerequisites for Reconnect", ex);
-            blocked = $"Anode could not read this machine's Remote Desktop settings: {ex.Message}";
+            blocked = $"Anode could not check this machine's seat prerequisites: {ex.Message}";
         }
         int stopVersion;
         lock (_lifecycleGate)

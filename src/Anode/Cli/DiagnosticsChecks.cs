@@ -427,7 +427,7 @@ internal static class DiagnosticsChecks
         await daemon.ReconnectAsync();
         unreadable = false;
         var failed = await daemon.StatusAsync();
-        Require(failed.Str("state") == "error" && failed.Str("lastError")?.Contains("could not read") == true && failed.Str("lastError")!.Contains("Access is denied"),
+        Require(failed.Str("state") == "error" && failed.Str("lastError")?.Contains("could not check") == true && failed.Str("lastError")!.Contains("Access is denied"),
             "a Reconnect whose prerequisites couldn't be read failed without saying why: " + failed.ToJsonString());
         return "a refused Reconnect or Sign in keeps a ready or detached seat's state, advice, host and display changes; a later viewer disconnect detaches it; "
             + "prerequisites that can't be read refuse the same way and say why; Reconnect works once the prerequisite is back; no live seat";
