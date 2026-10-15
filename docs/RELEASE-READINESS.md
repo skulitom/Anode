@@ -66,7 +66,7 @@ live check) in CI and on any PC.
 ## 0.11.3 release validation
 
 **Scope:** everything merged since 0.11.2:
-- fixes: #34, #36 to #39, #41, #42 and #44;
+- fixes: #34, #36 to #39, #41, #42, #44 and #48;
 - documentation: #45 (TROUBLESHOOTING's typing advice);
 - licensing: #19 (the Anode Business licence terms, first released here; Anode stays MIT) and #40
   (the README's Business link);
@@ -97,21 +97,23 @@ release does not include it.
 - Windows CI on the candidate repeats the build, packaging, quick suite, installation,
   distribution and documentation checks, and runs the environment self-test on a GitHub-hosted
   Windows runner.
+- Fixes merged after the candidate was first recorded (#48): `scripts\build.ps1 -QuickTest` passed
+  with each (**109 quick self-tests**), with the documentation check, and so did Windows CI. The
+  package steps above were not repeated by hand.
 
 ### Coverage limits and known issues
 
 - The live check doesn't exercise these fixes, which rest on their regression checks with
   stand-ins: Reconnect after a password sign-in (#42), `quit` with the sign-in dialog open (#34),
-  a seat stopped during a display change (#44), MCP input waiting for a look after a lease is
-  taken (#38), `raise` on a real UWP window (#37) and non-English Windows date formats (#41).
+  a seat stopped during a display change (#44), a Reconnect refused while a seat runs (#48), MCP
+  input waiting for a look after a lease is taken (#38), `raise` on a real UWP window (#37) and
+  non-English Windows date formats (#41).
 - The environment self-test ran on CI's hosted runner, not inside a seat. Audio, the virtual
   gamepad, Android, the foreground pointer phases and the Claude Desktop bundle test are not part
   of the live check.
 - Known issues: a Chrome window's first observation can omit the page (observe again with
   `maxDepth` 16); `invoke` on Windows' Open File security dialog reports success without running
-  anything; `anode type` has no pace option; `anode.log` is not rotated; after a Reconnect refused
-  for a missing prerequisite, a display change that reconnects the viewer can answer "The seat was
-  stopped".
+  anything; `anode type` has no pace option; `anode.log` is not rotated.
 
 ## 0.11.2 release validation — 10 October 2026
 

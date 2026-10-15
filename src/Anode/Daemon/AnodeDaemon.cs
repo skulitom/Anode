@@ -455,10 +455,29 @@ internal sealed class AnodeDaemon : IDisposable
     // Called from the toolbar; keep the UI context for all ActiveX operations.
     internal async Task ReconnectAsync(bool promptForCredentials = false)
     {
+        bool Busy() => _reconnecting || _changingDisplay || _state == "stopping" || Volatile.Read(ref _quitting) == 1;
+        lock (_lifecycleGate)
+            if (Busy()) return;
+        // Read before anything changes, so that a refused reconnect can leave a running seat as it was.
+        string? blocked;
+        try { blocked = _blockingSummary(); }
+        catch (Exception ex)
+        {
+            Log.Error("could not read the seat's prerequisites for Reconnect", ex);
+            blocked = $"Anode could not check this machine's seat prerequisites: {ex.Message}";
+        }
         int stopVersion;
         lock (_lifecycleGate)
         {
-            if (_reconnecting || _changingDisplay || _state == "stopping" || Volatile.Read(ref _quitting) == 1) return;
+            if (Busy()) return;
+            if (blocked is not null && _hostReady)
+            {
+                // The seat's host still serves agents. An error state would make the next viewer disconnect drop the host as a
+                // failed startup, and a cancelled bring-up would answer every display reconnect with "stopped".
+                Log.Warn($"Reconnect refused while the seat runs: {blocked}");
+                _window?.SetStatus($"{blocked} Reconnect needs this fixed first; the seat and its programs keep running meanwhile.");
+                return;
+            }
             stopVersion = _stopVersion;
             _reconnecting = true;
             // Let an old host startup release the seat gate before retrying.
@@ -474,7 +493,7 @@ internal sealed class AnodeDaemon : IDisposable
                 lock (_lifecycleGate)
                 {
                     if (stopVersion != Volatile.Read(ref _stopVersion)) return;
-                    if (_blockingSummary() is { } blocked)
+                    if (blocked is not null)
                     {
                         SetState("error", blocked);
                         return;

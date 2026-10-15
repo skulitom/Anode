@@ -17,6 +17,10 @@ or commands were added; there are still 41 tools.
   the seat was being stopped could report the stopped seat as `detached`, or carry its old display
   and advice into a seat started straight afterwards. It now answers "The seat was stopped while its
   display was changing."
+- **A refused Reconnect leaves a running seat alone.** When Remote Desktop, its listener or child
+  sessions stopped working under a running seat, **Reconnect** was refused but also set the seat to
+  `error`: display reconnects then answered "stopped", and the next viewer disconnect dropped the
+  seat. The viewer now says what is missing, and the seat and its agents carry on.
 - **`anode selftest` no longer writes made-up events into your log.** Each quick self-test wrote
   about 110 lines from its stand-ins into `anode.log`, such as games launched and sign-ins refused.
   The checks now log to a temporary file, deleted when every check passes.
