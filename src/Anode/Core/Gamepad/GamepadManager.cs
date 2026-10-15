@@ -323,7 +323,7 @@ internal sealed class GamepadManager : IDisposable
         "right" or "dpadright" => Xbox360Button.Right,
         _ => throw new ArgumentException(TriggerNamed(name) is null
             ? $"Unknown gamepad button '{name}'. Use a, b, x, y, lb, rb, back, start, guide, ls, rs, up, down, left, right."
-            : $"'{name}' is a trigger, not a button: tap it, or set it from 0 to 1 under triggers (gamepad_set).")
+            : $"'{name}' is a trigger, not a button: tap it, or, over MCP, set it from 0 to 1 under gamepad_set's triggers.")
     };
 
     public static Xbox360Axis ResolveAxis(string name) => name.Trim().ToLowerInvariant() switch
