@@ -24,8 +24,10 @@
   each line in the format of Windows' regional settings: on Thai Windows the year came out as 2569,
   on Saudi Windows as a Hijri year, and on Finnish Windows the time as 23.34.16, so logs from
   different PCs didn't sort or parse alike. Screenshot file names and the date `rendering --restore`
-  gives for a backup had the same flaw. They now always use the Gregorian `2026-10-13 23:34:16`
-  form.
+  gives for a backup had the same flaw. Log lines now always read `2026-10-13 23:34:16`, and
+  screenshot names and backup dates always use the Gregorian calendar.
+- **.NET 10.0.13.** Release builds include Microsoft's October security update of the .NET 10
+  runtime (10.0.13, from 10.0.12).
 - **`anode selftest` no longer fills your log with things that never happened.** Each quick
   self-test wrote about 110 lines into `anode.log` from its stand-ins: Steam games and emulators
   launched, Chrome opened on Play Console, "Windows could not sign the seat in (disconnect reason

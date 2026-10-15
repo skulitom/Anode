@@ -21,8 +21,8 @@ or commands were added; there are still 41 tools.
   about 110 lines from its stand-ins into `anode.log`, such as games launched and sign-ins refused.
   The checks now log to a temporary file, deleted when every check passes.
 - **Log times read the same in every Windows language.** On Thai Windows the year came out as 2569,
-  on Finnish Windows the time as 23.34.16. Logs, screenshot file names and backup dates now always
-  use the `2026-10-13 23:34:16` form.
+  on Finnish Windows the time as 23.34.16. Log lines now always read `2026-10-13 23:34:16`, and
+  screenshot file names and backup dates always use the Gregorian calendar.
 - **`seat_window` `raise` says when it didn't take.** It answered `requested` while Windows left the
   window behind another. It now retries once and answers `raised: true`, or `raised: false` with the
   covering window in `coveredBy`; `focus` then brings the window forward.
@@ -44,14 +44,15 @@ installation, distribution, and the environment self-test on a GitHub-hosted Win
 on the release commit. The owner's live check, `scripts\release-check.ps1` (native controls, Chrome
 forms, real input, File Explorer and display changes on Windows 11), runs on the release commit
 before it is tagged; its summary and coverage limits are in the
-[validation record](https://github.com/skulitom/Anode/blob/main/docs/RELEASE-READINESS.md).
+[validation record](https://github.com/skulitom/Anode/blob/main/docs/RELEASE-READINESS.md#0113-release-validation).
+Release builds now include .NET 10.0.13, Microsoft's October security update.
 See the [changelog](https://github.com/skulitom/Anode/blob/v0.11.3/CHANGELOG.md#0113--2026-10-15) for every
 change.
 
 ## Install or upgrade
 
 Download **anode-windows-x64.zip** for the portable executable, agent connector and docs. Release
-builds include .NET 10.0.12; no SDK or runtime installation is needed.
+builds include .NET 10.0.13; no SDK or runtime installation is needed.
 
 For a per-user installation, download **install.ps1** and run it in PowerShell:
 
