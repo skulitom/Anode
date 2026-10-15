@@ -177,6 +177,46 @@ internal static class GamepadChecks
         return "attach jails the controller before it exists, checks from the desktop, unplugs one the desktop can open, and reports a machine-wide one";
     }
 
+    /// <summary>B-041: gamepad_set sends all it is given or, refused, nothing; a trigger named as a button is told how to set it.</summary>
+    public static string SetAllOrNothing()
+    {
+        var pad = new FakePad(null, Pad1);
+        using var pads = new GamepadManager(() => pad);
+        pads.Attach(0);
+        foreach (var refused in new[]
+        {
+            new JsonObject { ["buttons"] = new JsonObject { ["a"] = true, ["dpad_up"] = true } },
+            new JsonObject { ["buttons"] = new JsonObject { ["a"] = true }, ["axes"] = new JsonObject { ["lx"] = 1, ["lz"] = 1 } },
+            new JsonObject { ["axes"] = new JsonObject { ["lx"] = 1 }, ["triggers"] = new JsonObject { ["rt"] = 1, ["zt"] = 1 } },
+            new JsonObject { ["buttons"] = new JsonObject { ["a"] = true, ["lt"] = true } }
+        })
+        {
+            Require(Throws<ArgumentException>(() => pads.Apply(0, refused), (refused["buttons"] as JsonObject)?.ContainsKey("lt") == true ? "is a trigger, not a button" : "Unknown")
+                && !pad.Unsent, "a refused gamepad_set left changes for the next report to send: " + refused.ToJsonString());
+        }
+        Require(Throws<ArgumentException>(() => GamepadManager.ResolveButton("dpad_up"), "up, down, left, right."),
+            "the unknown-button error still offers lt or rt as buttons");
+
+        int reports = pad.Reports;
+        pads.Apply(0, new JsonObject { ["buttons"] = new JsonObject { ["b"] = true } });
+        Require(pad.Sent(Xbox360Button.B) is true && pad.Sent(Xbox360Button.A) is null && pad.Sent(Xbox360Axis.LeftThumbX) is null
+            && pad.Sent(Xbox360Slider.RightTrigger) is null && pad.Reports == reports + 1,
+            "the next gamepad_set sent a refused call's changes, or not its own");
+        var applied = pads.Apply(0, new JsonObject
+        {
+            ["buttons"] = new JsonObject { ["a"] = true }, ["axes"] = new JsonObject { ["lx"] = -1 }, ["triggers"] = new JsonObject { ["rt"] = 1 }
+        });
+        Require((applied["applied"] as JsonArray)?.Count == 3 && pad.Sent(Xbox360Button.A) is true && pad.Sent(Xbox360Button.B) is true
+            && pad.Sent(Xbox360Axis.LeftThumbX) is (short)-32768 && pad.Sent(Xbox360Slider.RightTrigger) is (byte)255 && !pad.Unsent,
+            "a valid gamepad_set did not send all it was given in one report: " + applied.ToJsonString());
+
+        // Tap takes the names the triggers take, and lets go.
+        pads.Tap(0, "l2", 1);
+        Require(pad.Sent(Xbox360Slider.LeftTrigger) is (byte)0 && pad.Reports == reports + 4, "tapping l2 did not pull and release the left trigger");
+        return "a set refused for an unknown button, axis or trigger, or a trigger named as a button, leaves nothing for the next report; a valid one sends "
+            + "all of it at once; tap takes l2; no controller plugged in";
+    }
+
     /// <summary>
     /// The full self-test's live check, on the desktop: plugs in a controller jailed to an unused session and
     /// checks that XInput and HID opens from this session are refused. It sends no input and removes its
@@ -279,12 +319,24 @@ internal static class GamepadChecks
         public void Dispose() { }
     }
 
-    /// <summary>A controller that appears in the fake tree, with its devices, when it connects.</summary>
+    /// <summary>
+    /// A controller that appears in the fake tree, with its devices, when it connects. Like ViGEm's with AutoSubmitReport
+    /// off, it keeps what was set until its next report sends it.
+    /// </summary>
     private sealed class FakePad(FakeTree? tree, string id, params string[] devices) : IXbox360Controller
     {
         private byte _leftTrigger, _rightTrigger;
         private short _leftX, _leftY, _rightX, _rightY;
         private ushort _buttons;
+        // ViGEm compares its controls by index alone, so an axis and a trigger can be equal; the type tells them apart.
+        private readonly Dictionary<(Type, object), object> _report = new(), _sent = new();
+        private static (Type, object) Key(object control) => (control.GetType(), control);
+
+        /// <summary>A button, axis or trigger as the last report sent it; null when no report has set it.</summary>
+        public object? Sent(object control) => _sent.GetValueOrDefault(Key(control));
+        /// <summary>Whether something set since the last report waits for the next one.</summary>
+        public bool Unsent => _report.Count != _sent.Count || _report.Any(entry => !Equals(_sent.GetValueOrDefault(entry.Key), entry.Value));
+        public int Reports { get; private set; }
 
         public bool Disconnected { get; private set; }
         public int UserIndex => 0;
@@ -307,15 +359,20 @@ internal static class GamepadChecks
             Disconnected = true;
             tree?.Pads.RemoveAll(pad => pad.Id == id);
         }
-        public void SetButtonState(Xbox360Button button, bool pressed) { }
-        public void SetAxisValue(Xbox360Axis axis, short value) { }
-        public void SetSliderValue(Xbox360Slider slider, byte value) { }
+        public void SetButtonState(Xbox360Button button, bool pressed) => _report[Key(button)] = pressed;
+        public void SetAxisValue(Xbox360Axis axis, short value) => _report[Key(axis)] = value;
+        public void SetSliderValue(Xbox360Slider slider, byte value) => _report[Key(slider)] = value;
         public void SetButtonState(int index, bool pressed) { }
         public void SetAxisValue(int index, short value) { }
         public void SetSliderValue(int index, byte value) { }
         public void SetButtonsFull(ushort buttons) => _buttons = buttons;
-        public void ResetReport() { }
-        public void SubmitReport() { }
+        public void ResetReport() => _report.Clear();
+        public void SubmitReport()
+        {
+            _sent.Clear();
+            foreach (var (control, value) in _report) _sent[control] = value;
+            Reports++;
+        }
     }
 
     private static bool Throws<T>(Action action, string words) where T : Exception
