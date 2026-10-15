@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.3 — 2026-10-15
 
 - **A seat stopped during a display change stays stopped.** If an agent's `seat_display`
   reconnect failed at the moment someone stopped the seat, the failure could land after the stop
@@ -68,6 +68,11 @@
   thread is still held 5 seconds after quit, Anode removes its tray icon and ends its process.
   Once quit has begun, a start, an acquisition or **Sign in…** is refused with "Anode is quitting"
   instead of creating a seat that would outlive the exit.
+- **Docs and release tooling.** TROUBLESHOOTING's "type slower" advice now says `perCharMs` is a
+  `seat_type` option that `anode type` lacks. The README links the Anode Business licence.
+  `scripts\release-check.ps1` runs the release's live check as one command and writes evidence
+  that names the commit; CI runs the environment self-test on a GitHub-hosted Windows runner; the
+  quick checks take about 2.3 s less.
 
 ## 0.11.2 — 2026-10-10
 

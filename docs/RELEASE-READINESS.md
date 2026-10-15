@@ -63,6 +63,27 @@ and the .NET 10 SDK, Node.js and Chrome installed. It takes the desktop lease, c
 `scripts\test-release-check.ps1` tests the script's dry run (`-DryRun`, which starts no Anode and no
 live check) in CI and on any PC.
 
+## 0.11.3 release validation
+
+**Scope:** the fixes merged since 0.11.2, #34 and #36 to #44, with the documentation fix in #45,
+the release check in #43, the CI environment self-test in #35 and the faster quick checks in #46.
+No tools or commands were added; the tool count stays 41.
+
+### Live validation
+
+Pending: the owner's `scripts\release-check.ps1` run on the release commit. Its `summary.txt`
+goes here before the tag.
+
+### Build and package validation
+
+- `scripts\build.ps1 -QuickTest` on the candidate: **108 quick self-tests** passed, and the
+  documentation check passed (41 documents against 41 tools). `anode version` reports 0.11.3.
+- `scripts\release-check.ps1 -DryRun` and `scripts\test-release-check.ps1` passed (no Anode or
+  seat started).
+- Windows CI on the candidate repeats the build, packaging, quick suite, installation,
+  distribution and documentation checks, and runs the environment self-test on a GitHub-hosted
+  Windows runner.
+
 ## 0.11.2 release validation — 10 October 2026
 
 **Scope:** the fixes merged since 0.11.1 through #32, the quick-test cleanup in #33, the version

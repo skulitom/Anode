@@ -1,50 +1,51 @@
-## What's new in 0.11.2
+## What's new in 0.11.3
 
-This patch fixes bugs found after 0.11.1, most of them by AI agents using Anode every day.
+This patch fixes bugs found after 0.11.2, most of them by AI agents using Anode every day. No tools
+or commands were added; there are still 41 tools.
 
-- **Typing keeps pace with the program.** `seat_type` and `anode type` sent characters as fast as
-  Windows took them, so a busy program, such as Chrome editing a long field, could drop and reorder
-  them while the call reported success. Characters now go out 15 ms apart by default, and typing
-  pauses while the program is busy; `perCharMs` sets the pace. A call that stops partway reports
-  exactly how many characters were typed.
-- **`set_value` checks that the value took.** On a Chrome drop-down list (`<select>`), `set_value`
-  reported success while the list kept its old choice. Anode now reads the control back and fails,
-  saying to expand the list and pick the option, if the control still shows its old value.
-- **Observation copes with more windows.** `seat_observe` failed on File Explorer windows ("Object
-  reference not set to an instance of an object"), and repeated a Chrome window's tree while one of
-  its drop-down lists was open. Both are fixed; a control listed twice now appears once.
-- **Queued requests keep their deadline.** A request that waited behind a long operation, such as
-  typing, could lose its reply and leave the seat `detached`. It now answers, or fails, in time.
-- **Running out of time is reported as such.** A desktop action stopped at its deadline answered
-  with a bare "A task was canceled." It now fails with `errorCode: "timed_out"` and says whether
-  anything ran (`started`).
-- **A finished job's reply holds all its output.** `seat_job` and `anode job` could answer
-  `finished: true` with the end of the command's output missing. `finished: true` now comes only
-  with the output to its end.
-- **Browser sign-in is clearer.** `anode browser --sign-in` explains its window in its first tab
-  and opens several addresses. When the seat's profile is open on the other desktop, `seat_browser`
-  and `--sign-in` refuse and name the process holding it, instead of reporting a window.
-- **Faster startup.** CLI and MCP skip their first connection wait when no daemon is running, and
-  waiting callers wake as soon as the seat is ready ([measurements](https://github.com/skulitom/Anode/blob/v0.11.2/docs/STARTUP-PERFORMANCE.md)).
-- **Clearer records of what Anode keeps.** A daemon started by a desktop app that redirects AppData,
-  such as the Claude desktop app, keeps its files in that app's package folder, which the privacy,
-  install and troubleshooting pages now say; `anode rendering --restore` finds a backup saved there.
-  The uninstaller ends with everything it leaves on the machine and how to remove each item.
+- **Input waits for a look after Anode takes the lease.** When a lease lapsed and an agent's next
+  click made Anode take it again, that click was refused with a request to observe first, but keys
+  and text the client had already sent behind it ran, and could land on whatever window had come
+  forward meanwhile. Now, from the moment Anode takes the lease for an agent, or the agent's lease
+  ends, its pointer, keyboard and gamepad input is refused until it observes the desktop again.
+- **Reconnect works on a seat that signed in with your password.** Such a seat's message said to
+  press **Reconnect**, which then tried automatic sign-in and failed (disconnect reason 2055 on every
+  press). Reconnect now asks for the password again, and the seat and its programs carry on. A
+  detached seat's `seat_status`, screenshot error and `seat_display` reply now say why capture is
+  down and what to do, and Windows' own disconnect causes are named.
+- **A seat stopped during a display change stays stopped.** A `seat_display` change that failed as
+  the seat was being stopped could report the stopped seat as `detached`, or carry its old display
+  and advice into a seat started straight afterwards. It now answers "The seat was stopped while its
+  display was changing."
+- **`anode selftest` no longer writes made-up events into your log.** Each quick self-test wrote
+  about 110 lines from its stand-ins into `anode.log`, such as games launched and sign-ins refused.
+  The checks now log to a temporary file, deleted when every check passes.
+- **Log times read the same in every Windows language.** On Thai Windows the year came out as 2569,
+  on Finnish Windows the time as 23.34.16. Logs, screenshot file names and backup dates now always
+  use the `2026-10-13 23:34:16` form.
+- **`seat_window` `raise` says when it didn't take.** It answered `requested` while Windows left the
+  window behind another. It now retries once and answers `raised: true`, or `raised: false` with the
+  covering window in `coveredBy`; `focus` then brings the window forward.
+- **`seat_key` knows the backtick key by the names agents try** (`grave`, `backtick`, `oem3`,
+  `VK_OEM_3`) and other punctuation by plain names. `ctrl++`, which pressed ctrl alone and reported
+  success, is refused; the plus key is `plus`.
+- **`anode quit` ends Anode while the sign-in dialog is open,** instead of leaving it running and
+  giving up after 60 seconds.
 
 **Known issues.** A Chrome window's first observation can come back without the page, and the
 page's controls sit deeper than the default `maxDepth` of 8: observe again with `maxDepth` 16. On
 Windows' "Open File - Security Warning" dialog, `invoke` reports success without running anything:
-focus the dialog with `seat_window`, then click. `seat_window` `raise` can leave a UWP app behind
-the foreground window: use `focus`. `anode type` has no option for a slower pace. Fixes are planned
-for a later release.
+focus the dialog with `seat_window`, then click. `anode type` has no option for a slower pace; use
+`seat_type` with a larger `perCharMs`. `anode.log` grows until you delete it. Fixes are planned for
+a later release.
 
-**Validation.** All 99 quick checks, 102 environment checks inside the seat, and the documentation
-check passed. Windows CI repeated the build, packaging, installation and distribution checks.
-Live native controls, Chrome forms and real input, File Explorer, display changes, an isolated
-Xbox controller and a read-only Android emulator passed on Windows 11. Results and coverage limits
-(including audio and foreground pointer phases not repeated) are in the
+**Validation.** The quick checks, the documentation check and Windows CI (build, packaging,
+installation, distribution, and the environment self-test on a GitHub-hosted Windows runner) passed
+on the release commit. The owner's live check, `scripts\release-check.ps1` (native controls, Chrome
+forms, real input, File Explorer and display changes on Windows 11), runs on the release commit
+before it is tagged; its summary and coverage limits are in the
 [validation record](https://github.com/skulitom/Anode/blob/main/docs/RELEASE-READINESS.md).
-See the [changelog](https://github.com/skulitom/Anode/blob/v0.11.2/CHANGELOG.md#0112--2026-10-10) for every
+See the [changelog](https://github.com/skulitom/Anode/blob/v0.11.3/CHANGELOG.md#0113--2026-10-15) for every
 change.
 
 ## Install or upgrade
@@ -73,7 +74,7 @@ anode capabilities | Out-Host
 agent afterward. Other MCP clients can launch `anode.exe` with the argument `mcp`.
 
 **Upgrading:** save seat work, run `anode quit` (which closes every program in the seat), and close
-agent sessions using Anode. Install 0.11.2, start Anode again and restart those agent sessions.
+agent sessions using Anode. Install 0.11.3, start Anode again and restart those agent sessions.
 Run `anode configure` to refresh the installed skill.
 
 Requires 64-bit Windows 10/11 Pro, Enterprise or Education, or Windows Server with a Remote Desktop
