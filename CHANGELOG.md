@@ -9,6 +9,13 @@
   reconnect advice, or a late success carry the old seat's display into the new one.
   The same could happen when a lost seat-host connection was noticed during a stop. A change
   that ends after a stop now only answers "The seat was stopped while its display was changing."
+- **A refused Reconnect leaves a running seat alone.** If Remote Desktop or child sessions were
+  turned off while a seat ran, **Reconnect** and **Sign in…** were refused, as they should be,
+  but the refusal also set the seat to `error` while its programs and agents carried on. After
+  that, every `seat_display` reconnect disconnected the viewer and answered "The seat was stopped
+  while its display was changing", and the next viewer disconnect dropped the seat's host as a
+  failed start, so agents lost the seat. The viewer now says what is missing and that the seat
+  keeps running, and nothing else changes.
 - **Reconnect works on a seat that signed in with your password, and a detached seat says why
   screenshots fail.** When a seat that had signed in through **Sign in…** lost its viewer, its
   message said to press **Reconnect**, but Reconnect tried automatic sign-in, which can't work

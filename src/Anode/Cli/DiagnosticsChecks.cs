@@ -289,10 +289,10 @@ internal static class DiagnosticsChecks
         static JsonObject Reconnect() => new() { ["width"] = 1920, ["height"] = 1080, ["scale"] = 100, ["method"] = "reconnect" };
         // A daemon whose viewer runs `during` (a stop, say) while it changes the display, then reconnects or, when it
         // strands, fails the way the real viewer does when the reconnect leaves it without a connection.
-        static AnodeDaemon Seat(Func<AnodeDaemon, Task> during, bool strands, Func<string?>? blocked = null)
+        static AnodeDaemon Seat(Func<AnodeDaemon, Task> during, bool strands)
         {
             AnodeDaemon? daemon = null;
-            daemon = new AnodeDaemon(new SeatOptions(), () => 42, blocked ?? (() => null), () => Task.CompletedTask, _ => null, () => { },
+            daemon = new AnodeDaemon(new SeatOptions(), () => 42, () => null, () => Task.CompletedTask, _ => null, () => { },
                 async (_, _, _) =>
                 {
                     await during(daemon!);
@@ -354,19 +354,72 @@ internal static class DiagnosticsChecks
                 "a viewer reconnect reported a seat ready whose host was lost: " + status.ToJsonString());
         }
 
-        // Only a stop counts: a Reconnect refused by a missing prerequisite also cancels the bring-up, and leaves the seat's host serving.
+        return "a stranded display reconnect reports detached; one ending after a stop, or after a stop and a new start, leaves that state and display alone; "
+            + "a lost host stays detached; no live seat";
+    }
+
+    /// <summary>B-040: a Reconnect or Sign in refused by a missing prerequisite leaves a running seat as it was.</summary>
+    public static async Task<string> RefusedReconnect()
+    {
+        static JsonObject Display(string method) => new() { ["width"] = 1920, ["height"] = 1080, ["scale"] = 100, ["method"] = method };
         string? missing = null;
-        using (var daemon = Seat(_ => Task.CompletedTask, strands: false, () => missing))
+        int changes = 0;
+        // Like the viewer's own reconnect, whose waits end at once when the seat's bring-up has been cancelled; a live change has none.
+        using var daemon = new AnodeDaemon(new SeatOptions(), () => 42, () => missing, () => Task.CompletedTask, _ => null, () => { },
+            (_, reconnect, cancel) =>
+            {
+                if (reconnect) cancel.ThrowIfCancellationRequested();
+                changes++;
+                return Task.CompletedTask;
+            });
+        async Task Refused(bool signIn)
         {
             missing = "listener missing";
-            await daemon.ReconnectAsync();
+            await daemon.ReconnectAsync(promptForCredentials: signIn);
             missing = null;
-            var live = await daemon.DisplayAsync(new JsonObject { ["width"] = 1920, ["height"] = 1080, ["scale"] = 100, ["method"] = "live" });
-            Require(live.Bool("ok") == true && typeof(AnodeDaemon).GetField("_display", DaemonFields)!.GetValue(daemon) is not null,
-                "a display change after a refused Reconnect was reported as stopped: " + live.ToJsonString());
         }
-        return "a stranded display reconnect reports detached; one ending after a stop, or after a stop and a new start, leaves that state and display alone; "
-            + "a lost host stays detached; a refused Reconnect is no stop; no live seat";
+        Ready(daemon);
+
+        foreach (bool signIn in new[] { false, true })
+        {
+            string pressed = signIn ? "Sign in" : "Reconnect";
+            await Refused(signIn);
+            var status = await daemon.StatusAsync();
+            Require(status.Str("state") == "ready" && status.Bool("agentReady") == true && status.Str("lastError") is null,
+                $"a refused {pressed} changed the running seat's state: " + status.ToJsonString());
+            // A display reconnect also proves the refused Sign in left the seat's automatic sign-in alone.
+            foreach (string method in new[] { "live", "reconnect" })
+            {
+                var reply = await daemon.DisplayAsync(Display(method));
+                Require(reply.Bool("ok") == true, $"a {method} display change after a refused {pressed} failed: " + reply.ToJsonString());
+            }
+        }
+        Require(changes == 4, $"{changes} of 4 display changes reached the viewer");
+
+        // The viewer then drops while the seat runs: that is a detached seat with its host, not a failed startup.
+        await Refused(signIn: false);
+        daemon.OnViewerDisconnected(3);
+        var detached = await daemon.StatusAsync();
+        string advice = detached.Str("lastError") ?? "";
+        Require(detached.Str("state") == "detached" && detached.Bool("agentReady") == true && advice.Contains("press Reconnect"),
+            "a viewer disconnect after a refused Reconnect dropped the running seat's host: " + detached.ToJsonString());
+
+        // Refused on the detached seat, it keeps the state and the advice, and the automatic seat's own way back still works.
+        await Refused(signIn: false);
+        var still = await daemon.StatusAsync();
+        Require(still.Str("state") == "detached" && still.Str("lastError") == advice && still.Bool("agentReady") == true,
+            "a refused Reconnect replaced the detached seat's state or advice: " + still.ToJsonString());
+        var back = await daemon.DisplayAsync(Display("reconnect"));
+        Require(back.Bool("ok") == true && (await daemon.StatusAsync()).Str("state") == "ready" && changes == 5,
+            "the detached seat's display reconnect failed after a refused Reconnect: " + back.ToJsonString());
+
+        // Once the prerequisite is back, Reconnect reconnects the viewer as before.
+        await daemon.ReconnectAsync();
+        var reconnecting = await daemon.StatusAsync();
+        Require(reconnecting.Str("state") == "connecting" && reconnecting.Bool("agentReady") == false,
+            "Reconnect did not reconnect once the prerequisite was back: " + reconnecting.ToJsonString());
+        return "a refused Reconnect or Sign in keeps a ready or detached seat's state, advice, host and display changes; a later viewer disconnect detaches it; "
+            + "Reconnect works once the prerequisite is back; no live seat";
     }
 
     public static string RdpExtendedReasons()

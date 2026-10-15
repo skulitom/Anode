@@ -455,10 +455,20 @@ internal sealed class AnodeDaemon : IDisposable
     // Called from the toolbar; keep the UI context for all ActiveX operations.
     internal async Task ReconnectAsync(bool promptForCredentials = false)
     {
+        // Read before anything changes, so that a refused reconnect can leave a running seat as it was.
+        string? blocked = _blockingSummary();
         int stopVersion;
         lock (_lifecycleGate)
         {
             if (_reconnecting || _changingDisplay || _state == "stopping" || Volatile.Read(ref _quitting) == 1) return;
+            if (blocked is not null && _hostReady)
+            {
+                // The seat's host still serves agents. An error state would make the next viewer disconnect drop the host as a
+                // failed startup, and a cancelled bring-up would answer every display reconnect with "stopped".
+                Log.Warn($"Reconnect refused while the seat runs: {blocked}");
+                _window?.SetStatus($"The viewer can't reconnect until this is fixed; the seat and its programs keep running. {blocked}");
+                return;
+            }
             stopVersion = _stopVersion;
             _reconnecting = true;
             // Let an old host startup release the seat gate before retrying.
@@ -474,7 +484,7 @@ internal sealed class AnodeDaemon : IDisposable
                 lock (_lifecycleGate)
                 {
                     if (stopVersion != Volatile.Read(ref _stopVersion)) return;
-                    if (_blockingSummary() is { } blocked)
+                    if (blocked is not null)
                     {
                         SetState("error", blocked);
                         return;
