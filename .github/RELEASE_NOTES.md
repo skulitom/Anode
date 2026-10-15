@@ -33,6 +33,10 @@ or commands were added; there are still 41 tools.
 - **`seat_key` knows the backtick key by the names agents try** (`grave`, `backtick`, `oem3`,
   `VK_OEM_3`) and other punctuation by plain names. `ctrl++`, which pressed ctrl alone and reported
   success, is refused; the plus key is `plus`.
+- **A refused `gamepad_set` changes nothing.** When a later name in the call was unknown, the call
+  failed but the buttons and sticks before it went out with the agent's next `gamepad_set` or
+  `gamepad_tap`. Every name is now checked first. A trigger passed as a button is told it is a
+  trigger, and `gamepad_tap` also takes `l2` and `r2`.
 - **`anode quit` ends Anode while the sign-in dialog is open,** instead of leaving it running and
   giving up after 60 seconds.
 
