@@ -291,14 +291,16 @@ internal static class InputChecks
     }
 
     /// <summary>
-    /// The names agents tried for the ` key (grave, oem3, backtick, Oem3: all refused before), Windows' constant names,
-    /// the vk&lt;hex&gt; range, and chords with an empty part, which pressed what was left. MCP, the daemon and the CLI refuse
-    /// a bad chord before it reaches the seat.
+    /// Everyday key names, the names agents tried for the ` key (grave, oem3, backtick, Oem3: all refused before), Windows'
+    /// constant names, the vk&lt;hex&gt; range, and chords with an empty part, which pressed what was left. MCP, the daemon and
+    /// the CLI refuse a bad chord before it reaches the seat.
     /// </summary>
     public static string KeyChords()
     {
         (string Name, ushort Expected)[] cases =
         {
+            ("a", 0x41), ("Z", 0x5A), ("5", 0x35), ("enter", 0x0D), ("esc", 0x1B), ("space", 0x20), ("f5", 0x74), ("f12", 0x7B),
+            ("ctrl", 0xA2), ("shift", 0xA0), ("alt", 0xA4), ("win", 0x5B), ("up", 0x26), ("num7", 0x67), ("tab", 0x09),
             ("grave", 0xC0), ("backtick", 0xC0), ("oem3", 0xC0), ("Oem3", 0xC0), ("VK_OEM_3", 0xC0), ("`", 0xC0), ("tilde", 0xC0),
             ("equals", 0xBB), ("VK_OEM_PLUS", 0xBB), ("plus", 0xBB), ("hyphen", 0xBD), ("apostrophe", 0xDE), ("oem102", 0xE2),
             ("VK_RETURN", 0x0D), ("page_up", 0x21), ("caps-lock", 0x14), ("vk_5", 0x35), ("vkC0", 0xC0), ("vk5", 0x05), ("vkFE", 0xFE)

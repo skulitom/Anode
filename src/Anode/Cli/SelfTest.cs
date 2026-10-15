@@ -53,30 +53,7 @@ internal static class SelfTest
         bool includeEnvironment = !quick && !options.Flag("no-scheduler");
         var results = new List<(string Name, bool Ok, string Detail)>();
 
-        Check(results, "key names", () =>
-        {
-            (string Name, ushort Expected)[] cases =
-            {
-                ("a", 0x41), ("Z", 0x5A), ("5", 0x35), ("enter", 0x0D), ("esc", 0x1B),
-                ("space", 0x20), ("f5", 0x74), ("f12", 0x7B), ("ctrl", 0xA2), ("shift", 0xA0),
-                ("alt", 0xA4), ("win", 0x5B), ("up", 0x26), ("num7", 0x67), ("tab", 0x09)
-            };
-            foreach (var (name, expected) in cases)
-            {
-                ushort actual = KeyCodes.Resolve(name);
-                if (actual != expected)
-                    throw new InvalidOperationException($"'{name}' resolved to 0x{actual:X2}, expected 0x{expected:X2}");
-            }
-            try
-            {
-                KeyCodes.Resolve("definitely-not-a-key");
-                throw new InvalidOperationException("an unknown key name was accepted");
-            }
-            catch (ArgumentException) { }
-            return $"{cases.Length} names resolve, unknown names rejected";
-        });
-
-        Check(results, "key chords", InputChecks.KeyChords);
+        Check(results, "key names and chords", InputChecks.KeyChords);
         Check(results, "text typing pace", InputChecks.Pacing);
         Check(results, "text typing limits", InputChecks.Limits);
         Check(results, "text typing waits", InputChecks.Waits);

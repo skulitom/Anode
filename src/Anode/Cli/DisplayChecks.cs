@@ -137,8 +137,9 @@ internal static class DisplayChecks
 
         public string[] Changes() { lock (Calls) return Calls.Where(call => call != "startup").ToArray(); }
 
+        // A stand-in that ignores live changes only waits out the live wait, so it gets a short one.
         public SeatDisplay Display(List<string>? record = null) => new(Daemon, () => Screen, line => { lock (Calls) record?.Add(line); },
-            liveWait: TimeSpan.FromMilliseconds(300), reconnectWait: TimeSpan.FromMilliseconds(300), poll: TimeSpan.FromMilliseconds(10));
+            liveWait: TimeSpan.FromMilliseconds(Live is null ? 30 : 300), reconnectWait: TimeSpan.FromMilliseconds(300), poll: TimeSpan.FromMilliseconds(10));
     }
 
     private static readonly DisplayMode Hd = new(1280, 720, 100), Wide = new(1920, 1080, 150);
