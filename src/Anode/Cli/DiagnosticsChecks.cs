@@ -54,10 +54,15 @@ internal static class DiagnosticsChecks
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         int port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        Require((await RdpListener.CheckAsync(port)).State == CheckLevel.Pass, "a live listener was reported missing");
-        listener.Stop();
-        var absent = await RdpListener.CheckAsync(port);
-        Require(absent.State == CheckLevel.Fail && absent.Detail.Contains(port.ToString())
+        using var closing = new TcpListener(IPAddress.Loopback, 0);
+        closing.Start();
+        int closed = ((IPEndPoint)closing.LocalEndpoint).Port;
+        closing.Stop();
+        // Each probe waits out its connect timeout on the family nothing listens on, so the two run together.
+        var live = RdpListener.CheckAsync(port);
+        var absent = await RdpListener.CheckAsync(closed);
+        Require((await live).State == CheckLevel.Pass, "a live listener was reported missing");
+        Require(absent.State == CheckLevel.Fail && absent.Detail.Contains(closed.ToString())
             && absent.Fix!.Contains("0x80070005"), "a closed configured port was reported ready or lacked diagnosis");
         return "live and closed loopback ports are distinguished; missing listeners explain the next checks";
     }
