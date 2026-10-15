@@ -459,7 +459,13 @@ internal sealed class AnodeDaemon : IDisposable
         lock (_lifecycleGate)
             if (Busy()) return;
         // Read before anything changes, so that a refused reconnect can leave a running seat as it was.
-        string? blocked = _blockingSummary();
+        string? blocked;
+        try { blocked = _blockingSummary(); }
+        catch (Exception ex)
+        {
+            Log.Error("could not read the seat's prerequisites for Reconnect", ex);
+            blocked = $"Anode could not read this machine's Remote Desktop settings: {ex.Message}";
+        }
         int stopVersion;
         lock (_lifecycleGate)
         {

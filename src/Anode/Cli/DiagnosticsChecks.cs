@@ -363,8 +363,10 @@ internal static class DiagnosticsChecks
     {
         static JsonObject Display(string method) => new() { ["width"] = 1920, ["height"] = 1080, ["scale"] = 100, ["method"] = method };
         string? missing = null;
+        bool unreadable = false;
         // Like the viewer's own reconnect, whose waits end at once when the seat's bring-up has been cancelled; a live change has none.
-        using var daemon = new AnodeDaemon(new SeatOptions(), () => 42, () => missing, () => Task.CompletedTask, _ => null, () => { },
+        using var daemon = new AnodeDaemon(new SeatOptions(), () => 42,
+            () => unreadable ? throw new UnauthorizedAccessException("Access is denied.") : missing, () => Task.CompletedTask, _ => null, () => { },
             (_, reconnect, cancel) => reconnect && cancel.IsCancellationRequested ? Task.FromCanceled(cancel) : Task.CompletedTask);
         async Task Refused(bool signIn)
         {
@@ -406,13 +408,29 @@ internal static class DiagnosticsChecks
         Require(back.Bool("ok") == true && (await daemon.StatusAsync()).Str("state") == "ready",
             "the detached seat's display reconnect failed after a refused Reconnect: " + back.ToJsonString());
 
+        // Prerequisites that can't be read refuse in the same way.
+        unreadable = true;
+        await daemon.ReconnectAsync();
+        var unread = await daemon.StatusAsync();
+        Require(unread.Str("state") == "ready" && unread.Bool("agentReady") == true && unread.Str("lastError") is null,
+            "a Reconnect whose prerequisites couldn't be read changed the running seat: " + unread.ToJsonString());
+        unreadable = false;
+
         // Once the prerequisite is back, Reconnect reconnects the viewer as before.
         await daemon.ReconnectAsync();
         var reconnecting = await daemon.StatusAsync();
         Require(reconnecting.Str("state") == "connecting" && reconnecting.Bool("agentReady") == false,
             "Reconnect did not reconnect once the prerequisite was back: " + reconnecting.ToJsonString());
+
+        // With no host serving, a Reconnect whose prerequisites can't be read reports why, as a missing one does.
+        unreadable = true;
+        await daemon.ReconnectAsync();
+        unreadable = false;
+        var failed = await daemon.StatusAsync();
+        Require(failed.Str("state") == "error" && failed.Str("lastError")?.Contains("could not read") == true && failed.Str("lastError")!.Contains("Access is denied"),
+            "a Reconnect whose prerequisites couldn't be read failed without saying why: " + failed.ToJsonString());
         return "a refused Reconnect or Sign in keeps a ready or detached seat's state, advice, host and display changes; a later viewer disconnect detaches it; "
-            + "Reconnect works once the prerequisite is back; no live seat";
+            + "prerequisites that can't be read refuse the same way and say why; Reconnect works once the prerequisite is back; no live seat";
     }
 
     public static string RdpExtendedReasons()
