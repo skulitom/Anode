@@ -68,6 +68,14 @@
   success; it is now refused, and the plus key is `plus`. `seat_key`, `anode key` and the daemon
   check the chord before anything reaches the seat, and a `vk<hex>` code outside `vk01` to `vkFE`
   is refused.
+- **A refused `gamepad_set` changes nothing.** Anode set each button, stick and trigger of a
+  `gamepad_set` as it read them, so when a later name was unknown (`dpad_up`, say) the call
+  failed but what came before it stayed in the controller's next report: the agent's following
+  `gamepad_set` or `gamepad_tap` sent it, and the game saw A held that the agent thought it never
+  pressed. Every name is now checked before anything is set. A trigger passed as a button
+  (`gamepad_set` buttons `{"lt": true}`, or `anode gamepad hold lt`) was told "Unknown gamepad
+  button 'lt'. Use … lt or rt."; it now hears that `lt` is a trigger, to tap or to set under
+  `triggers`. `gamepad_tap` also takes `l2` and `r2`, as `triggers` does.
 - **`anode quit` ends Anode while the sign-in dialog is open.** With the credential dialog of
   `anode start --sign-in` waiting for an answer, `quit` stopped the seat but Anode kept running, and
   the CLI gave up after 60 seconds with "Anode accepted quit but is still running". Windows' dialog

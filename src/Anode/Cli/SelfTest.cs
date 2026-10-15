@@ -69,6 +69,7 @@ internal static class SelfTest
 
         Check(results, "controller isolation", GamepadChecks.Lists);
         Check(results, "isolated controller attach", GamepadChecks.Attach);
+        Check(results, "gamepad set all or nothing", GamepadChecks.SetAllOrNothing);
         Check(results, "CLI help routing", CliChecks.HelpRouting);
         Check(results, "CLI argument checks", CliChecks.Arguments);
         Check(results, "CLI help and messages", CliChecks.HelpText);

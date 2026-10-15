@@ -185,40 +185,47 @@ internal sealed class GamepadManager : IDisposable
     {
         var pad = Require(slot);
         var applied = new JsonArray();
+        // Every name is checked before anything is set. The pad sends whatever was set with its next report, so a call
+        // refused halfway would leave its first changes for the agent's next set or tap to send.
+        var changes = new List<Action>();
+
+        if (spec.Obj("buttons") is { } buttons)
+        {
+            foreach (var (name, value) in buttons)
+            {
+                bool pressed = value is not null && (value.GetValueKind() == System.Text.Json.JsonValueKind.True
+                    || (bool.TryParse(value.ToString(), out bool parsed) && parsed));
+                var button = ResolveButton(name);
+                changes.Add(() => pad.SetButtonState(button, pressed));
+                applied.Add($"{name}={pressed}");
+            }
+        }
+
+        if (spec.Obj("axes") is { } axes)
+        {
+            foreach (var (name, value) in axes)
+            {
+                double magnitude = ReadNumber(value);
+                var axis = ResolveAxis(name);
+                changes.Add(() => pad.SetAxisValue(axis, ToAxis(magnitude)));
+                applied.Add($"{name}={magnitude:0.###}");
+            }
+        }
+
+        if (spec.Obj("triggers") is { } triggers)
+        {
+            foreach (var (name, value) in triggers)
+            {
+                double magnitude = ReadNumber(value);
+                var trigger = ResolveTrigger(name);
+                changes.Add(() => pad.SetSliderValue(trigger, ToTrigger(magnitude)));
+                applied.Add($"{name}={magnitude:0.###}");
+            }
+        }
 
         lock (_gate)
         {
-            if (spec.Obj("buttons") is { } buttons)
-            {
-                foreach (var (name, value) in buttons)
-                {
-                    bool pressed = value is not null && (value.GetValueKind() == System.Text.Json.JsonValueKind.True
-                        || (bool.TryParse(value.ToString(), out bool parsed) && parsed));
-                    pad.SetButtonState(ResolveButton(name), pressed);
-                    applied.Add($"{name}={pressed}");
-                }
-            }
-
-            if (spec.Obj("axes") is { } axes)
-            {
-                foreach (var (name, value) in axes)
-                {
-                    double magnitude = ReadNumber(value);
-                    pad.SetAxisValue(ResolveAxis(name), ToAxis(magnitude));
-                    applied.Add($"{name}={magnitude:0.###}");
-                }
-            }
-
-            if (spec.Obj("triggers") is { } triggers)
-            {
-                foreach (var (name, value) in triggers)
-                {
-                    double magnitude = ReadNumber(value);
-                    pad.SetSliderValue(ResolveTrigger(name), ToTrigger(magnitude));
-                    applied.Add($"{name}={magnitude:0.###}");
-                }
-            }
-
+            foreach (var change in changes) change();
             pad.SubmitReport();
         }
 
@@ -231,7 +238,7 @@ internal sealed class GamepadManager : IDisposable
         var pad = Require(slot);
         milliseconds = Math.Clamp(milliseconds, 1, 10_000);
 
-        bool isTrigger = name.ToLowerInvariant() is "lt" or "rt" or "lefttrigger" or "righttrigger";
+        bool isTrigger = TriggerNamed(name) is not null;
 
         lock (_gate)
         {
@@ -314,8 +321,9 @@ internal sealed class GamepadManager : IDisposable
         "down" or "dpaddown" => Xbox360Button.Down,
         "left" or "dpadleft" => Xbox360Button.Left,
         "right" or "dpadright" => Xbox360Button.Right,
-        _ => throw new ArgumentException(
-            $"Unknown gamepad button '{name}'. Use a, b, x, y, lb, rb, back, start, guide, ls, rs, up, down, left, right, lt or rt.")
+        _ => throw new ArgumentException(TriggerNamed(name) is null
+            ? $"Unknown gamepad button '{name}'. Use a, b, x, y, lb, rb, back, start, guide, ls, rs, up, down, left, right."
+            : $"'{name}' is a trigger, not a button: tap it, or, over MCP, set it from 0 to 1 under gamepad_set's triggers.")
     };
 
     public static Xbox360Axis ResolveAxis(string name) => name.Trim().ToLowerInvariant() switch
@@ -327,11 +335,14 @@ internal sealed class GamepadManager : IDisposable
         _ => throw new ArgumentException($"Unknown gamepad axis '{name}'. Use lx, ly, rx or ry.")
     };
 
-    public static Xbox360Slider ResolveTrigger(string name) => name.Trim().ToLowerInvariant() switch
+    public static Xbox360Slider ResolveTrigger(string name) =>
+        TriggerNamed(name) ?? throw new ArgumentException($"Unknown trigger '{name}'. Use lt or rt.");
+
+    private static Xbox360Slider? TriggerNamed(string name) => name.Trim().ToLowerInvariant() switch
     {
         "lt" or "lefttrigger" or "l2" => Xbox360Slider.LeftTrigger,
         "rt" or "righttrigger" or "r2" => Xbox360Slider.RightTrigger,
-        _ => throw new ArgumentException($"Unknown trigger '{name}'. Use lt or rt.")
+        _ => null
     };
 
     public void Dispose()
