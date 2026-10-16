@@ -82,7 +82,8 @@ See [Install](#install) for custom locations and offline installs, or
 **In use:** [haltere](https://github.com/skulitom/haltere), the author's research project in which a fruit-fly
 connectome flies an FPV drone in a racing simulator, runs the game, its capture and its virtual gamepad in Anode's
 seat. With HidHide installed, Anode keeps the gamepad inside the seat (haltere checks `anode gamepad state`), so
-flights continue while the user plays on the main desktop. See [haltere's game setup](https://github.com/skulitom/haltere/blob/main/docs/liftoff_setup.md).
+flights continue while the user plays on the main desktop. See
+[haltere's game setup](https://github.com/skulitom/haltere/blob/main/docs/liftoff_setup.md).
 
 The seat is a Windows *child session*: a second session for your own account, created by Windows'
 built-in loopback Remote Desktop feature. It has its own pointer and focus; adding a virtual
