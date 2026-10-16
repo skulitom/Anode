@@ -36,7 +36,10 @@
 - **CLI errors name the flags you typed.** `anode audio listen --ms 50` said "--durationMs must be
   at least 100", `anode android adb <serial> --timeout 200` named `--timeoutSeconds`, and
   `anode android shot <serial> --width 0` named `--maxWidth`; retyping those flags failed. They now
-  name `--ms`, `--timeout` and `--width`.
+  name `--ms`, `--timeout` and `--width`. `anode shot --width 0` and `anode gamepad tap a --ms 70000`
+  printed the tool's own `arguments.maxWidth` and `arguments.ms` text, and `shot` connected to the
+  daemon before checking; both now name the flag, and `shot` checks first. `anode ps kill 0` is
+  refused as a process id below 1.
 - **.NET 10.0.13.** Release builds include Microsoft's October security update of the .NET 10
   runtime (10.0.13, from 10.0.12).
 - **`anode selftest` no longer fills your log with things that never happened.** Each quick

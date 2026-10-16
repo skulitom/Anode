@@ -97,9 +97,9 @@ release does not include it.
 - Windows CI on the candidate repeats the build, packaging, quick suite, installation,
   distribution and documentation checks, and runs the environment self-test on a GitHub-hosted
   Windows runner.
-- Fixes merged after the candidate was first recorded (#48, #49, #51): `scripts\build.ps1 -QuickTest`
-  passed with each (**111 quick self-tests** after all three), with the documentation check, and so
-  did Windows CI. The package steps above were not repeated by hand.
+- Fixes merged after the candidate was first recorded (#48, #49, #51, #52): `scripts\build.ps1
+  -QuickTest` passed with each (**111 quick self-tests** after all four), with the documentation
+  check, and so did Windows CI. The package steps above were not repeated by hand.
 
 ### Coverage limits and known issues
 

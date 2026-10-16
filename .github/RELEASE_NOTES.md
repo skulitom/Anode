@@ -39,6 +39,9 @@ or commands were added; there are still 41 tools.
   told it is a trigger, and `gamepad_tap` also takes `l2` and `r2`.
 - **`anode quit` ends Anode while the sign-in dialog is open,** instead of leaving it running and
   giving up after 60 seconds.
+- **CLI errors name the flags you typed.** Some refusals named the MCP argument instead, such as
+  `--durationMs` for `anode audio listen --ms` or `arguments.maxWidth` for `anode shot --width`, so
+  retyping the suggestion failed.
 
 **Known issues.** A Chrome window's first observation can come back without the page, and the
 page's controls sit deeper than the default `maxDepth` of 8: observe again with `maxDepth` 16. On
