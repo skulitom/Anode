@@ -1327,7 +1327,8 @@ internal static partial class Cli
             "waitMs" => "--wait", "executionTimeoutMs" => "--timeout", "maxChars" => "--max-chars",
             "automationId" => "--automation-id", "textContains" => "--text", "maxElements" => "--max-elements",
             "maxDepth" => "--max-depth", "maxTextChars" => "--max-text", "ttlSeconds" => "--ttl",
-            "cancelJobs" => "--cancel-jobs", "waitSeconds" => "--wait",
+            "cancelJobs" => "--cancel-jobs", "waitSeconds" => "--wait", "durationMs" => "--ms", "timeoutSeconds" => "--timeout",
+            "maxWidth" => "--width",
             var field => "--" + field
         });
 

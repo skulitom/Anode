@@ -172,7 +172,25 @@ internal static class CliChecks
             && Cli.CliError("arguments.windowId is required.") == "<windowId> is required."
             && Cli.CliError("arguments.cancelJobs is only allowed for release.") == "--cancel-jobs is only allowed for release."
             && Cli.CliError("arguments.waitSeconds is only allowed for acquire.") == "--wait is only allowed for acquire."
+            && Cli.CliError("arguments.durationMs must be at least 100.") == "--ms must be at least 100."
+            && Cli.CliError("arguments.timeoutSeconds must be at most 150.") == "--timeout must be at most 150."
+            && Cli.CliError("arguments.maxWidth must be at least 1.") == "--width must be at least 1."
             && Cli.CliError("Provide both x and y.") == "Provide both x and y.", "tool validation kept MCP argument names");
+        // The android commands build and validate their request here, so these refusals come from the tool's own bounds.
+        foreach (var (line, flag) in new[]
+        {
+            (new[] { "android", "adb", "emulator-5554", "--timeout", "200", "--", "shell", "input", "tap", "1", "2" }, "--timeout"),
+            (new[] { "android", "shot", "emulator-5554", "--width", "0" }, "--width"),
+            (new[] { "android", "start", "Pixel_9_Pro", "--wait", "200" }, "--wait")
+        })
+        {
+            string? message = null;
+            try { Cli.CheckArguments(line[0], line[1..]); }
+            catch (UsageException ex) { message = ex.Message; }
+            Require(message is not null && message.StartsWith(flag + " ", StringComparison.Ordinal) && !message.Contains("arguments.")
+                && !message.Contains("Seconds") && !message.Contains("maxWidth"),
+                $"'{string.Join(' ', line)}' named a flag the CLI doesn't have: {message ?? "accepted"}");
+        }
         return $"{accepted.Length} accepted and {rejected.Length} rejected before any side effect";
     }
 

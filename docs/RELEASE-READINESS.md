@@ -66,7 +66,7 @@ live check) in CI and on any PC.
 ## 0.11.3 release validation
 
 **Scope:** everything merged since 0.11.2:
-- fixes: #34, #36 to #39, #41, #42, #44, #48 and #49;
+- fixes: #34, #36 to #39, #41, #42, #44, #48, #49 and #52;
 - documentation: #45 (TROUBLESHOOTING's typing advice);
 - licensing: #19 (the Anode Business licence terms, first released here; Anode stays MIT) and #40
   (the README's Business link);

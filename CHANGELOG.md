@@ -33,6 +33,10 @@
   different PCs didn't sort or parse alike. Screenshot file names and the date `rendering --restore`
   gives for a backup had the same flaw. Log lines now always read `2026-10-13 23:34:16`, and
   screenshot names and backup dates always use the Gregorian calendar.
+- **CLI errors name the flags you typed.** `anode audio listen --ms 50` said "--durationMs must be
+  at least 100", `anode android adb <serial> --timeout 200` named `--timeoutSeconds`, and
+  `anode android shot <serial> --width 0` named `--maxWidth`; retyping those flags failed. They now
+  name `--ms`, `--timeout` and `--width`.
 - **.NET 10.0.13.** Release builds include Microsoft's October security update of the .NET 10
   runtime (10.0.13, from 10.0.12).
 - **`anode selftest` no longer fills your log with things that never happened.** Each quick
