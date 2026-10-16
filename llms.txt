@@ -55,3 +55,7 @@ acquire and `seat_start` start a seat. The MCP prompt `desktop_test` walks throu
 - [Privacy](https://raw.githubusercontent.com/skulitom/Anode/main/docs/PRIVACY.md): what Anode sends, returns and keeps.
 - [Publishing](https://raw.githubusercontent.com/skulitom/Anode/main/docs/PUBLISHING.md): MCP Registry published by CI, manual owner directory submissions, and the MCPB test gate.
 - [Latest release](https://github.com/skulitom/Anode/releases/latest): anode-windows-x64.zip, install.ps1, SHA256SUMS.
+- [Pixelbolt](https://github.com/skulitom/Pixelbolt): sibling tool (same author, MIT, local MCP server): pixel art and sprite animation from editable JSON recipes.
+- [Cutbolt](https://github.com/skulitom/Cutbolt): sibling tool (same author, MIT, local MCP server): video editing engine with exact timelines, captions and rendering.
+- [Inkbolt](https://github.com/skulitom/Inkbolt): sibling tool (same author, MIT, local MCP server): vector and raster image editing for diagrams; SVG in, SVG and PDF out.
+- [Nestbolt](https://github.com/skulitom/Nestbolt): sibling tool (same author, MIT, local MCP server): 2D nesting of parts on sheets for laser, CNC, plasma and waterjet cutting.
