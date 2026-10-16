@@ -11,83 +11,147 @@ namespace Anode.Cli;
 internal static class DevelopmentChecks
 {
     private static void Require(bool condition, string detail) { if (!condition) throw new InvalidOperationException(detail); }
-    public static string HiddenViewer()
+    public static string HiddenViewer() => OnViewerThread(created =>
     {
-        var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using (var window = new Daemon.SeatWindow(new Daemon.SeatOptions()))
+        {
+            int shown = 0;
+            window.Shown += (_, _) => shown++;
+            window.CreateHiddenViewer();
+            Application.DoEvents();
+            created();
+            Require(window.IsHandleCreated && window.Viewer.IsHandleCreated && !window.Visible && shown == 0, "hidden startup showed the viewer or omitted its native control");
+            // The window opens with the seat filling its area; other shapes keep the seat's shape, centred on
+            // the dark area, since the Remote Desktop control pads a mismatched shape with white bars.
+            var area = (Panel)window.Controls.Find("SeatArea", false).Single();
+            Require(SeatShaped(window.Viewer.Bounds, area.ClientSize, fills: true),
+                $"the viewer opened with space beside the seat: area {area.ClientSize}, seat {window.Viewer.Bounds}");
+            window.Width += 300;
+            Require(SeatShaped(window.Viewer.Bounds, area.ClientSize, fills: false) && area.BackColor == Daemon.ViewerTheme.Background,
+                $"a wider viewer stretched or padded the seat: area {area.ClientSize}, seat {window.Viewer.Bounds}");
+            window.Width -= 300;
+            var toolbar = window.Controls.OfType<ToolStrip>().Single(s => s.Name == "SeatToolbar");
+            var status = window.Controls.OfType<StatusStrip>().Single();
+            var details = (TextBox)window.Controls.Find("SeatDetails", true).Single();
+            Require(window.ViewOnly && status.Items["InputMode"]?.Text == "View only", "initial input mode is unclear");
+            window.ViewOnly = false;
+            Require(status.Items["InputMode"]?.Text == "You have control"
+                && toolbar.Items["ControlSeat"]?.AccessibleName == "Release control", "taking control did not update visible/accessible state");
+            window.ViewOnly = true;
+            string failure = "Windows could not sign in. " + new string('x', 1200) + " Run anode doctor.";
+            window.SetStatus(failure);
+            window.SetHeadline("logon-error");
+            window.SetSeatInfo(42, false);
+            Require(details.ReadOnly && details.Text.Contains(failure) && details.Text.Contains("Session 42")
+                && details.Text.Contains("View only") && details.Text.Contains("Emergency"), "full status or recovery information was lost");
+            Require(toolbar.Items["SeatState"]?.Text == "Sign-in failed", "viewer exposed a protocol state instead of a readable label");
+            var placeholder = (Daemon.SeatPlaceholder)window.Controls.Find("SeatPlaceholder", false).Single();
+            Require(!window.SeatPictureLive && placeholder.Heading == "Sign-in failed" && placeholder.AccessibleDescription == failure,
+                "the connecting screen did not describe the seat's state");
+            window.SetSeatPictureLive(true);
+            Require(window.SeatPictureLive, "a connected seat stayed behind the connecting screen");
+            window.SetSeatPictureLive(false);
+            var originalBounds = window.Bounds;
+            window.ToggleFullScreen();
+            toolbar.PerformLayout();
+            // WS_VISIBLE on the child itself is testable without showing its parent.
+            Require((Core.Native.Native.GetWindowLong(toolbar.Handle, -16) & 0x10000000) != 0,
+                "full screen hid emergency controls");
+            Require(toolbar.Items["FullScreen"]?.Text == "Exit full screen", "full screen has no visible exit action");
+            window.ToggleFullScreen();
+            Require(window.Bounds == originalBounds && window.FormBorderStyle == FormBorderStyle.Sizable,
+                "leaving full screen lost the window bounds or border");
+            window.Width = window.MinimumSize.Width;
+            toolbar.PerformLayout();
+            foreach (string name in new[] { "StopSeat", "ControlSeat", "FullScreen" })
+            {
+                var button = toolbar.Items[name]!;
+                Require(button.Placement == ToolStripItemPlacement.Main && button.Bounds.Right <= toolbar.Width,
+                    name + " disappeared at minimum width");
+            }
+            int stops = 0;
+            window.StopSeatRequested += () => stops++;
+            toolbar.Items["StopSeat"]!.PerformClick();
+            Require(stops == 1, "the Stop button did not dispatch immediately");
+            Require(!window.Visible && shown == 0, "viewer checks showed a window");
+        }
+        return "hidden RDP initialization, a window fitted to the seat, input labels, connecting screen, full diagnostics, full-screen Stop/exit "
+            + "and narrow layout; no connection or shown form";
+    }, checks: TimeSpan.FromSeconds(5));
+
+    /// <summary>
+    /// The first Remote Desktop control a process creates loads mstscax.dll and its COM classes: about 0.3 s on a
+    /// developer PC, up to 3 s on GitHub's hosted runners, and once more than 5 s there, which failed CI. A slow cold
+    /// start is not a fault, so it gets this much; a control that never appears still fails.
+    /// </summary>
+    internal static readonly TimeSpan ViewerCreation = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Runs a viewer check on an STA thread of its own. The body calls its argument once the Remote Desktop control
+    /// exists: creating it may take <paramref name="creation"/> (<see cref="ViewerCreation"/> by default), and the
+    /// checks after it <paramref name="checks"/>, so a hang there still fails fast. A timeout says which part
+    /// overran and how long the control took.
+    /// </summary>
+    internal static T OnViewerThread<T>(Func<Action, T> body, TimeSpan checks, TimeSpan? creation = null)
+    {
+        TimeSpan create = creation ?? ViewerCreation;
+        var created = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finished = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
         {
-            try
-            {
-                using (var window = new Daemon.SeatWindow(new Daemon.SeatOptions()))
-                {
-                    int shown = 0;
-                    window.Shown += (_, _) => shown++;
-                    window.CreateHiddenViewer();
-                    Application.DoEvents();
-                    Require(window.IsHandleCreated && window.Viewer.IsHandleCreated && !window.Visible && shown == 0, "hidden startup showed the viewer or omitted its native control");
-                    // The window opens with the seat filling its area; other shapes keep the seat's shape, centred on
-                    // the dark area, since the Remote Desktop control pads a mismatched shape with white bars.
-                    var area = (Panel)window.Controls.Find("SeatArea", false).Single();
-                    Require(SeatShaped(window.Viewer.Bounds, area.ClientSize, fills: true),
-                        $"the viewer opened with space beside the seat: area {area.ClientSize}, seat {window.Viewer.Bounds}");
-                    window.Width += 300;
-                    Require(SeatShaped(window.Viewer.Bounds, area.ClientSize, fills: false) && area.BackColor == Daemon.ViewerTheme.Background,
-                        $"a wider viewer stretched or padded the seat: area {area.ClientSize}, seat {window.Viewer.Bounds}");
-                    window.Width -= 300;
-                    var toolbar = window.Controls.OfType<ToolStrip>().Single(s => s.Name == "SeatToolbar");
-                    var status = window.Controls.OfType<StatusStrip>().Single();
-                    var details = (TextBox)window.Controls.Find("SeatDetails", true).Single();
-                    Require(window.ViewOnly && status.Items["InputMode"]?.Text == "View only", "initial input mode is unclear");
-                    window.ViewOnly = false;
-                    Require(status.Items["InputMode"]?.Text == "You have control"
-                        && toolbar.Items["ControlSeat"]?.AccessibleName == "Release control", "taking control did not update visible/accessible state");
-                    window.ViewOnly = true;
-                    string failure = "Windows could not sign in. " + new string('x', 1200) + " Run anode doctor.";
-                    window.SetStatus(failure);
-                    window.SetHeadline("logon-error");
-                    window.SetSeatInfo(42, false);
-                    Require(details.ReadOnly && details.Text.Contains(failure) && details.Text.Contains("Session 42")
-                        && details.Text.Contains("View only") && details.Text.Contains("Emergency"), "full status or recovery information was lost");
-                    Require(toolbar.Items["SeatState"]?.Text == "Sign-in failed", "viewer exposed a protocol state instead of a readable label");
-                    var placeholder = (Daemon.SeatPlaceholder)window.Controls.Find("SeatPlaceholder", false).Single();
-                    Require(!window.SeatPictureLive && placeholder.Heading == "Sign-in failed" && placeholder.AccessibleDescription == failure,
-                        "the connecting screen did not describe the seat's state");
-                    window.SetSeatPictureLive(true);
-                    Require(window.SeatPictureLive, "a connected seat stayed behind the connecting screen");
-                    window.SetSeatPictureLive(false);
-                    var originalBounds = window.Bounds;
-                    window.ToggleFullScreen();
-                    toolbar.PerformLayout();
-                    // WS_VISIBLE on the child itself is testable without showing its parent.
-                    Require((Core.Native.Native.GetWindowLong(toolbar.Handle, -16) & 0x10000000) != 0,
-                        "full screen hid emergency controls");
-                    Require(toolbar.Items["FullScreen"]?.Text == "Exit full screen", "full screen has no visible exit action");
-                    window.ToggleFullScreen();
-                    Require(window.Bounds == originalBounds && window.FormBorderStyle == FormBorderStyle.Sizable,
-                        "leaving full screen lost the window bounds or border");
-                    window.Width = window.MinimumSize.Width;
-                    toolbar.PerformLayout();
-                    foreach (string name in new[] { "StopSeat", "ControlSeat", "FullScreen" })
-                    {
-                        var button = toolbar.Items[name]!;
-                        Require(button.Placement == ToolStripItemPlacement.Main && button.Bounds.Right <= toolbar.Width,
-                            name + " disappeared at minimum width");
-                    }
-                    int stops = 0;
-                    window.StopSeatRequested += () => stops++;
-                    toolbar.Items["StopSeat"]!.PerformClick();
-                    Require(stops == 1, "the Stop button did not dispatch immediately");
-                    Require(!window.Visible && shown == 0, "viewer checks showed a window");
-                }
-                finished.TrySetResult();
-            }
+            try { finished.TrySetResult(body(() => created.TrySetResult())); }
             catch (Exception ex) { finished.TrySetException(ex); }
         }) { IsBackground = true };
         thread.SetApartmentState(ApartmentState.STA);
+        var clock = Stopwatch.StartNew();
         thread.Start();
-        finished.Task.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
-        return "hidden RDP initialization, a window fitted to the seat, input labels, connecting screen, full diagnostics, full-screen Stop/exit "
-            + "and narrow layout; no connection or shown form";
+        // WhenAny never faults, so these waits only time out; a failure before the control exists ends the first
+        // one too, and the last line rethrows it as it was.
+        if (!Task.WhenAny(created.Task, finished.Task).Wait(create))
+            throw new TimeoutException($"the Remote Desktop control was not created within {create.TotalSeconds:0.#} s");
+        long ready = clock.ElapsedMilliseconds;
+        if (!Task.WhenAny(finished.Task).Wait(checks))
+            throw new TimeoutException($"the checks after the Remote Desktop control (created in {ready} ms) did not finish within {checks.TotalSeconds:0.#} s");
+        return finished.Task.GetAwaiter().GetResult();
+    }
+
+    /// <summary><see cref="OnViewerThread"/>'s two deadlines, with stand-in bodies instead of a Remote Desktop control.</summary>
+    public static string ViewerDeadlines()
+    {
+        static string? TimedOut(Action call) { try { call(); return null; } catch (TimeoutException ex) { return ex.Message; } }
+        var brief = TimeSpan.FromMilliseconds(150);
+        // The checks' deadline starts when the control exists, so a slow cold start with quick checks after it passes.
+        string slow = OnViewerThread(created =>
+        {
+            Require(Thread.CurrentThread.GetApartmentState() == ApartmentState.STA, "the viewer check ran outside an STA thread");
+            Thread.Sleep(300);
+            created();
+            return "passed";
+        }, checks: TimeSpan.FromMilliseconds(200), creation: TimeSpan.FromSeconds(10));
+        Require(slow == "passed", "a slow Remote Desktop control failed the quick checks after it");
+        using (var hold = new ManualResetEventSlim())
+        {
+            try
+            {
+                var clock = Stopwatch.StartNew();
+                string? after = TimedOut(() => OnViewerThread(created => { created(); hold.Wait(); return ""; }, checks: brief, creation: TimeSpan.FromSeconds(10)));
+                Require(after?.Contains("checks after the Remote Desktop control (created in ") == true && clock.ElapsedMilliseconds < 5000,
+                    "a hang after the control waited for the creation deadline or wasn't named: " + after);
+                string? before = TimedOut(() => OnViewerThread(_ => { hold.Wait(); return ""; }, checks: TimeSpan.FromSeconds(10), creation: brief));
+                Require(before?.Contains("control was not created within") == true, "a control that never appeared wasn't named: " + before);
+            }
+            finally { hold.Set(); }
+        }
+        var failing = Stopwatch.StartNew();
+        try
+        {
+            OnViewerThread<string>(_ => throw new InvalidOperationException("stand-in failure"), checks: TimeSpan.FromSeconds(10), creation: TimeSpan.FromSeconds(10));
+            Require(false, "a failing viewer check passed");
+        }
+        catch (InvalidOperationException ex) when (ex.Message == "stand-in failure") { }
+        Require(failing.ElapsedMilliseconds < 5000, "a failure before the control waited for a deadline");
+        return "a slow control passes quick checks after it; a hang after or before the control fails at its own deadline, "
+            + "named; a failure before it surfaces at once";
     }
 
     /// <summary>A 1280x720 seat within a pixel, centred in the area; <paramref name="fills"/> also requires no space beside it.</summary>
