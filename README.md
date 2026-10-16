@@ -19,7 +19,7 @@ cut, and the nine clicks, which took 0.4 s, are shown four times slower.</sub>
 
 - **Who it's for:** developers on Windows who let an AI agent test their desktop apps, browser pages or Android apps,
   or do other work in real Windows programs, while they keep using the same PC; and anyone running several agents
-  that need a desktop on one machine.
+  that take turns on one shared background desktop.
 - **Use it when** an agent has to click, type, read controls and take screenshots in native apps or a headed browser,
   and it must not take over your mouse, keyboard or screen.
 - **Don't use it when** you are on Windows Home or macOS, when you need a security sandbox (the seat runs as your user,
@@ -81,8 +81,8 @@ See [Install](#install) for custom locations and offline installs, or
 
 **In use:** [haltere](https://github.com/skulitom/haltere), the author's research project in which a fruit-fly
 connectome flies an FPV drone in a racing simulator, runs the game, its capture and its virtual gamepad in Anode's
-seat. With HidHide installed, the gamepad stays inside the seat, so flights continue while the user plays on the main
-desktop. See [haltere's game setup](https://github.com/skulitom/haltere/blob/main/docs/liftoff_setup.md).
+seat. With HidHide installed, Anode keeps the gamepad inside the seat (haltere checks `anode gamepad state`), so
+flights continue while the user plays on the main desktop. See [haltere's game setup](https://github.com/skulitom/haltere/blob/main/docs/liftoff_setup.md).
 
 The seat is a Windows *child session*: a second session for your own account, created by Windows'
 built-in loopback Remote Desktop feature. It has its own pointer and focus; adding a virtual
@@ -289,12 +289,13 @@ your licence key or anything private in one.
 
 ## Sibling tools
 
-Anode is one of five free, MIT-licensed tools for agents by the same author. Each runs locally and works as an MCP server:
+Anode is one of five free, MIT-licensed tools for agents by the same author. Each runs locally as an MCP server:
 
-- [Pixelbolt](https://github.com/skulitom/Pixelbolt): pixel art and sprite animation from editable JSON recipes, exported as
-  sprite sheets, atlases, animated PNGs and GIFs.
+- [Pixelbolt](https://github.com/skulitom/Pixelbolt): pixel art and sprite animation from editable JSON recipes,
+  exported as sprite sheets, atlases, animated PNGs and GIFs.
 - [Cutbolt](https://github.com/skulitom/Cutbolt): a video editing engine with exact timelines, captions and rendering.
-- [Inkbolt](https://github.com/skulitom/Inkbolt): vector and raster image editing: SVG, PDF, diagrams and illustrations.
+- [Inkbolt](https://github.com/skulitom/Inkbolt): vector and raster image editing for diagrams and illustrations,
+  with SVG import and SVG and PDF export.
 - [Nestbolt](https://github.com/skulitom/Nestbolt): 2D nesting of parts on sheets for laser, CNC, plasma and waterjet
   cutting, also [in your browser](https://skulitom.github.io/Nestbolt/).
 
