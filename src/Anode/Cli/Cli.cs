@@ -542,6 +542,16 @@ internal static partial class Cli
         return Report(await RequestAsync(client, "steam.launch", payload, 120_000));
     }
 
+    /// <summary>The <c>shot</c> request, validated before any daemon is reached.</summary>
+    internal static JsonObject ScreenshotRequest(string[] args)
+    {
+        var options = new Args(args);
+        var payload = new JsonObject { ["format"] = options.Flag("jpeg") ? "jpeg" : "png" };
+        if (options.Int("width") is int width) payload["maxWidth"] = width;
+        if (Mcp.Tools.ValidateArguments("seat_screenshot", payload) is { } error) throw new UsageException(CliError(error));
+        return payload;
+    }
+
     private static async Task<int> Screenshot(string[] args)
     {
         var options = new Args(args);
@@ -549,8 +559,7 @@ internal static partial class Cli
         target ??= Path.Combine(Directory.GetCurrentDirectory(),
             $"anode-{DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}.{(options.Flag("jpeg") ? "jpg" : "png")}");
 
-        var payload = new JsonObject { ["format"] = options.Flag("jpeg") ? "jpeg" : "png" };
-        if (options.Int("width") is int width) payload["maxWidth"] = width;
+        var payload = ScreenshotRequest(args);
 
         using var client = await Connect(autoStart: false);
         if (client is null) return NotRunning();
@@ -1220,6 +1229,8 @@ internal static partial class Cli
                 throw new UsageException($"Unexpected ps argument '{words[0]}'.");
             case "ps" when words.Count == 1:
                 throw new UsageException("ps kill requires a process id or name.");
+            case "ps" when words.Count == 2 && int.TryParse(words[1], NumberStyles.None, CultureInfo.InvariantCulture, out int killed) && killed < 1:
+                throw new UsageException("ps kill takes a process id of 1 or more, or a program name.");
             case "steam":
                 if (words.Count == 0 || words[0].Equals("status", StringComparison.OrdinalIgnoreCase))
                 {
@@ -1238,6 +1249,9 @@ internal static partial class Cli
             case "browser":
                 if (options.Flag("sign-in")) SignInAddresses(args);
                 else BrowserRequest(args);
+                break;
+            case "shot":
+                ScreenshotRequest(args);
                 break;
         }
     }
@@ -1327,7 +1341,8 @@ internal static partial class Cli
             "waitMs" => "--wait", "executionTimeoutMs" => "--timeout", "maxChars" => "--max-chars",
             "automationId" => "--automation-id", "textContains" => "--text", "maxElements" => "--max-elements",
             "maxDepth" => "--max-depth", "maxTextChars" => "--max-text", "ttlSeconds" => "--ttl",
-            "cancelJobs" => "--cancel-jobs", "waitSeconds" => "--wait",
+            "cancelJobs" => "--cancel-jobs", "waitSeconds" => "--wait", "durationMs" => "--ms", "timeoutSeconds" => "--timeout",
+            "maxWidth" => "--width",
             var field => "--" + field
         });
 

@@ -130,7 +130,7 @@ internal static class CliChecks
             new[] { "click", "1", "2", "--right", "--middle" }, new[] { "click", "1", "2", "--doubel" }, new[] { "move", "1" },
             new[] { "move", "1", "y" }, new[] { "scroll", "down" }, new[] { "scroll", "3x" }, new[] { "scroll", "1", "2" },
             new[] { "key" }, new[] { "key", "ctrl", "+", "c" }, new[] { "type" }, new[] { "run" }, new[] { "ps", "kill" },
-            new[] { "ps", "list" }, new[] { "steam", "abc" }, new[] { "steam", "status", "--force" }, new[] { "gamepad", "bogus" },
+            new[] { "ps", "list" }, new[] { "ps", "kill", "0" }, new[] { "steam", "abc" }, new[] { "steam", "status", "--force" }, new[] { "gamepad", "bogus" },
             new[] { "steam", "status", "--exe", "x.exe" }, new[] { "steam", "220", "--exe" },
             new[] { "gamepad", "stick", "left", "x", "0" }, new[] { "gamepad", "stick", "up", "0", "0" }, new[] { "gamepad", "stick", "left", "2", "0" },
             new[] { "gamepad", "tap" }, new[] { "gamepad", "attach", "--slot", "9" }, new[] { "gamepad", "attach", "--ms", "80" },
@@ -172,7 +172,31 @@ internal static class CliChecks
             && Cli.CliError("arguments.windowId is required.") == "<windowId> is required."
             && Cli.CliError("arguments.cancelJobs is only allowed for release.") == "--cancel-jobs is only allowed for release."
             && Cli.CliError("arguments.waitSeconds is only allowed for acquire.") == "--wait is only allowed for acquire."
+            && Cli.CliError("arguments.durationMs must be at least 100.") == "--ms must be at least 100."
+            && Cli.CliError("arguments.timeoutSeconds must be at most 150.") == "--timeout must be at most 150."
+            && Cli.CliError("arguments.maxWidth must be at least 1.") == "--width must be at least 1."
             && Cli.CliError("Provide both x and y.") == "Provide both x and y.", "tool validation kept MCP argument names");
+        // shot and the android commands build and validate their request here, so these refusals come from the tool's
+        // own bounds, before any daemon is reached.
+        foreach (var (line, flag) in new[]
+        {
+            (new[] { "shot", "out.png", "--width", "0" }, "--width"),
+            (new[] { "android", "adb", "emulator-5554", "--timeout", "200", "--", "shell", "input", "tap", "1", "2" }, "--timeout"),
+            (new[] { "android", "shot", "emulator-5554", "--width", "0" }, "--width"),
+            (new[] { "android", "start", "Pixel_9_Pro", "--wait", "200" }, "--wait")
+        })
+        {
+            string? message = null;
+            try { Cli.CheckArguments(line[0], line[1..]); }
+            catch (UsageException ex) { message = ex.Message; }
+            Require(message is not null && message.StartsWith(flag + " ", StringComparison.Ordinal) && !message.Contains("arguments.")
+                && !message.Contains("Seconds") && !message.Contains("maxWidth"),
+                $"'{string.Join(' ', line)}' named a flag the CLI doesn't have: {message ?? "accepted"}");
+        }
+        // gamepad tap's --ms is bounded only by the tool, which the CLI checks before sending; no pipe is touched.
+        var tap = new JsonObject { ["agentId"] = "test-agent", ["leaseToken"] = "test-token", ["button"] = "a", ["ms"] = 70000 };
+        string? tapError = Cli.RequestAsync(null!, "gamepad.tap", tap).GetAwaiter().GetResult().Str("error");
+        Require(tapError?.StartsWith("--ms ", StringComparison.Ordinal) == true, "a refused gamepad tap named an MCP argument: " + tapError);
         return $"{accepted.Length} accepted and {rejected.Length} rejected before any side effect";
     }
 
