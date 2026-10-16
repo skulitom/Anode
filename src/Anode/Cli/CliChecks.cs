@@ -195,8 +195,8 @@ internal static class CliChecks
         }
         // gamepad tap's --ms is bounded only by the tool, which the CLI checks before sending; no pipe is touched.
         var tap = new JsonObject { ["agentId"] = "test-agent", ["leaseToken"] = "test-token", ["button"] = "a", ["ms"] = 70000 };
-        string? refused = Cli.RequestAsync(null!, "gamepad.tap", tap).GetAwaiter().GetResult().Str("error");
-        Require(refused?.StartsWith("--ms ", StringComparison.Ordinal) == true, "a refused gamepad tap named an MCP argument: " + refused);
+        string? tapError = Cli.RequestAsync(null!, "gamepad.tap", tap).GetAwaiter().GetResult().Str("error");
+        Require(tapError?.StartsWith("--ms ", StringComparison.Ordinal) == true, "a refused gamepad tap named an MCP argument: " + tapError);
         return $"{accepted.Length} accepted and {rejected.Length} rejected before any side effect";
     }
 
