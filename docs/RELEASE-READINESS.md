@@ -70,8 +70,8 @@ live check) in CI and on any PC.
 - documentation: #45 (TROUBLESHOOTING's typing advice);
 - licensing: #19 (the Anode Business licence terms, first released here; Anode stays MIT) and #40
   (the README's Business link);
-- tooling and tests: #43 (`scripts\release-check.ps1`), #35 (the CI environment self-test) and #46
-  (faster quick checks);
+- tooling and tests: #43 (`scripts\release-check.ps1`), #35 (the CI environment self-test), #46
+  (faster quick checks) and #51 (the viewer checks' deadlines, after a slow runner failed CI once);
 - the self-contained runtime, from .NET 10.0.12 to **10.0.13**, Microsoft's security update of
   13 October 2026 (checked against
   [Microsoft's release metadata](https://builds.dotnet.microsoft.com/dotnet/release-metadata/10.0/releases.json)
@@ -97,9 +97,9 @@ release does not include it.
 - Windows CI on the candidate repeats the build, packaging, quick suite, installation,
   distribution and documentation checks, and runs the environment self-test on a GitHub-hosted
   Windows runner.
-- Fixes merged after the candidate was first recorded (#48, #49): `scripts\build.ps1 -QuickTest`
-  passed with each (**110 quick self-tests** after both), with the documentation check, and so did
-  Windows CI. The package steps above were not repeated by hand.
+- Fixes merged after the candidate was first recorded (#48, #49, #51): `scripts\build.ps1 -QuickTest`
+  passed with each (**111 quick self-tests** after all three), with the documentation check, and so
+  did Windows CI. The package steps above were not repeated by hand.
 
 ### Coverage limits and known issues
 

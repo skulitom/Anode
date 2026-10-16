@@ -93,7 +93,9 @@
   `seat_type` option that `anode type` lacks. The README links the Anode Business licence.
   `scripts\release-check.ps1` runs the release's live check as one command and writes evidence
   that names the commit; CI runs the environment self-test on a GitHub-hosted Windows runner; the
-  quick checks take about 2.3 s less.
+  quick checks take about 2.3 s less. The two checks that create the hidden viewer no longer fail
+  when a slow machine takes more than a few seconds to load Remote Desktop's control for the first
+  time; a control that never appears, or a hang after it, still fails, and says which and how long.
 
 ## 0.11.2 — 2026-10-10
 

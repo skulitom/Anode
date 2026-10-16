@@ -577,21 +577,14 @@ internal static class DiagnosticsChecks
                     Require(PointerGuard.Allows(input, visible, foreground) == (input && visible && foreground),
                         "the local pointer may move while the user is not driving a visible, focused viewer");
 
-        var finished = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var thread = new Thread(() =>
-        {
-            try { finished.TrySetResult(CheckViewerPointerGuard()); }
-            catch (Exception ex) { finished.TrySetException(ex); }
-        }) { IsBackground = true };
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        return finished.Task.WaitAsync(TimeSpan.FromSeconds(10)).GetAwaiter().GetResult();
+        return DevelopmentChecks.OnViewerThread(CheckViewerPointerGuard, checks: TimeSpan.FromSeconds(10));
     }
 
-    private static unsafe string CheckViewerPointerGuard()
+    private static unsafe string CheckViewerPointerGuard(Action created)
     {
         using var window = new SeatWindow(new SeatOptions());
         window.CreateHiddenViewer();
+        created();
         Require(PointerGuard.Installed,
             "mstscax.dll's SetCursorPos import was not found, so a program in the seat can move the real pointer");
         IntPtr[] targets = PointerGuard.ImportTargets();

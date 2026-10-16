@@ -184,6 +184,7 @@ internal static class SelfTest
         Check(results, "audio isolation and validation", AudioChecks.IsolationAndValidation);
         Check(results, "audio MCP protocol", () => AudioChecks.Protocol().GetAwaiter().GetResult());
         Check(results, "audio playback lifetime", () => AudioChecks.Lifecycle().GetAwaiter().GetResult());
+        Check(results, "viewer check deadlines", DevelopmentChecks.ViewerDeadlines);
         Check(results, "hidden viewer startup", DevelopmentChecks.HiddenViewer);
         Check(results, "viewer pointer guard", DiagnosticsChecks.ViewerPointerGuard);
         Check(results, "RDP extended settings", DiagnosticsChecks.RdpSettings);
