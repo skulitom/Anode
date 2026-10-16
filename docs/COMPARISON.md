@@ -5,9 +5,14 @@ and keyboard focus, so the agent works there while you keep using yours. Other t
 problems in other ways, and some of them suit a job better. This page says which, as fairly as we
 can.
 
-Facts about the other tools come from their own pages and repositories, **read on 8 October 2026**.
+Facts about the other tools come from their own pages and repositories, **read on 8 October 2026**
+(Windows-MCP's stars and supported Windows versions re-read on 16 October 2026).
 They change often, so follow the links before you decide. Corrections are welcome as an
 [issue](https://github.com/skulitom/Anode/issues/new?template=bug_report.yml).
+
+For Windows-MCP, Desktop Touch MCP, windows-computer-use-mcp and Terminator side by side, including
+which of their tools move your real pointer, see
+[Windows desktop automation for AI agents, compared](https://skulitom.github.io/Anode/compare/windows-desktop-automation-for-ai-agents/).
 
 ## The short answer
 
@@ -15,7 +20,7 @@ They change often, so follow the links before you decide. Corrections are welcom
 | --- | --- |
 | An agent that drives Windows apps and headed browsers while you keep working on the same PC, with nothing moving under your mouse | **Anode** |
 | The same without a second session, on macOS or Linux as well, and you can accept that some targets refuse background input | [Cua Driver](#cua-driver) |
-| An agent that drives your own desktop while you watch, on any Windows edition, Home included | [Windows-MCP](#windows-mcp) |
+| An agent that drives your own desktop while you watch, on Windows 10 or 11, Home too (its README names no edition limit) | [Windows-MCP](#windows-mcp) |
 | Files, terminal commands and processes, with no GUI at all | [Desktop Commander](#desktop-commander) |
 | A whole Windows PC for the agent that isn't yours: managed in the cloud, signed in with your organization's identities | [Windows 365 for Agents](#windows-365-for-agents) |
 | A security boundary for untrusted code | A virtual machine or sandbox. None of the local tools here is one, Anode included. |
@@ -30,7 +35,7 @@ They change often, so follow the links before you decide. Corrections are welcom
 | Screenshots and accessibility tree | Yes (seat only) | Yes | Yes | No | Yes (accessibility tree of the foreground window) |
 | Browsers | Headed Chrome or Edge in the seat, on a profile you sign in to once | DOM mode for Chrome, Edge and Firefox | Chrome and Edge through the DevTools protocol | No | DOM tools on Edge only |
 | Android emulators | Yes, booted in the seat | Not mentioned | Not mentioned | No | Not mentioned |
-| Windows editions | 10/11 Pro, Enterprise, Education, Server; not Home | Windows 7 to 11 in its README | Windows 10/11, plus macOS and Linux | Windows, macOS, Linux | Cloud PCs; nothing to install locally |
+| Windows editions | 10/11 Pro, Enterprise, Education, Server; not Home | Windows 10 and 11 in its README | Windows 10/11, plus macOS and Linux | Windows, macOS, Linux | Cloud PCs; nothing to install locally |
 | Price | Free, MIT | Free, MIT | Free, MIT (cloud machines billed separately) | Free locally, MIT; a hosted remote tier | $0.40 an hour in the US, plus $5 a month for an always-available PC |
 
 ## Anode's difference, and its limits
@@ -55,7 +60,7 @@ target by target; the seat has its own.
 ## Windows-MCP
 
 [CursorTouch/Windows-MCP](https://github.com/CursorTouch/Windows-MCP) is a Python MCP server with
-about 8,200 GitHub stars, installed with `uvx windows-mcp serve`. It has `Screenshot` and `Snapshot`
+about 9,250 GitHub stars, installed with `uvx windows-mcp serve`. It has `Screenshot` and `Snapshot`
 (UI Automation) tools, and a DOM mode for Chrome, Edge and Firefox
 ([README](https://github.com/CursorTouch/Windows-MCP)).
 
@@ -68,8 +73,8 @@ about 8,200 GitHub stars, installed with `uvx windows-mcp serve`. It has `Screen
 - Anonymous telemetry is on by default; `ANONYMIZED_TELEMETRY=false` turns it off
   ([README, Telemetry](https://github.com/CursorTouch/Windows-MCP)).
 
-**Choose it** when you watch the agent work on your own desktop, need Windows Home or older
-Windows, or want a mature project with many users. **Choose Anode** when you want to keep using
+**Choose it** when you watch the agent work on your own desktop, are on Windows Home (where Anode
+can't run; Windows-MCP's README names Windows 10 and 11 but no editions), or want a mature project with many users. **Choose Anode** when you want to keep using
 your mouse and keyboard during the agent's work.
 
 ## Cua Driver
