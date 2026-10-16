@@ -17,6 +17,15 @@ cut, and the nine clicks, which took 0.4 s, are shown four times slower.</sub>
 [![Windows build](https://github.com/skulitom/Anode/actions/workflows/build.yml/badge.svg)](https://github.com/skulitom/Anode/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
+- **Who it's for:** developers on Windows who let an AI agent test their desktop apps, browser pages or Android apps,
+  or do other work in real Windows programs, while they keep using the same PC; and anyone running several agents
+  that need a desktop on one machine.
+- **Use it when** an agent has to click, type, read controls and take screenshots in native apps or a headed browser,
+  and it must not take over your mouse, keyboard or screen.
+- **Don't use it when** you are on Windows Home or macOS, when you need a security sandbox (the seat runs as your user,
+  with your files and network), or when the task needs no desktop at all: an API, a shell or a headless browser test is
+  simpler. [When to use which](docs/COMPARISON.md) compares the alternatives.
+
 ## Install in 3 commands
 
 **Before you start:** Anode needs Windows 10/11 Pro, Enterprise or Education (not Home) on x64, and
@@ -69,6 +78,11 @@ See [Install](#install) for custom locations and offline installs, or
   seat, drive them through adb, open Android Studio there on its own profile, and open web consoles
   such as Google Play Console in a seat browser profile you sign in to (sites may ask you to sign in again). See
   [Android apps and web consoles](docs/ANDROID.md).
+
+**In use:** [haltere](https://github.com/skulitom/haltere), the author's research project in which a fruit-fly
+connectome flies an FPV drone in a racing simulator, runs the game, its capture and its virtual gamepad in Anode's
+seat. With HidHide installed, the gamepad stays inside the seat, so flights continue while the user plays on the main
+desktop. See [haltere's game setup](https://github.com/skulitom/haltere/blob/main/docs/liftoff_setup.md).
 
 The seat is a Windows *child session*: a second session for your own account, created by Windows'
 built-in loopback Remote Desktop feature. It has its own pointer and focus; adding a virtual
@@ -272,6 +286,17 @@ terms: you never need it to use Anode. It gives you:
 Read the [Business licence terms](docs/BUSINESS-LICENCE.md) first if you like. Licensing questions are welcome as
 [issues](https://github.com/skulitom/Anode/issues/new): put "licensing" in the title. Issues are public, so never post
 your licence key or anything private in one.
+
+## Sibling tools
+
+Anode is one of five free, MIT-licensed tools for agents by the same author. Each runs locally and works as an MCP server:
+
+- [Pixelbolt](https://github.com/skulitom/Pixelbolt): pixel art and sprite animation from editable JSON recipes, exported as
+  sprite sheets, atlases, animated PNGs and GIFs.
+- [Cutbolt](https://github.com/skulitom/Cutbolt): a video editing engine with exact timelines, captions and rendering.
+- [Inkbolt](https://github.com/skulitom/Inkbolt): vector and raster image editing: SVG, PDF, diagrams and illustrations.
+- [Nestbolt](https://github.com/skulitom/Nestbolt): 2D nesting of parts on sheets for laser, CNC, plasma and waterjet
+  cutting, also [in your browser](https://skulitom.github.io/Nestbolt/).
 
 ## Credits and license
 
