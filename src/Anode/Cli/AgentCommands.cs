@@ -33,7 +33,7 @@ internal static partial class Cli
         return args[index..];
     }
 
-    private static Task<JsonObject> RequestAsync(JsonPipeClient client, string op, JsonObject? arguments = null,
+    internal static Task<JsonObject> RequestAsync(JsonPipeClient client, string op, JsonObject? arguments = null,
         int timeoutMs = 60000, CancellationToken cancel = default)
     {
         // Human emergency controls do not depend on an agent's environment or lease.
@@ -43,8 +43,9 @@ internal static partial class Cli
         payload["op"] = op;
         if (AgentAccess.Validate(payload) is { } error) return Task.FromResult(JsonLine.Fail(error));
         payload.Remove("op");
+        // Commands that don't validate before connecting are refused here, in the CLI's own words.
         if (Mcp.Tools.ValidateOperation(op, AgentAccess.Arguments(payload)) is { } invalid)
-            return Task.FromResult(JsonLine.Fail(invalid));
+            return Task.FromResult(JsonLine.Fail(CliError(invalid)));
         return client.RequestAsync(op, payload, timeoutMs, cancel);
     }
 
