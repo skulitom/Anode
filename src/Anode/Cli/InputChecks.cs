@@ -250,6 +250,12 @@ internal static class InputChecks
                 $"a press held past its deadline ({clock.ElapsedMilliseconds} ms), or was not reported as cut short with its keys released");
         }
 
+        sent.Clear();
+        bool refused = false;
+        try { InputInjector.Press(chord, 30, new CancellationToken(canceled: true), Send); }
+        catch (OperationCanceledException) { refused = true; }
+        Require(refused && sent.Count == 0, "a press whose request had already run out of time still pressed its keys");
+
         // Through the lease, as in the seat host: a long hold answers timed_out before the caller gives up.
         var lease = new Core.Agents.DesktopLease();
         string token = lease.HandleAsync(new JsonObject { ["op"] = "lease", ["agentId"] = "A", ["action"] = "acquire" }, (_, _) => Task.FromResult(JsonLine.Ok()))

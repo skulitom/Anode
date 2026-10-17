@@ -241,6 +241,8 @@ internal sealed class GamepadManager : IDisposable
     {
         var pad = Require(slot);
         milliseconds = Math.Clamp(milliseconds, 1, Mcp.Tools.MaxHoldMs);
+        // A request whose time already ran out presses nothing.
+        cancel.ThrowIfCancellationRequested();
 
         bool isTrigger = TriggerNamed(name) is not null;
 
@@ -251,13 +253,16 @@ internal sealed class GamepadManager : IDisposable
             pad.SubmitReport();
         }
 
-        bool cut = InputInjector.Hold(milliseconds, cancel);
-
-        lock (_gate)
+        bool cut;
+        try { cut = InputInjector.Hold(milliseconds, cancel); }
+        finally
         {
-            if (isTrigger) pad.SetSliderValue(ResolveTrigger(name), 0);
-            else pad.SetButtonState(ResolveButton(name), false);
-            pad.SubmitReport();
+            lock (_gate)
+            {
+                if (isTrigger) pad.SetSliderValue(ResolveTrigger(name), 0);
+                else pad.SetButtonState(ResolveButton(name), false);
+                pad.SubmitReport();
+            }
         }
 
         if (cut) throw new OperationCanceledException(cancel);

@@ -385,6 +385,8 @@ internal static class GamepadChecks
         catch (OperationCanceledException) { stopped = true; }
         Require(stopped && clock.ElapsedMilliseconds < 3000 && pad.Sent(Xbox360Button.A, back: 1) is true && pad.Sent(Xbox360Button.A) is false
             && pad.Reports == reports + 2, $"a tap held past its deadline ({clock.ElapsedMilliseconds} ms), or kept its button down");
+        Require(Throws<OperationCanceledException>(() => pads.Tap(0, "b", 30, new CancellationToken(canceled: true)), "")
+            && pad.Reports == reports + 2, "a tap whose request had already run out of time still pressed its button");
     }
 
     private static bool Throws<T>(Action action, string words) where T : Exception

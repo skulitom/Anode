@@ -299,6 +299,8 @@ internal static class InputInjector
     /// </summary>
     internal static void Press(ushort[] keys, int holdMs, CancellationToken cancel, Action<ushort[], bool> send, bool useScanCode = true)
     {
+        // A request whose time already ran out presses nothing.
+        cancel.ThrowIfCancellationRequested();
         foreach (ushort key in keys) HeldKeys.Add((key, useScanCode));
         bool cut;
         try { send(keys, false); cut = Hold(holdMs, cancel); }
