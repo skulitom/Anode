@@ -265,11 +265,18 @@ ended your lease" and forget the token. Acquire again (`seat_lease` with `{"acti
 
 ### "The desktop is busy with agent …" (`seat_busy`)
 
-Another agent holds the lease. With `ANODE_AGENT_ID` set, `anode lease status` shows the owner and
-the time remaining; MCP agents call `seat_lease` with `{"action":"status"}`. Wait for release or
-expiry (default 120 s, at most 600 s); there is no queue or takeover. On release, `seat_busy` means
-your own desktop action is still running; retry when it finishes. `anode kill` stops the whole seat
-for every agent, including the owner's work.
+Another agent holds the lease, or other agents are already waiting in line for it. With
+`ANODE_AGENT_ID` set, `anode lease status` shows the owner, the time remaining and the line; MCP
+agents call `seat_lease` with `{"action":"status"}`. To wait, acquire with a wait: `anode lease
+acquire --wait 60` (0-300 seconds; the CLI's default is 0) or `seat_lease` with
+`{"action":"acquire"}` (`waitSeconds`, default 30). Waiting agents form a first-come line, and the
+desktop goes to the first one still asking when the owner releases it or its lease expires (120 s
+after its last desktop action by default, at most 600 s). An acquire without a wait never joins the
+line, and while anyone waits it is refused even when the desktop is free, so retrying without
+`--wait` can keep losing the desktop to agents in line. There is no takeover. On release,
+`seat_busy` means your own desktop action is still running; retry when it finishes. `anode kill`
+stops the whole seat for every agent, including the owner's work. See
+[how agents take turns](MULTI-AGENT.md#how-agents-take-turns).
 
 ### `lease_expired` or `stale_lease`
 

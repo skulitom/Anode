@@ -432,13 +432,22 @@ internal static class AgentChecks
         Require(status.Str("ownerName") == "Claude Code" && status["waiting"] is JsonArray { Count: 2 } line && line[0]!.AsObject().Str("agentName") == "Codex",
             "status did not name the owner and the line");
         Require((await Call(Input("A", a))).Int("waitingAgents") == 2, "the owner was not told that agents are waiting");
-        Require((await Call(Lease("D", "acquire"))).Str("errorCode") == "seat_busy" && Place(await Call(Lease("D", "status"))) is null,
+        var unqueued = await Call(Lease("D", "acquire"));
+        Require(unqueued.Str("errorCode") == "seat_busy" && Place(await Call(Lease("D", "status"))) is null,
             "an acquire without waitSeconds joined or jumped the line");
+        // MCP agents are told to pass waitSeconds; a CLI user is told the option they can type.
+        Require(unqueued.Str("error")!.Contains("Acquire with waitSeconds to wait in line.")
+            && Cli.CliLeaseError(unqueued.DeepClone().AsObject()).Str("error") is { } cli
+            && cli.Contains("Acquire with --wait SECONDS to wait in line.") && !cli.Contains("waitSeconds"),
+            "a CLI user refused a busy desktop was told to pass waitSeconds");
 
         // The first agent still asking gets the released desktop; the rest keep their order.
         now = 1000;
         await Call(Waiting("B")); await Call(Waiting("C"));
         await Call(Lease("A", "release", a));
+        var handover = await Call(Lease("D", "acquire"));
+        Require(handover.Str("errorCode") == "seat_busy" && handover.Str("error")!.StartsWith("The desktop is being handed to the next agent in line.")
+            && Place(await Call(Lease("D", "status"))) is null, "an acquire without waitSeconds took a free desktop from the agents in line");
         Require((await Call(Waiting("C"))).Str("errorCode") == "seat_busy", "a later agent jumped the line");
         var granted = await Call(Waiting("B"));
         Require(granted.Bool("ok") == true && granted.Obj("result")?.Str("ownerName") == "Codex" && Place(await Call(Lease("C", "status"))) == 1,

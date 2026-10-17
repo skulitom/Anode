@@ -40,6 +40,12 @@
   printed the tool's own `arguments.maxWidth` and `arguments.ms` text, and `shot` connected to the
   daemon before checking; both now name the flag, and `shot` checks first. `anode ps kill 0` is
   refused as a process id below 1.
+- **A busy desktop tells CLI users how to wait in line.** `anode lease acquire` on a desktop another
+  agent held said "Acquire with waitSeconds to wait in line", an MCP argument the CLI doesn't take;
+  it now says `--wait SECONDS`. TROUBLESHOOTING's `seat_busy` section said "there is no queue", so a
+  CLI user retried without `--wait` and could keep losing the desktop to agents already in line. It
+  now describes the first-come line and `--wait`, and says that an acquire without a wait is refused
+  while agents wait, even when the desktop is free.
 - **.NET 10.0.13.** Release builds include Microsoft's October security update of the .NET 10
   runtime (10.0.13, from 10.0.12).
 - **`anode selftest` no longer fills your log with things that never happened.** Each quick
