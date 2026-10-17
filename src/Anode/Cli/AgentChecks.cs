@@ -467,7 +467,7 @@ internal static class AgentChecks
         now += 120_001;
         lease.ExpireIdle();
         Require((await Call(Input("B", b))).Str("errorCode") == "lease_expired", "an idle owner kept the desktop");
-        return "first-come line, places kept only while asking, owner names, waiting counts and leases extended by work";
+        return "first-come line, places kept only while asking, no-wait acquires refused while agents wait (CLI told --wait), owner names, waiting counts and leases extended by work";
     }
 
     /// <summary>

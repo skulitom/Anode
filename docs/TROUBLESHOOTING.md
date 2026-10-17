@@ -265,14 +265,16 @@ ended your lease" and forget the token. Acquire again (`seat_lease` with `{"acti
 
 ### "The desktop is busy with agent …" (`seat_busy`)
 
-Another agent holds the lease, or other agents are already waiting in line for it. With
+Another agent holds the lease, or other agents are already waiting in line for it. An acquire says
+"Desktop in use by …" or "The desktop is being handed to the next agent in line." With
 `ANODE_AGENT_ID` set, `anode lease status` shows the owner, the time remaining and the line; MCP
-agents call `seat_lease` with `{"action":"status"}`. To wait, acquire with a wait: `anode lease
-acquire --wait 60` (0-300 seconds; the CLI's default is 0) or `seat_lease` with
+agents call `seat_lease` with `{"action":"status"}`. To wait, acquire with a wait:
+`anode lease acquire --wait 60` (0-300 seconds; the CLI's default is 0) or `seat_lease` with
 `{"action":"acquire"}` (`waitSeconds`, default 30). Waiting agents form a first-come line, and the
-desktop goes to the first one still asking when the owner releases it or its lease expires (120 s
-after its last desktop action by default, at most 600 s). An acquire without a wait never joins the
-line, and while anyone waits it is refused even when the desktop is free, so retrying without
+desktop goes to the first one still asking when the owner releases it or its lease expires (by
+default 120 s from its last acquire, renew or desktop action, at most 600 s). An acquire without a
+wait (no `--wait`, `waitSeconds: 0`, or an MCP desktop tool taking the lease itself) never joins
+the line, and while anyone waits it is refused even when the desktop is free, so retrying without
 `--wait` can keep losing the desktop to agents in line. There is no takeover. On release,
 `seat_busy` means your own desktop action is still running; retry when it finishes. `anode kill`
 stops the whole seat for every agent, including the owner's work. See
