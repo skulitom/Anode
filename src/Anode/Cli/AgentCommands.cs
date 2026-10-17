@@ -76,7 +76,7 @@ internal static partial class Cli
         // A failed acquisition has already said why the daemon could not start; 3 matches `start`.
         if (client is null) return acquire ? (_startBlocked ? 3 : 1) : NotRunning();
         if (!acquire || payload.Int("waitSeconds") is not int wait || wait == 0)
-            return Report(await RequestAsync(client, "lease", payload, acquire ? 180000 : 60000));
+            return Report(CliLeaseError(await RequestAsync(client, "lease", payload, acquire ? 180000 : 60000)));
 
         // Ask about once a second; each ask keeps this agent's place in line until the wait ends.
         var waited = Stopwatch.StartNew();
@@ -87,9 +87,17 @@ internal static partial class Cli
             payload["waitSeconds"] = Math.Max(0, left);
             var response = await RequestAsync(client, "lease", payload, 180000);
             if (response.Bool("ok") == true || response.Str("errorCode") != "seat_busy" || left <= 0 || !client.IsConnected)
-                return Report(response);
+                return Report(CliLeaseError(response));
             if (!told) { Console.Error.WriteLine(response.Str("error")); told = true; }
             await Task.Delay(1000);
         }
+    }
+
+    /// <summary>The daemon tells MCP agents to wait in line with waitSeconds; a CLI user waits with --wait.</summary>
+    internal static JsonObject CliLeaseError(JsonObject response)
+    {
+        if (response.Str("errorCode") == "seat_busy" && response.Str("error") is { } error)
+            response["error"] = error.Replace("Acquire with waitSeconds", "Acquire with --wait SECONDS", StringComparison.Ordinal);
+        return response;
     }
 }
