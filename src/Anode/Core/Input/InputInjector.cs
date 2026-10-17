@@ -289,19 +289,29 @@ internal static class InputInjector
     /// Presses a chord such as <c>ctrl+shift+esc</c> or a single key such as <c>f5</c>,
     /// holding it for <paramref name="holdMs"/> and releasing in reverse order.
     /// </summary>
-    public static void Press(string chord, int holdMs = 40, bool useScanCode = true)
+    public static void Press(string chord, int holdMs = 40, bool useScanCode = true, CancellationToken cancel = default) =>
+        Press(KeyCodes.Chord(chord), holdMs, cancel, (keys, up) => Send(keys.Select(vk => KeyEvent(vk, up, useScanCode)).ToArray()),
+            useScanCode);
+
+    /// <summary>
+    /// The hold ends early when <paramref name="cancel"/> fires (the request's deadline, or a stopping seat): the keys
+    /// are released and the press throws, so its reply still reaches the caller in time and its connection survives.
+    /// </summary>
+    internal static void Press(ushort[] keys, int holdMs, CancellationToken cancel, Action<ushort[], bool> send, bool useScanCode = true)
     {
-        ushort[] keys = KeyCodes.Chord(chord);
-        var down = keys.Select(vk => KeyEvent(vk, false, useScanCode)).ToArray();
         foreach (ushort key in keys) HeldKeys.Add((key, useScanCode));
-        try { Send(down); Thread.Sleep(Math.Max(1, holdMs)); }
+        bool cut;
+        try { send(keys, false); cut = Hold(holdMs, cancel); }
         finally
         {
-            var up = keys.Reverse().Select(vk => KeyEvent(vk, true, useScanCode)).ToArray();
-            Send(up);
+            send(keys.Reverse().ToArray(), true);
             foreach (ushort key in keys) HeldKeys.Remove((key, useScanCode));
         }
+        if (cut) throw new OperationCanceledException(cancel);
     }
+
+    /// <summary>Waits <paramref name="ms"/> (at least 1 ms); true when <paramref name="cancel"/> ended the wait first.</summary>
+    internal static bool Hold(int ms, CancellationToken cancel) => cancel.WaitHandle.WaitOne(Math.Max(1, ms));
 
     /// <summary>
     /// Types literal text as Unicode, so layout and dead keys do not interfere. <see cref="TextTyping"/> paces it so

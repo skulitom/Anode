@@ -175,14 +175,14 @@ internal static class SeatHost
         }
         bool desktop = DesktopTools.ToolName(op) is not null;
         bool changesUi = op.StartsWith("input.", StringComparison.Ordinal) || op is "run" or "steam.launch" or "ps.kill" or "android.studio" or "browser.open";
-        if (!desktop && !changesUi) return Dispatch(op, request);
+        if (!desktop && !changesUi) return Dispatch(op, request, cancel);
         if (changesUi) Desktop.InvalidateObservations();
         // Typing can take most of a request's time, so it stops at the request's deadline, or at a shutdown sent on
         // another connection. The daemon's own shutdown waits behind it; the sign-out that follows ends it.
         if (op == "input.text")
             return InputInjector.TypeText(request.Str("text") ?? throw new ArgumentException("text needs 'text'."),
                 request.Int("perCharMs"), request.Int("timeoutMs") ?? 60_000, cancel);
-        return desktop ? await Desktop.HandleAsync(op, request, cancel).ConfigureAwait(false) : Dispatch(op, request);
+        return desktop ? await Desktop.HandleAsync(op, request, cancel).ConfigureAwait(false) : Dispatch(op, request, cancel);
     }
 
     private static async Task<JsonObject> EmulatorAsync(JsonObject request, CancellationToken cancel)
@@ -226,7 +226,8 @@ internal static class SeatHost
         return reply;
     }
 
-    private static JsonObject Dispatch(string op, JsonObject r)
+    /// <param name="cancel">Ends a key press's or gamepad tap's hold at the request's deadline.</param>
+    private static JsonObject Dispatch(string op, JsonObject r, CancellationToken cancel = default)
     {
         switch (op)
         {
@@ -323,7 +324,8 @@ internal static class SeatHost
                 InputInjector.Press(
                     r.Str("keys") ?? throw new ArgumentException("key needs 'keys', for example \"ctrl+s\"."),
                     r.Int("holdMs") ?? 40,
-                    r.Bool("scanCode") ?? true);
+                    r.Bool("scanCode") ?? true,
+                    cancel);
                 return JsonLine.Ok();
 
             case "input.keydown":
@@ -408,7 +410,8 @@ internal static class SeatHost
                 return JsonLine.Ok(Gamepads.Tap(
                     r.Int("slot") ?? 0,
                     r.Str("button") ?? throw new ArgumentException("gamepad.tap needs 'button'."),
-                    r.Int("ms") ?? 80));
+                    r.Int("ms") ?? 80,
+                    cancel));
 
             case "gamepad.state":
                 return JsonLine.Ok(new JsonObject { ["slots"] = Gamepads.Slots(), ["isolation"] = _padIsolation?.Describe() });

@@ -260,7 +260,7 @@ schema, so its row lists every argument it accepts.
 | `input.down` / `input.up` | `button`, `x`, `y` |
 | `input.drag` | `fromX`, `fromY`, `toX`, `toY`, `button` |
 | `input.scroll` | `amount` (negative is down), `horizontal` |
-| `input.key` | `keys` (`"ctrl+shift+esc"`), `holdMs` |
+| `input.key` | `keys` (`"ctrl+shift+esc"`), `holdMs` (0-10000) |
 | `input.keydown` / `input.keyup` | `key`, `scanCode` |
 | `input.text` | `text`, `perCharMs` |
 
@@ -362,7 +362,7 @@ or `AnodeEdge`, `--no-first-run`, `--no-default-browser-check` and `--new-window
 | --- | --- |
 | `gamepad.attach` / `gamepad.detach` / `gamepad.reset` | `slot` (0-3) |
 | `gamepad.set` | `slot`, `buttons` `{name: bool}`, `axes` `{lx,ly,rx,ry: -1..1}`, `triggers` `{lt,rt: 0..1}` |
-| `gamepad.tap` | `slot`, `button`, `ms` |
+| `gamepad.tap` | `slot`, `button`, `ms` (0-10000) |
 | `gamepad.state` | |
 
 With HidHide installed, `gamepad.attach` returns `{slot, attached, device, seatOnly, verifiedFromDesktop, summary}`:

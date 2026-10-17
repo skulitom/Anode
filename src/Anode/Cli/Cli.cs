@@ -952,7 +952,7 @@ internal static partial class Cli
             + "Every action takes --slot N (0-3, default 0). With HidHide installed the seat keeps the controller to "
             + "itself; without it, programs on your own desktop see it too. state says which.",
             ("anode gamepad attach [--slot N]", "plug in a virtual Xbox 360 controller"),
-            ("anode gamepad tap <button> [--ms 80]", "press and release a button"),
+            ("anode gamepad tap <button> [--ms 80]", "press and release a button; --ms is 0-10000"),
             ("anode gamepad hold <button> | release <button>", "keep a button down, or let it go"),
             ("anode gamepad stick <left|right> <x> <y>", "x and y from -1 to 1"),
             ("anode gamepad reset | state | detach", "center everything, read the state, or unplug")),

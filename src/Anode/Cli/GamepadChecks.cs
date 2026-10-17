@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json.Nodes;
 using Anode.Core.Gamepad;
 using Nefarius.ViGEm.Client.Targets;
@@ -368,6 +369,22 @@ internal static class GamepadChecks
         public void SetButtonsFull(ushort buttons) => _buttons = buttons;
         public void ResetReport() => _report.Clear();
         public void SubmitReport() => _sent.Add(new Dictionary<object, object>(_report));
+    }
+
+    /// <summary>A tap its request's deadline stops lets go of the button and says so; part of "key and tap holds".</summary>
+    internal static void TapCutShort()
+    {
+        var pad = new FakePad(null, Pad1);
+        using var pads = new GamepadManager(() => pad);
+        pads.Attach(0);
+        int reports = pad.Reports;
+        using var cut = new CancellationTokenSource(100);
+        var clock = Stopwatch.StartNew();
+        bool stopped = false;
+        try { pads.Tap(0, "a", Mcp.Tools.MaxHoldMs, cut.Token); }
+        catch (OperationCanceledException) { stopped = true; }
+        Require(stopped && clock.ElapsedMilliseconds < 3000 && pad.Sent(Xbox360Button.A, back: 1) is true && pad.Sent(Xbox360Button.A) is false
+            && pad.Reports == reports + 2, $"a tap held past its deadline ({clock.ElapsedMilliseconds} ms), or kept its button down");
     }
 
     private static bool Throws<T>(Action action, string words) where T : Exception

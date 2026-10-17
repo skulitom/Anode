@@ -330,7 +330,7 @@ internal static class Tools
             + "for example \"enter\", \"f5\" or \"ctrl+shift+esc\". Keys are sent as scan codes so games see them.",
             Schema(
                 ("keys", "string", "A key name, or names joined with +. Punctuation goes by symbol or name (ctrl+` or ctrl+grave, ctrl+plus); Windows names such as VK_OEM_3 and vk<hex> codes work too.", true),
-                ("holdMs", "integer", "How long to hold the key down. Default 40.", false))),
+                ("holdMs", "integer", "How long to hold the key down, 0-10000 ms. Default 40.", false))),
 
         new("seat_type", "Anode: type text", "input.text", false, Effect.Action,
             "Type literal text with the keyboard into the focused control of an app on Anode's background Windows desktop (the seat). "
@@ -388,7 +388,7 @@ internal static class Tools
             "Press one controller button or trigger briefly and release it.",
             Schema(
                 ("button", "string", "a, b, x, y, lb, rb, back, start, guide, ls, rs, up, down, left, right, lt or rt.", true),
-                ("ms", "integer", "How long to hold it. Default 80.", false),
+                ("ms", "integer", "How long to hold it, 0-10000 ms. Default 80.", false),
                 ("slot", "integer", "Controller slot. Default 0.", false))),
 
         new("gamepad_reset", "Anode: release all controller inputs", "gamepad.reset", false, Effect.Action,
@@ -643,6 +643,12 @@ internal static class Tools
     private static JsonObject Property(string type, string description) =>
         new() { ["type"] = type, ["description"] = description };
 
+    /// <summary>
+    /// The longest key hold or gamepad tap. A hold runs inside one desktop request, so it must end well before the
+    /// request's 60 s deadline; one that outlasted it cost the daemon its seat-host connection, detaching the seat.
+    /// </summary>
+    internal const int MaxHoldMs = 10_000;
+
     private static JsonObject Schema(params (string Name, string Type, string Description, bool Required)[] fields)
     {
         var properties = new JsonObject();
@@ -657,7 +663,7 @@ internal static class Tools
                 "waitMs" => (0, 10000), "executionTimeoutMs" => (100, 1800000), "maxChars" => (1, 20000),
                 "maxElements" => (1, 500), "maxDepth" => (0, 20), "maxTextChars" => (0, 20000),
                 "width" => (160, 8192), "height" => (100, 8192),
-                "count" => (1, 2), "holdMs" or "ms" => (0, 60_000), "perCharMs" => (0, 1000),
+                "count" => (1, 2), "holdMs" or "ms" => (0, MaxHoldMs), "perCharMs" => (0, 1000),
                 "appId" or "pid" => (1, int.MaxValue), _ => null
             };
             if (range is { } bounds) { property["minimum"] = bounds.Min; property["maximum"] = bounds.Max; }

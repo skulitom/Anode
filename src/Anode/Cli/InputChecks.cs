@@ -219,6 +219,57 @@ internal static class InputChecks
         return "one call fits 45 s: 3001 characters at 15 ms, fewer when slower or with Enter presses; refused before typing";
     }
 
+    public static string Holds()
+    {
+        // A hold longer than the request's deadline cost the daemon its seat-host connection and detached the seat.
+        JsonObject Key(int holdMs) => new() { ["keys"] = "a", ["holdMs"] = holdMs };
+        JsonObject Tap(int ms) => new() { ["button"] = "a", ["ms"] = ms };
+        Require(Tools.ValidateArguments("seat_key", Key(Tools.MaxHoldMs)) is null && Tools.ValidateArguments("gamepad_tap", Tap(Tools.MaxHoldMs)) is null,
+            "the longest allowed hold was refused");
+        Require(Tools.ValidateArguments("seat_key", Key(Tools.MaxHoldMs + 1)) is not null && Tools.ValidateArguments("gamepad_tap", Tap(Tools.MaxHoldMs + 1)) is not null
+            && Tools.ValidateOperation("input.key", Key(60_000)) is not null && Tools.ValidateOperation("gamepad.tap", Tap(60_000)) is not null,
+            "a hold the request's deadline can't fit was accepted");
+        Require(Tools.MaxHoldMs * 2 <= Core.Agents.DesktopLease.StopAfterMs(60_000), "the longest hold leaves the request's deadline no margin");
+
+        var sent = new List<(string Keys, bool Up)>();
+        void Send(ushort[] keys, bool up) => sent.Add((string.Join(",", keys), up));
+        ushort[] chord = { 0x11, 0x41 }; // ctrl+a
+        var clock = Stopwatch.StartNew();
+        InputInjector.Press(chord, 30, CancellationToken.None, Send);
+        Require(clock.ElapsedMilliseconds >= 15 && sent.SequenceEqual(new[] { ("17,65", false), ("65,17", true) }),
+            "a key press did not hold for its time, or did not release in reverse order");
+
+        sent.Clear();
+        using (var cut = new CancellationTokenSource(100))
+        {
+            clock.Restart();
+            bool stopped = false;
+            try { InputInjector.Press(chord, Tools.MaxHoldMs, cut.Token, Send); }
+            catch (OperationCanceledException) { stopped = true; }
+            Require(stopped && clock.ElapsedMilliseconds < 3000 && sent.SequenceEqual(new[] { ("17,65", false), ("65,17", true) }),
+                $"a press held past its deadline ({clock.ElapsedMilliseconds} ms), or was not reported as cut short with its keys released");
+        }
+
+        // Through the lease, as in the seat host: a long hold answers timed_out before the caller gives up.
+        var lease = new Core.Agents.DesktopLease();
+        string token = lease.HandleAsync(new JsonObject { ["op"] = "lease", ["agentId"] = "A", ["action"] = "acquire" }, (_, _) => Task.FromResult(JsonLine.Ok()))
+            .GetAwaiter().GetResult().Obj("result")!.Str("leaseToken")!;
+        var request = Key(Tools.MaxHoldMs);
+        request["op"] = "input.key"; request["agentId"] = "A"; request["leaseToken"] = token; request["timeoutMs"] = 2000;
+        sent.Clear();
+        clock.Restart();
+        var reply = lease.HandleAsync(request, (r, cancel) =>
+        {
+            InputInjector.Press(chord, r.Int("holdMs") ?? 40, cancel, Send);
+            return Task.FromResult(JsonLine.Ok());
+        }).GetAwaiter().GetResult();
+        Require(reply.Str("errorCode") == "timed_out" && reply.Bool("started") == true && clock.ElapsedMilliseconds < 2000 && sent.Count == 2 && sent[1].Up,
+            $"a hold longer than its request answered after the caller's deadline ({clock.ElapsedMilliseconds} ms of 2000), or kept its keys down: {reply.ToJsonString()}");
+
+        GamepadChecks.TapCutShort();
+        return $"holds of 0-{Tools.MaxHoldMs} ms only; a key press or gamepad tap stopped by its deadline lets go and answers timed_out in time";
+    }
+
     private sealed class MessageWindow : NativeWindow
     {
         public const int Busy = 0x8001, Quit = 0x8002; // WM_APP + n
