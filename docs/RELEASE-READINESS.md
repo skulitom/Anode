@@ -66,7 +66,7 @@ live check) in CI and on any PC.
 ## 0.11.3 release validation
 
 **Scope:** everything merged since 0.11.2:
-- fixes: #34, #36 to #39, #41, #42, #44, #48, #49, #52 and #55;
+- fixes: #34, #36 to #39, #41, #42, #44, #48, #49, #52, #55 and #56;
 - documentation: #45 (TROUBLESHOOTING's typing advice);
 - licensing: #19 (the Anode Business licence terms, first released here; Anode stays MIT) and #40
   (the README's Business link);
@@ -97,9 +97,9 @@ release does not include it.
 - Windows CI on the candidate repeats the build, packaging, quick suite, installation,
   distribution and documentation checks, and runs the environment self-test on a GitHub-hosted
   Windows runner.
-- Fixes merged after the candidate was first recorded (#48, #49, #51, #52, #55): `scripts\build.ps1
-  -QuickTest` passed with each (**111 quick self-tests** after all five), with the documentation
-  check, and so did Windows CI. The package steps above were not repeated by hand.
+- Fixes merged after the candidate was first recorded (#48, #49, #51, #52, #55, #56):
+  `scripts\build.ps1 -QuickTest` passed with each (**112 quick self-tests** after all six), with the
+  documentation check, and so did Windows CI. The package steps above were not repeated by hand.
 
 ### Coverage limits and known issues
 
@@ -107,7 +107,8 @@ release does not include it.
   stand-ins: Reconnect after a password sign-in (#42), `quit` with the sign-in dialog open (#34),
   a seat stopped during a display change (#44), a Reconnect refused while a seat runs (#48), a
   `gamepad_set` refused partway (#49), MCP input waiting for a look after a lease is taken (#38),
-  `raise` on a real UWP window (#37) and non-English Windows date formats (#41).
+  `raise` on a real UWP window (#37), non-English Windows date formats (#41) and a key hold or
+  gamepad tap cut short by its request's deadline (#56).
 - The environment self-test ran on CI's hosted runner, not inside a seat. Audio, the virtual
   gamepad, Android, the foreground pointer phases and the Claude Desktop bundle test are not part
   of the live check.

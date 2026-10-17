@@ -56,6 +56,7 @@ internal static class SelfTest
         Check(results, "key names and chords", InputChecks.KeyChords);
         Check(results, "text typing pace", InputChecks.Pacing);
         Check(results, "text typing limits", InputChecks.Limits);
+        Check(results, "key and tap holds", InputChecks.Holds);
         Check(results, "text typing waits", InputChecks.Waits);
 
         Check(results, "gamepad mapping", () =>

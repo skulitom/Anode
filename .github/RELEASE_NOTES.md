@@ -43,6 +43,9 @@ or commands were added; there are still 41 tools.
   `--durationMs` for `anode audio listen --ms` or `arguments.maxWidth` for `anode shot --width`, so
   retyping the suggestion failed. A busy desktop's refusal tells CLI users `--wait SECONDS` instead
   of `waitSeconds`, and TROUBLESHOOTING now describes the lease's first-come line.
+- **A long `seat_key` hold no longer detaches the seat.** A `holdMs` near its old 60000 maximum
+  outlasted the request, and Anode lost contact with the seat for every agent. A key hold or
+  `gamepad_tap` now ends at the request's deadline and answers `timed_out`, and both take 0-10000 ms.
 
 **Known issues.** A Chrome window's first observation can come back without the page, and the
 page's controls sit deeper than the default `maxDepth` of 8: observe again with `maxDepth` 16. On

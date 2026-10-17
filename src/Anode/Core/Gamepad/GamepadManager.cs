@@ -3,6 +3,7 @@ using Nefarius.ViGEm.Client;
 using Nefarius.ViGEm.Client.Targets;
 using Nefarius.ViGEm.Client.Targets.Xbox360;
 using Anode.Core.Bridge;
+using Anode.Core.Input;
 
 namespace Anode.Core.Gamepad;
 
@@ -232,11 +233,16 @@ internal sealed class GamepadManager : IDisposable
         return new JsonObject { ["slot"] = slot, ["applied"] = applied };
     }
 
-    /// <summary>Presses a button (or pulls a trigger) for a moment and releases it.</summary>
-    public JsonObject Tap(int slot, string name, int milliseconds)
+    /// <summary>
+    /// Presses a button (or pulls a trigger) for a moment and releases it. Like a key press, the hold ends early when
+    /// <paramref name="cancel"/> fires: the button is released and the tap throws, so the reply arrives in time.
+    /// </summary>
+    public JsonObject Tap(int slot, string name, int milliseconds, CancellationToken cancel = default)
     {
         var pad = Require(slot);
-        milliseconds = Math.Clamp(milliseconds, 1, 10_000);
+        milliseconds = Math.Clamp(milliseconds, 1, Mcp.Tools.MaxHoldMs);
+        // A request whose time already ran out presses nothing.
+        cancel.ThrowIfCancellationRequested();
 
         bool isTrigger = TriggerNamed(name) is not null;
 
@@ -247,15 +253,19 @@ internal sealed class GamepadManager : IDisposable
             pad.SubmitReport();
         }
 
-        Thread.Sleep(milliseconds);
-
-        lock (_gate)
+        bool cut;
+        try { cut = InputInjector.Hold(milliseconds, cancel); }
+        finally
         {
-            if (isTrigger) pad.SetSliderValue(ResolveTrigger(name), 0);
-            else pad.SetButtonState(ResolveButton(name), false);
-            pad.SubmitReport();
+            lock (_gate)
+            {
+                if (isTrigger) pad.SetSliderValue(ResolveTrigger(name), 0);
+                else pad.SetButtonState(ResolveButton(name), false);
+                pad.SubmitReport();
+            }
         }
 
+        if (cut) throw new OperationCanceledException(cancel);
         return new JsonObject { ["slot"] = slot, ["tapped"] = name, ["ms"] = milliseconds };
     }
 
