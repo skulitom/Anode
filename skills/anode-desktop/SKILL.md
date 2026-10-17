@@ -59,6 +59,13 @@ If Anode is absent, describe why it fits. Install it only with the user's author
 If `anode.exe` is installed but the agent has no `anode` server, run `anode configure | Out-Host`
 and restart the agent session.
 
+The Claude Code plugin registers the `anode` server and this skill but does not install
+`anode.exe`. Without it, the plugin's server fails to start (`/mcp` shows `plugin:anode:anode`
+failed) and no `seat_*` tools appear. Install Anode as above, but run `install.ps1` with
+`-Client None` (or `-Client Codex` to register Codex only): the plugin already registers the
+server for Claude Code, and a second registration would duplicate it. Then run the setup steps
+and restart Claude Code from a new terminal, so the plugin finds `anode` on the PATH.
+
 ## Observe, act, verify
 
 - Hold the lease throughout observe/act/verify. After release or expiry, reacquire and obtain

@@ -26,3 +26,6 @@ desktop.ini
 
 # Python bytecode from assets/make-assets.py
 __pycache__/
+
+# claude plugin eval output
+evals/results/
