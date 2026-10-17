@@ -46,6 +46,13 @@
   CLI user retried without `--wait` and could keep losing the desktop to agents already in line. It
   now describes the first-come line and `--wait`, and says that an acquire without a wait is refused
   while agents wait, even when the desktop is free.
+- **A long key hold no longer takes the seat offline.** `seat_key` accepted `holdMs` up to 60000,
+  but the seat held the key for the whole time without watching the request's 60-second deadline.
+  A hold near the maximum ran past it: Anode lost its connection to the seat and reported it
+  `detached`, every agent's desktop calls failed until someone started the seat again, and the agent
+  was told its key timed out though it had been pressed. A key hold or `gamepad_tap` now lets go when
+  its request runs out of time and answers `timed_out` in time, and both take at most 10000 ms
+  (`gamepad_tap` already stopped at 10 seconds but accepted up to 60000).
 - **.NET 10.0.13.** Release builds include Microsoft's October security update of the .NET 10
   runtime (10.0.13, from 10.0.12).
 - **`anode selftest` no longer fills your log with things that never happened.** Each quick
