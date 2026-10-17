@@ -66,7 +66,7 @@ live check) in CI and on any PC.
 ## 0.11.3 release validation
 
 **Scope:** everything merged since 0.11.2:
-- fixes: #34, #36 to #39, #41, #42, #44, #48, #49 and #52;
+- fixes: #34, #36 to #39, #41, #42, #44, #48, #49, #52 and #55;
 - documentation: #45 (TROUBLESHOOTING's typing advice);
 - licensing: #19 (the Anode Business licence terms, first released here; Anode stays MIT) and #40
   (the README's Business link);
@@ -97,8 +97,8 @@ release does not include it.
 - Windows CI on the candidate repeats the build, packaging, quick suite, installation,
   distribution and documentation checks, and runs the environment self-test on a GitHub-hosted
   Windows runner.
-- Fixes merged after the candidate was first recorded (#48, #49, #51, #52): `scripts\build.ps1
-  -QuickTest` passed with each (**111 quick self-tests** after all four), with the documentation
+- Fixes merged after the candidate was first recorded (#48, #49, #51, #52, #55): `scripts\build.ps1
+  -QuickTest` passed with each (**111 quick self-tests** after all five), with the documentation
   check, and so did Windows CI. The package steps above were not repeated by hand.
 
 ### Coverage limits and known issues

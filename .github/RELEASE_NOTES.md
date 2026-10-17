@@ -41,7 +41,8 @@ or commands were added; there are still 41 tools.
   giving up after 60 seconds.
 - **CLI errors name the flags you typed.** Some refusals named the MCP argument instead, such as
   `--durationMs` for `anode audio listen --ms` or `arguments.maxWidth` for `anode shot --width`, so
-  retyping the suggestion failed.
+  retyping the suggestion failed. A busy desktop's refusal tells CLI users `--wait SECONDS` instead
+  of `waitSeconds`, and TROUBLESHOOTING now describes the lease's first-come line.
 
 **Known issues.** A Chrome window's first observation can come back without the page, and the
 page's controls sit deeper than the default `maxDepth` of 8: observe again with `maxDepth` 16. On
