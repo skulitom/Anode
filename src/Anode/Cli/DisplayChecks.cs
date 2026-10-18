@@ -339,6 +339,41 @@ internal static class DisplayChecks
         return "reports the startup display from the options and status; refuses invalid requests, and every change or record while the seat is not ready";
     }
 
+    /// <summary>`anode display` with nothing to change says why its status request failed, as `anode status` does.</summary>
+    public static async Task<string> ShowFailure()
+    {
+        const string refusal = "Stand-in daemon: the status request was refused.";
+        string pipe = "anode-selftest-" + Guid.NewGuid().ToString("N");
+        using var server = new JsonPipeServer(pipe, request => Task.FromResult(JsonLine.Fail(request.Str("op") == "status" ? refusal : "unexpected request")));
+        server.Start();
+        TextWriter output = Console.Out, error = Console.Error;
+        try
+        {
+            foreach (bool json in new[] { false, true })
+            {
+                using var client = await JsonPipeClient.TryConnectAsync(pipe, 2000) ?? throw new InvalidOperationException("private pipe unavailable");
+                // The stand-in's refusal, or the CLI's own when this process's agent id or lease token is invalid.
+                string expected = (await Cli.RequestAsync(client, "status")).Str("error") ?? refusal;
+                var stdout = new StringWriter();
+                var stderr = new StringWriter();
+                Console.SetOut(stdout);
+                Console.SetError(stderr);
+                int code = await Cli.ShowDisplay(client, json);
+                Console.SetOut(output);
+                Console.SetError(error);
+                Require(code == 1 && stderr.ToString().Trim() == expected && stdout.ToString().Length == 0,
+                    $"`anode display{(json ? " --json" : "")}` did not report a failed status request on stderr alone with exit 1: "
+                    + $"exit {code}, stderr '{stderr.ToString().Trim()}', stdout '{stdout.ToString().Trim()}'");
+            }
+        }
+        finally
+        {
+            Console.SetOut(output);
+            Console.SetError(error);
+        }
+        return "a refused status request is printed on stderr with exit 1, as text and with --json; private pipe, no daemon";
+    }
+
     [DllImport("user32.dll")]
     private static extern IntPtr GetThreadDpiAwarenessContext();
 

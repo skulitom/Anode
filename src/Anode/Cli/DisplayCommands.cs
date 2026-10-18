@@ -65,8 +65,19 @@ internal static partial class Cli
     {
         using var client = await Connect(autoStart: false);
         if (client is null) return NotRunning();
-        var status = (await RequestAsync(client, "status")).Obj("result");
-        if (status is null) return 1;
+        return await ShowDisplay(client, json);
+    }
+
+    /// <summary>Prints the seat's display from its status, or why the status request failed.</summary>
+    internal static async Task<int> ShowDisplay(JsonPipeClient client, bool json)
+    {
+        var response = await RequestAsync(client, "status");
+        // A refused or lost request says why, as `anode status` does, instead of exiting 1 in silence.
+        if (response.Obj("result") is not { } status)
+        {
+            Console.Error.WriteLine(response.Str("error") ?? "Anode did not report the seat's status.");
+            return 1;
+        }
         var current = DisplayMode.FromJson(status.Obj("seat")?.Obj("screen"));
         var startup = DisplayMode.FromJson(status.Obj("startupDisplay"));
         if (json)
