@@ -170,6 +170,7 @@ internal static class SelfTest
         Check(results, "display changes", () => DisplayChecks.Changes().GetAwaiter().GetResult());
         Check(results, "display restored after a lease", () => DisplayChecks.Restore().GetAwaiter().GetResult());
         Check(results, "display requests to the daemon", () => DisplayChecks.Daemon().GetAwaiter().GetResult());
+        Check(results, "display show failure", () => DisplayChecks.ShowFailure().GetAwaiter().GetResult());
         Check(results, "display measurement", DisplayChecks.Measurement);
         Check(results, "Android SDK and AVDs", AndroidChecks.Sdk);
         Check(results, "Android emulators", () => AndroidChecks.Emulators().GetAwaiter().GetResult());
