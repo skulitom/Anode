@@ -87,12 +87,13 @@ Recorded here on `main` after the owner's `scripts\release-check.ps1` run on the
 (its `summary.txt`). The tag stays on the tested commit, so the copy of this file inside the
 release does not include it.
 
-Run on 18 October 2026 by compass-advisor at Artem's request, on `0836c78`, the tagged commit. The
-candidate package was installed over 0.11.2 (SHA-256 verified by the installer) and checked on the
-main channel. Windows refused automatic seat sign-in (disconnect reason 2055: this PC signs in with
-Windows Hello/PIN), so Artem signed the seat in with **Sign in…**; the check then ran in seat
-session 4, with the viewer visible. The first attempts that day stopped before any check: the
-script couldn't read the version of a GUI-subsystem `anode.exe` (#58, fixed before this run).
+The owner's check was run on 18 October 2026 by compass-advisor, with Artem's seat sign-in, on
+`0836c78`, the tagged commit. A package built locally from `0836c78` was installed over 0.11.2
+(SHA-256 verified by the installer) and checked on the main channel. Windows refused automatic seat
+sign-in (disconnect reason 2055), so Artem signed the seat in with **Sign in…** from the tray icon;
+the check then ran in seat session 4, with the viewer visible. Earlier attempts that day stopped
+before any check: on `764beaa` the script couldn't read the version of a GUI-subsystem `anode.exe`
+(#58, fixed in `0836c78`), and a dev-channel attempt couldn't sign its seat in.
 
 ```text
 Anode release check: PASSED
