@@ -82,12 +82,14 @@ function Format-Command([string]$FilePath, [string[]]$Arguments) {
 function New-LogWriter([string]$Path) { $writer = New-Object IO.StreamWriter($Path, $false, $utf8); $writer.AutoFlush = $true; $writer }
 
 # Native commands: under 'Stop', Windows PowerShell 5.1 turns redirected stderr into terminating errors,
-# so run them under 'Continue' and judge them by the exit code.
+# so run them under 'Continue' and judge them by the exit code. The pipe matters: anode.exe is a
+# GUI-subsystem program (WinExe), and PowerShell (5.1 and 7) waits for one and captures its output and
+# exit code only when they are piped; a plain call returns at once with no output and a stale exit code.
 function Invoke-Native([string]$FilePath, [string[]]$Arguments) {
     $saved = $ErrorActionPreference
     try {
         $ErrorActionPreference = 'Continue'
-        $output = @(& $FilePath @Arguments 2>&1)
+        $output = @(& $FilePath @Arguments 2>&1 | ForEach-Object { $_ })
         $code = $LASTEXITCODE
     } finally { $ErrorActionPreference = $saved }
     [pscustomobject]@{

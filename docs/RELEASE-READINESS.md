@@ -71,7 +71,9 @@ live check) in CI and on any PC.
 - licensing: #19 (the Anode Business licence terms, first released here; Anode stays MIT) and #40
   (the README's Business link);
 - tooling and tests: #43 (`scripts\release-check.ps1`), #35 (the CI environment self-test), #46
-  (faster quick checks) and #51 (the viewer checks' deadlines, after a slow runner failed CI once);
+  (faster quick checks), #51 (the viewer checks' deadlines, after a slow runner failed CI once) and
+  #58 (the live check reads `anode.exe`'s output on Windows PowerShell 5.1; before it, every real
+  run stopped at "the Anode under test is unknown");
 - the self-contained runtime, from .NET 10.0.12 to **10.0.13**, Microsoft's security update of
   13 October 2026 (checked against
   [Microsoft's release metadata](https://builds.dotnet.microsoft.com/dotnet/release-metadata/10.0/releases.json)
