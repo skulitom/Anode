@@ -87,6 +87,28 @@ Recorded here on `main` after the owner's `scripts\release-check.ps1` run on the
 (its `summary.txt`). The tag stays on the tested commit, so the copy of this file inside the
 release does not include it.
 
+The owner's check was run on 18 October 2026 by compass-advisor, with Artem's seat sign-in, on
+`0836c78`, the tagged commit. A package built locally from `0836c78` was installed over 0.11.2
+(SHA-256 verified by the installer) and checked on the main channel. Windows refused automatic seat
+sign-in (disconnect reason 2055), so Artem signed the seat in with **Sign in…** from the tray icon;
+the check then ran in seat session 4, with the viewer visible. Earlier attempts that day stopped
+before any check: on `764beaa` the script couldn't read the version of a GUI-subsystem `anode.exe`
+(#58, fixed in `0836c78`), and a dev-channel attempt couldn't sign its seat in.
+
+```text
+Anode release check: PASSED
+Commit 0836c780c75eb68afcd15b825c9d62d61fd32b0b (the commit that set 0.11.3: no, that is fe46d69)
+Anode 0.11.3, C:\Users\artem\AppData\Local\Programs\Anode\anode.exe, channel main, Windows 10.0.26200, seat session 4
+2026-10-18 15:19:36Z to 15:20:40Z
+desktop       passed   24 s   15 checks
+chrome-form   passed   13 s   Chrome 155.0.8059.80, no warnings
+development   passed   11 s   input delivery confirmed
+explorer      passed    8 s   148 controls
+display       passed    7 s   4 displays, reset to 1280x720 at 100%
+Note: HEAD is not the commit that set 0.11.3 (fe46d69); a tag here releases the commits after it too.
+Tag: git tag v0.11.3 0836c780c75eb68afcd15b825c9d62d61fd32b0b  then  git push origin v0.11.3
+```
+
 ### Build and package validation
 
 - `scripts\build.ps1 -QuickTest` on the candidate: **108 quick self-tests** passed, and the
