@@ -189,7 +189,7 @@ not affected.
 To check the setting, from an ordinary PowerShell window:
 
 ```powershell
-reg query HKLM\SYSTEM\CurrentControlSet\Control\Lsa /v ForceGuest   # 0x1 means Guest only
+reg query HKLM\SYSTEM\CurrentControlSet\Control\Lsa /v ForceGuest   # 0x1: Guest only; 0x0, or no such value: Classic
 ```
 
 An administrator can confirm the cause in the Security log: event 4625 for the attempt shows logon
