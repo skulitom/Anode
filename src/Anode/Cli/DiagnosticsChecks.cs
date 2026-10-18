@@ -445,6 +445,13 @@ internal static class DiagnosticsChecks
         Require(warning.State == CheckLevel.Warn && warning.Detail.Contains("ForceGuest = 1") && warning.Fix?.Contains("Classic") == true
             && warning.Fix.Contains(LocalAccountSignIn.Help), "doctor's Guest-only warning lost its value, its fix or its help: " + warning.Fix);
         Require(warning.Name.Length <= 23, "doctor's local account sign-in row no longer fits its column");
+        Require(LocalAccountSignIn.Parse(1) == 1 && LocalAccountSignIn.Parse(null) is null, "a DWORD ForceGuest was misread");
+        foreach (Func<int?> unreadable in new Func<int?>[] { () => LocalAccountSignIn.Parse("1"), () => throw new UnauthorizedAccessException("denied") })
+        {
+            var row = LocalAccountSignIn.Row(unreadable);
+            Require(row.State == CheckLevel.Warn && row.Detail.StartsWith("could not read", StringComparison.Ordinal)
+                && row.Fix?.Contains(LocalAccountSignIn.Help) == true, "an unreadable ForceGuest was reported as Classic: " + row.Detail);
+        }
 
         foreach (int? forceGuest in new int?[] { 1, 0 })
         {
@@ -452,8 +459,9 @@ internal static class DiagnosticsChecks
             using var daemon = new AnodeDaemon(new SeatOptions(), () => 42, () => null, () => Task.CompletedTask, _ => 42, () => { },
                 forceGuest: () => forceGuest);
             daemon.OnViewerLogonError(0);
-            string refused = (await daemon.StatusAsync()).Str("lastError")!;
-            Require(refused.Contains("could not sign in") && named(refused) == (forceGuest == 1)
+            var failed = await daemon.StatusAsync();
+            string refused = failed.Str("lastError")!;
+            Require(failed.Str("state") == "logon-error" && refused.Contains("could not sign in") && named(refused) == (forceGuest == 1)
                 && (forceGuest != 1 || refused.IndexOf("ForceGuest", StringComparison.Ordinal) < refused.IndexOf("Windows Hello", StringComparison.Ordinal)),
                 $"a failed automatic sign-in with ForceGuest = {forceGuest} named the sharing model wrongly or after the Sign in advice: {refused}");
 
@@ -479,8 +487,8 @@ internal static class DiagnosticsChecks
                     $"a disconnect in {later} with ForceGuest = {forceGuest} blamed the sharing model: {after.Str("lastError")}");
             }
         }
-        return "doctor warns about the Guest-only sharing model (ForceGuest = 1) and passes Classic; a failed automatic sign-in "
-            + "and a disconnect while connecting name it, first, only while it is set; later disconnects never do; no live seat";
+        return "doctor warns about the Guest-only sharing model (ForceGuest = 1) or an unreadable value and passes Classic; a failed "
+            + "automatic sign-in (cause first) and a disconnect while connecting name it only while it is set; later disconnects never do; no live seat";
     }
 
     public static string RdpExtendedReasons()

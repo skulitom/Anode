@@ -19,13 +19,16 @@ internal static class LocalAccountSignIn
     public static int? ForceGuest()
     {
         using var key = Registry.LocalMachine.OpenSubKey(LsaKey);
-        return key?.GetValue("ForceGuest") switch
-        {
-            null => null,
-            int value => value,
-            object other => throw new InvalidDataException($"ForceGuest is a {other.GetType().Name}, not a DWORD")
-        };
+        return Parse(key?.GetValue("ForceGuest"));
     }
+
+    /// <summary>The registry value as read: a DWORD, or nothing. Throws for any other type.</summary>
+    internal static int? Parse(object? raw) => raw switch
+    {
+        null => null,
+        int value => value,
+        object other => throw new InvalidDataException($"ForceGuest is a {other.GetType().Name}, not a DWORD")
+    };
 
     /// <summary>The value for a failure message, which must not fail itself: null when it can't be read.</summary>
     public static int? ForceGuestOrNull()
@@ -37,9 +40,12 @@ internal static class LocalAccountSignIn
     private static bool GuestOnly(int? forceGuest) => forceGuest is int value && value != 0;
 
     /// <summary>Doctor's row, reading this machine's value.</summary>
-    public static Check Check()
+    public static Check Check() => Row(ForceGuest);
+
+    /// <summary>The row for a value <paramref name="read"/> returns, or a warning that it could not be read.</summary>
+    internal static Check Row(Func<int?> read)
     {
-        try { return Check(ForceGuest()); }
+        try { return Check(read()); }
         catch (Exception ex)
         {
             return new Check(Name, CheckLevel.Warn, $"could not read Lsa ForceGuest ({ex.Message})",
