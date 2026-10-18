@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- **`anode doctor` warns when Windows signs local accounts in as Guest.** With the "Guest only"
+  sharing model (`HKLM\SYSTEM\CurrentControlSet\Control\Lsa` `ForceGuest = 1`, set by some
+  security suites and hardened images), Windows turns every network sign-in of a local account
+  into the disabled Guest account, so the seat could never sign in, even with the password the
+  lock screen accepts. `anode doctor` reported every row `[ok]`, and the seat's error was only
+  Remote Desktop's generic "extended reason 0". Doctor now has a **Local account sign-in** row
+  that warns while it is set, a failed seat sign-in's `lastError` names it, and
+  [TROUBLESHOOTING](docs/TROUBLESHOOTING.md#windows-refuses-the-right-password-for-a-local-account)
+  covers substatus `0xC0000064`, a check without Anode and the setting's Classic value. Anode never
+  changes the setting. ([#57](https://github.com/skulitom/Anode/issues/57))
+
 ## 0.11.3 — 2026-10-15
 
 - **A seat stopped during a display change stays stopped.** If an agent's `seat_display`

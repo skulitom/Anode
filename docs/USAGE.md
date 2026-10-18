@@ -69,6 +69,8 @@ else, is listed in [docs/SECURITY.md](SECURITY.md):
 Setup starts or restarts Remote Desktop Services when needed and verifies the loopback listener.
 A service restart may disconnect existing Remote Desktop sessions. `anode doctor` also checks the
 listener: an enabled registry setting alone does not mean the machine is ready.
+It also warns when Windows signs local accounts in as Guest (`ForceGuest = 1`), which stops the seat
+signing in; setup leaves that setting alone ([why and what to do](TROUBLESHOOTING.md#windows-refuses-the-right-password-for-a-local-account)).
 
 `anode setup --undo` turns child sessions back off, signing out a running seat first. It
 deliberately leaves Remote Desktop enabled, because other software may depend on it; turn that off

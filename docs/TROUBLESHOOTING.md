@@ -161,6 +161,8 @@ the same account can distinguish local credential acceptance from RDP-specific f
 without signing out the current desktop. Enter credentials only in Windows' own prompt.
 Do not reset the account password or change authentication policies based solely on
 Anode's generic RDP error.
+Substatus `0xC0000064` (no such user) for an account that exists has a known cause: see
+[Windows refuses the right password for a local account](#windows-refuses-the-right-password-for-a-local-account).
 
 An accepting TCP listener does not prove that Windows can authenticate a child session. Anode
 reports the RDP control's native disconnect description when available. If Windows records a
@@ -171,6 +173,34 @@ terminal SSL handshake failure before delivering that callback, Anode reads even
 `0x80004005` is an unspecified Windows failure, not proof of a particular certificate or policy
 problem. Check the sign-in method described above, then the certificate and authentication logs.
 Avoid disabling authentication or weakening crypto-folder permissions as a generic workaround.
+
+### Windows refuses the right password for a local account
+
+If the lock screen accepts your password but the seat never signs in with it, and `anode doctor`
+warns **Local account sign-in: ForceGuest = 1 (Guest only)**, Windows is set to the "Guest only"
+sharing model. It then signs every network sign-in of a local account in as the built-in Guest
+account, which is disabled by default. A seat's sign-in is a network sign-in (Remote Desktop's
+Network Level Authentication), so it fails whatever password you type, while the lock screen still
+works. Security event 4625 records it as logon type 3 with substatus `0xC0000064` (no such user);
+Remote Desktop reports only a generic error such as `extended reason 0`, and a failed seat sign-in's
+`lastError` names `ForceGuest`. Some security suites' network sharing protection and some hardened
+images set it. Domain accounts are not affected.
+
+To confirm it without Anode, from an ordinary PowerShell window:
+
+```powershell
+reg query HKLM\SYSTEM\CurrentControlSet\Control\Lsa /v ForceGuest   # 0x1 means Guest only
+net use \\localhost\IPC$ * "/user:$env:COMPUTERNAME\$env:USERNAME"   # asks for your password; error 1326 while it is 0x1
+net use \\localhost\IPC$ /delete
+```
+
+If your security software or policy allows it, set it back to Classic, the Windows default: in Local
+Security Policy (`secpol.msc`), open **Local Policies → Security Options → Network access: Sharing
+and security model for local accounts** and choose **Classic - local users authenticate as
+themselves**, which sets `ForceGuest` to 0. On the PC where this was reported, the next sign-in
+worked without a restart. Anode never changes this setting, `anode setup` included, since it can be
+a deliberate hardening choice; a security suite may set it again. Resetting the password or
+changing other authentication policies does not help.
 
 ### A certificate warning appears
 

@@ -433,6 +433,42 @@ internal static class DiagnosticsChecks
             + "prerequisites that can't be read refuse the same way and say why; Reconnect works once the prerequisite is back; no live seat";
     }
 
+    public static async Task<string> GuestOnlySignIn()
+    {
+        foreach (int? classic in new int?[] { null, 0 })
+        {
+            var row = LocalAccountSignIn.Check(classic);
+            Require(row.State == CheckLevel.Pass && row.Fix is null && LocalAccountSignIn.FailureHint(classic) is null,
+                $"doctor reported ForceGuest = {classic?.ToString() ?? "unset"} (Classic) as a problem");
+        }
+        var warning = LocalAccountSignIn.Check(1);
+        Require(warning.State == CheckLevel.Warn && warning.Detail.Contains("ForceGuest = 1") && warning.Fix?.Contains("Classic") == true
+            && warning.Fix.Contains(LocalAccountSignIn.Help), "doctor's Guest-only warning lost its value, its fix or its help: " + warning.Fix);
+        Require(warning.Name.Length <= 23, "doctor's local account sign-in row no longer fits its column");
+
+        foreach (int? forceGuest in new int?[] { 1, 0 })
+        {
+            bool named(string? error) => error?.Contains("ForceGuest = 1") == true && error.Contains(LocalAccountSignIn.Help);
+            using var daemon = new AnodeDaemon(new SeatOptions(), () => 42, () => null, () => Task.CompletedTask, _ => 42, () => { },
+                forceGuest: () => forceGuest);
+            daemon.OnViewerLogonError(0);
+            var refused = await daemon.StatusAsync();
+            Require(refused.Str("state") == "logon-error" && refused.Str("lastError")!.Contains("could not sign in")
+                && named(refused.Str("lastError")) == (forceGuest == 1),
+                $"a failed automatic sign-in with ForceGuest = {forceGuest} named the sharing model wrongly: {refused.Str("lastError")}");
+
+            await daemon.ReconnectAsync(promptForCredentials: true);
+            daemon.OnViewerConnected();
+            daemon.OnViewerDisconnected(1);
+            var ended = await daemon.StatusAsync();
+            Require(ended.Str("state") == "error" && ended.Str("lastError")!.Contains("could not start")
+                && named(ended.Str("lastError")) == (forceGuest == 1),
+                $"a sign-in ended by a disconnect with ForceGuest = {forceGuest} named the sharing model wrongly: {ended.Str("lastError")}");
+        }
+        return "doctor warns about the Guest-only sharing model (ForceGuest = 1) and passes Classic; a failed or disconnected "
+            + "seat sign-in names it only while it is set; no live seat";
+    }
+
     public static string RdpExtendedReasons()
     {
         foreach (int reason in new[] { 15, 16, 17, 18, 23, 24 })
