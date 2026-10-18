@@ -72,7 +72,7 @@ internal sealed class AnodeDaemon : IDisposable
         _logoff = logoff ?? ChildSession.Logoff;
         _disconnectViewer = disconnectViewer ?? (() => _window?.BeginInvoke(new Action(() => _window.Viewer.Disconnect())));
         _changeDisplay = changeDisplay ?? ChangeViewerDisplayAsync;
-        _forceGuest = forceGuest ?? LocalAccountSignIn.ForceGuest;
+        _forceGuest = forceGuest ?? LocalAccountSignIn.ForceGuestOrNull;
         _endMessageLoop = endMessageLoop ?? EndMessageLoop;
         // Only Run ends the process; a daemon made for a check never ends the process running it.
         _exitProcess = exitProcess ?? (_ => { });
@@ -277,7 +277,9 @@ internal sealed class AnodeDaemon : IDisposable
             return;
         }
         // The daemon is still running, so `anode start --sign-in` would be refused here.
-        FailStartup("logon-error", WithSignInHint($"The seat could not sign in (error {code}). With Windows Hello or a PIN, the user can open the viewer (`anode show` or the tray icon), click Sign in in its header and enter the account password. See {Links.Troubleshooting}#it-asks-for-a-password-every-time"));
+        // A known cause goes first: with it, the Sign in advice below can't help either.
+        string cause = LocalAccountSignIn.FailureHint(_forceGuest()) is { } hint ? hint + " " : string.Empty;
+        FailStartup("logon-error", $"The seat could not sign in (error {code}). {cause}With Windows Hello or a PIN, the user can open the viewer (`anode show` or the tray icon), click Sign in in its header and enter the account password. See {Links.Troubleshooting}#it-asks-for-a-password-every-time");
     }
 
     internal void OnViewerDisconnected(int reason)
@@ -304,8 +306,10 @@ internal sealed class AnodeDaemon : IDisposable
                 _sessionId = stillThere;
                 DisposeSeatClient();
                 if (failed) Log.Info($"disconnect after startup failure: {why}");
-                // Before Windows signs the seat in, a Guest-only sharing model is a likely cause; once the host starts, it isn't.
-                else if (starting) SetState("error", _state == "starting-agent" ? $"The seat could not start. {why}" : WithSignInHint($"The seat could not start. {why}"));
+                // Network Level Authentication runs while connecting, where a Guest-only sharing model fails it; once
+                // the viewer is connected, it has passed.
+                else if (starting) SetState("error", _state is "starting" or "connecting"
+                    ? WithSignInHint($"The seat could not start. {why}") : $"The seat could not start. {why}");
                 else
                 {
                     _seatSignedInWithPassword = false;

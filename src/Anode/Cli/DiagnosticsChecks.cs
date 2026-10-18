@@ -452,21 +452,35 @@ internal static class DiagnosticsChecks
             using var daemon = new AnodeDaemon(new SeatOptions(), () => 42, () => null, () => Task.CompletedTask, _ => 42, () => { },
                 forceGuest: () => forceGuest);
             daemon.OnViewerLogonError(0);
-            var refused = await daemon.StatusAsync();
-            Require(refused.Str("state") == "logon-error" && refused.Str("lastError")!.Contains("could not sign in")
-                && named(refused.Str("lastError")) == (forceGuest == 1),
-                $"a failed automatic sign-in with ForceGuest = {forceGuest} named the sharing model wrongly: {refused.Str("lastError")}");
+            string refused = (await daemon.StatusAsync()).Str("lastError")!;
+            Require(refused.Contains("could not sign in") && named(refused) == (forceGuest == 1)
+                && (forceGuest != 1 || refused.IndexOf("ForceGuest", StringComparison.Ordinal) < refused.IndexOf("Windows Hello", StringComparison.Ordinal)),
+                $"a failed automatic sign-in with ForceGuest = {forceGuest} named the sharing model wrongly or after the Sign in advice: {refused}");
 
+            // Network Level Authentication runs while the viewer connects: the reporter's credential dialog failed there.
             await daemon.ReconnectAsync(promptForCredentials: true);
-            daemon.OnViewerConnected();
             daemon.OnViewerDisconnected(1);
             var ended = await daemon.StatusAsync();
             Require(ended.Str("state") == "error" && ended.Str("lastError")!.Contains("could not start")
                 && named(ended.Str("lastError")) == (forceGuest == 1),
-                $"a sign-in ended by a disconnect with ForceGuest = {forceGuest} named the sharing model wrongly: {ended.Str("lastError")}");
+                $"a sign-in ended by a disconnect while connecting with ForceGuest = {forceGuest} named the sharing model wrongly: {ended.Str("lastError")}");
+
+            // Once the viewer is connected, authentication has passed, so the setting is no longer a cause.
+            foreach (string later in new[] { "signing-in", "starting-agent" })
+            {
+                await daemon.ReconnectAsync(promptForCredentials: true);
+                daemon.OnViewerConnected();
+                if (later == "starting-agent")
+                    typeof(AnodeDaemon).GetMethod("SetState", DaemonFields)!.Invoke(daemon, new object[] { later, "injected host start" });
+                Require((await daemon.StatusAsync()).Str("state") == later, $"the stand-in seat did not reach {later}");
+                daemon.OnViewerDisconnected(1);
+                var after = await daemon.StatusAsync();
+                Require(after.Str("state") == "error" && !named(after.Str("lastError")),
+                    $"a disconnect in {later} with ForceGuest = {forceGuest} blamed the sharing model: {after.Str("lastError")}");
+            }
         }
-        return "doctor warns about the Guest-only sharing model (ForceGuest = 1) and passes Classic; a failed or disconnected "
-            + "seat sign-in names it only while it is set; no live seat";
+        return "doctor warns about the Guest-only sharing model (ForceGuest = 1) and passes Classic; a failed automatic sign-in "
+            + "and a disconnect while connecting name it, first, only while it is set; later disconnects never do; no live seat";
     }
 
     public static string RdpExtendedReasons()

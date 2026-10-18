@@ -5,9 +5,9 @@ namespace Anode.Core.Session;
 
 /// <summary>
 /// The "Guest only" sharing model (Lsa ForceGuest = 1, set by some security suites and hardened images) makes Windows
-/// sign every network sign-in of a local account in as the built-in Guest. A seat's sign-in is a network sign-in
-/// (Network Level Authentication), so it fails with substatus 0xC0000064 whatever password is typed, while the lock
-/// screen accepts the same password and Remote Desktop reports only a generic error. Anode never changes the setting.
+/// sign every network sign-in of a local account in as the built-in Guest. A seat's Network Level Authentication step
+/// is a network sign-in (logon type 3), so it fails with substatus 0xC0000064 whatever password is typed, while the
+/// lock screen accepts the same password and Remote Desktop reports only a generic error. Anode never changes the setting.
 /// </summary>
 internal static class LocalAccountSignIn
 {
@@ -15,18 +15,37 @@ internal static class LocalAccountSignIn
     internal const string Name = "Local account sign-in";
     internal const string Help = Links.Troubleshooting + "#windows-refuses-the-right-password-for-a-local-account";
 
-    /// <summary>The ForceGuest value, or null when it is not set or can't be read (Windows' default, Classic, is 0).</summary>
+    /// <summary>The ForceGuest value, or null when it is not set (Windows' default, Classic, is 0). Throws when it can't be read.</summary>
     public static int? ForceGuest()
     {
-        try
+        using var key = Registry.LocalMachine.OpenSubKey(LsaKey);
+        return key?.GetValue("ForceGuest") switch
         {
-            using var key = Registry.LocalMachine.OpenSubKey(LsaKey);
-            return key?.GetValue("ForceGuest") as int?;
-        }
+            null => null,
+            int value => value,
+            object other => throw new InvalidDataException($"ForceGuest is a {other.GetType().Name}, not a DWORD")
+        };
+    }
+
+    /// <summary>The value for a failure message, which must not fail itself: null when it can't be read.</summary>
+    public static int? ForceGuestOrNull()
+    {
+        try { return ForceGuest(); }
         catch { return null; }
     }
 
     private static bool GuestOnly(int? forceGuest) => forceGuest is int value && value != 0;
+
+    /// <summary>Doctor's row, reading this machine's value.</summary>
+    public static Check Check()
+    {
+        try { return Check(ForceGuest()); }
+        catch (Exception ex)
+        {
+            return new Check(Name, CheckLevel.Warn, $"could not read Lsa ForceGuest ({ex.Message})",
+                "If the seat never signs in with the right password, see " + Help);
+        }
+    }
 
     /// <summary>A warning, not a failure: the setting can be a deliberate hardening choice, and domain accounts are unaffected.</summary>
     public static Check Check(int? forceGuest) => GuestOnly(forceGuest)
