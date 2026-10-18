@@ -352,6 +352,8 @@ internal static class DisplayChecks
             foreach (bool json in new[] { false, true })
             {
                 using var client = await JsonPipeClient.TryConnectAsync(pipe, 2000) ?? throw new InvalidOperationException("private pipe unavailable");
+                // The stand-in's refusal, or the CLI's own when this process's agent id or lease token is invalid.
+                string expected = (await Cli.RequestAsync(client, "status")).Str("error") ?? refusal;
                 var stdout = new StringWriter();
                 var stderr = new StringWriter();
                 Console.SetOut(stdout);
@@ -359,8 +361,9 @@ internal static class DisplayChecks
                 int code = await Cli.ShowDisplay(client, json);
                 Console.SetOut(output);
                 Console.SetError(error);
-                Require(code == 1 && stderr.ToString().Contains(refusal) && stdout.ToString().Length == 0,
-                    $"`anode display{(json ? " --json" : "")}` hid a failed status request: exit {code}, stderr '{stderr.ToString().Trim()}', stdout '{stdout.ToString().Trim()}'");
+                Require(code == 1 && stderr.ToString().Trim() == expected && stdout.ToString().Length == 0,
+                    $"`anode display{(json ? " --json" : "")}` did not report a failed status request on stderr alone with exit 1: "
+                    + $"exit {code}, stderr '{stderr.ToString().Trim()}', stdout '{stdout.ToString().Trim()}'");
             }
         }
         finally
