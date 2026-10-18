@@ -109,6 +109,11 @@ try {
     elseif ($Pwsh) { Fail "-Pwsh names no file: $Pwsh" }
     else { Write-Host '[skip] PowerShell 7 (pwsh) is not on PATH' }
     Write-Host "release-check.ps1 dry runs on $commit (Anode $version)" -ForegroundColor Cyan
+    # The live run reads anode.exe, a GUI-subsystem program: Windows PowerShell 5.1 waits for one and captures its
+    # output only through a pipe, and the dry run's stubs can't show that, so check the call itself.
+    $nativeCall = [regex]::Match((Get-Content -LiteralPath $releaseCheck -Raw), '(?m)^\s*\$output = @\(& \$FilePath @Arguments 2>&1(.*)\)\s*$')
+    Check ($nativeCall.Success -and $nativeCall.Groups[1].Value -match '^\s*\|') 'Invoke-Native pipes native output, so Windows PowerShell 5.1 waits for anode.exe' `
+        $(if ($nativeCall.Success) { "after 2>&1: '$($nativeCall.Groups[1].Value)'" } else { 'the $output line was not found' })
     $dry = @('-DryRun', '-Anode', $missingAnode)
 
     foreach ($shell in $shells) {
