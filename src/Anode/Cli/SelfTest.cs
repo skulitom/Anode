@@ -192,6 +192,7 @@ internal static class SelfTest
         Check(results, "RDP extended settings", DiagnosticsChecks.RdpSettings);
         Check(results, "RDP event callbacks", DiagnosticsChecks.RdpCallbacks);
         Check(results, "viewer sign-in", () => DiagnosticsChecks.ViewerSignIn().GetAwaiter().GetResult());
+        Check(results, "guest-only sign-in", () => DiagnosticsChecks.GuestOnlySignIn().GetAwaiter().GetResult());
         Check(results, "daemon detached viewer", () => DiagnosticsChecks.DetachedViewer().GetAwaiter().GetResult());
         Check(results, "stop during display change", () => DiagnosticsChecks.StopDuringDisplayChange().GetAwaiter().GetResult());
         Check(results, "refused reconnect keeps the seat", () => DiagnosticsChecks.RefusedReconnect().GetAwaiter().GetResult());

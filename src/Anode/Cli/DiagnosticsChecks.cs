@@ -433,6 +433,64 @@ internal static class DiagnosticsChecks
             + "prerequisites that can't be read refuse the same way and say why; Reconnect works once the prerequisite is back; no live seat";
     }
 
+    public static async Task<string> GuestOnlySignIn()
+    {
+        foreach (int? classic in new int?[] { null, 0 })
+        {
+            var row = LocalAccountSignIn.Check(classic);
+            Require(row.State == CheckLevel.Pass && row.Fix is null && LocalAccountSignIn.FailureHint(classic) is null,
+                $"doctor reported ForceGuest = {classic?.ToString() ?? "unset"} (Classic) as a problem");
+        }
+        var warning = LocalAccountSignIn.Check(1);
+        Require(warning.State == CheckLevel.Warn && warning.Detail.Contains("ForceGuest = 1") && warning.Fix?.Contains("Classic") == true
+            && warning.Fix.Contains(LocalAccountSignIn.Help), "doctor's Guest-only warning lost its value, its fix or its help: " + warning.Fix);
+        Require(warning.Name.Length <= 23, "doctor's local account sign-in row no longer fits its column");
+        Require(LocalAccountSignIn.Parse(1) == 1 && LocalAccountSignIn.Parse(null) is null, "a DWORD ForceGuest was misread");
+        foreach (Func<int?> unreadable in new Func<int?>[] { () => LocalAccountSignIn.Parse("1"), () => throw new UnauthorizedAccessException("denied") })
+        {
+            var row = LocalAccountSignIn.Row(unreadable);
+            Require(row.State == CheckLevel.Warn && row.Detail.StartsWith("could not read", StringComparison.Ordinal)
+                && row.Fix?.Contains(LocalAccountSignIn.Help) == true, "an unreadable ForceGuest was reported as Classic: " + row.Detail);
+        }
+
+        foreach (int? forceGuest in new int?[] { 1, 0 })
+        {
+            bool named(string? error) => error?.Contains("ForceGuest = 1") == true && error.Contains(LocalAccountSignIn.Help);
+            using var daemon = new AnodeDaemon(new SeatOptions(), () => 42, () => null, () => Task.CompletedTask, _ => 42, () => { },
+                forceGuest: () => forceGuest);
+            daemon.OnViewerLogonError(0);
+            var failed = await daemon.StatusAsync();
+            string refused = failed.Str("lastError")!;
+            Require(failed.Str("state") == "logon-error" && refused.Contains("could not sign in") && named(refused) == (forceGuest == 1)
+                && (forceGuest != 1 || refused.IndexOf("ForceGuest", StringComparison.Ordinal) < refused.IndexOf("Windows Hello", StringComparison.Ordinal)),
+                $"a failed automatic sign-in with ForceGuest = {forceGuest} named the sharing model wrongly or after the Sign in advice: {refused}");
+
+            // Network Level Authentication runs while the viewer connects: the reporter's credential dialog failed there.
+            await daemon.ReconnectAsync(promptForCredentials: true);
+            daemon.OnViewerDisconnected(1);
+            var ended = await daemon.StatusAsync();
+            Require(ended.Str("state") == "error" && ended.Str("lastError")!.Contains("could not start")
+                && named(ended.Str("lastError")) == (forceGuest == 1),
+                $"a sign-in ended by a disconnect while connecting with ForceGuest = {forceGuest} named the sharing model wrongly: {ended.Str("lastError")}");
+
+            // Once the viewer is connected, authentication has passed, so the setting is no longer a cause.
+            foreach (string later in new[] { "signing-in", "starting-agent" })
+            {
+                await daemon.ReconnectAsync(promptForCredentials: true);
+                daemon.OnViewerConnected();
+                if (later == "starting-agent")
+                    typeof(AnodeDaemon).GetMethod("SetState", DaemonFields)!.Invoke(daemon, new object[] { later, "injected host start" });
+                Require((await daemon.StatusAsync()).Str("state") == later, $"the stand-in seat did not reach {later}");
+                daemon.OnViewerDisconnected(1);
+                var after = await daemon.StatusAsync();
+                Require(after.Str("state") == "error" && !named(after.Str("lastError")),
+                    $"a disconnect in {later} with ForceGuest = {forceGuest} blamed the sharing model: {after.Str("lastError")}");
+            }
+        }
+        return "doctor warns about the Guest-only sharing model (ForceGuest = 1) or an unreadable value and passes Classic; a failed "
+            + "automatic sign-in (cause first) and a disconnect while connecting name it only while it is set; later disconnects never do; no live seat";
+    }
+
     public static string RdpExtendedReasons()
     {
         foreach (int reason in new[] { 15, 16, 17, 18, 23, 24 })
