@@ -12,6 +12,11 @@
   [TROUBLESHOOTING](docs/TROUBLESHOOTING.md#windows-refuses-the-right-password-for-a-local-account)
   covers substatus `0xC0000064`, how to check the setting and its Classic value. Anode never
   changes the setting. ([#57](https://github.com/skulitom/Anode/issues/57))
+- **`anode display` says why it can't read the seat's status.** With no size, scale or reset to
+  change, it exited 1 and printed nothing when its status request failed: an `ANODE_AGENT_ID`
+  that Anode refuses, a daemon refusal, or a lost or timed-out connection, while `anode status`
+  in the same terminal gave the reason. It now prints that reason on stderr, with or without
+  `--json`, and still exits 1.
 
 ## 0.11.3 — 2026-10-15
 
