@@ -143,6 +143,7 @@ internal static class Preconditions
             ? new Check("Child sessions", CheckLevel.Pass, "enabled")
             : new Check("Child sessions", CheckLevel.Fail, "disabled",
                 "Run `anode setup` (calls WTSEnableChildSessions; one administrator prompt)."));
+        checks.Add(LocalAccountSignIn.Check());
 
         int? interval = FrameInterval();
         checks.Add(interval == 15

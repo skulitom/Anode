@@ -35,6 +35,7 @@ internal sealed class AnodeDaemon : IDisposable
     private readonly Func<bool, uint?> _logoff;
     private readonly Action _disconnectViewer;
     private readonly Func<DisplayMode, bool, CancellationToken, Task> _changeDisplay;
+    private readonly Func<int?> _forceGuest;
     private readonly Action _endMessageLoop;
     private readonly Action<int> _exitProcess;
     private readonly TimeSpan _quitGrace;
@@ -61,7 +62,7 @@ internal sealed class AnodeDaemon : IDisposable
     internal AnodeDaemon(SeatOptions options, Func<uint?>? findChild = null, Func<string?>? blockingSummary = null,
         Func<Task>? startHost = null, Func<bool, uint?>? logoff = null, Action? disconnectViewer = null,
         Func<DisplayMode, bool, CancellationToken, Task>? changeDisplay = null, Action? endMessageLoop = null,
-        Action<int>? exitProcess = null, TimeSpan? quitGrace = null)
+        Action<int>? exitProcess = null, TimeSpan? quitGrace = null, Func<int?>? forceGuest = null)
     {
         _options = options;
         _promptForCredentials = options.PromptForCredentials;
@@ -71,6 +72,7 @@ internal sealed class AnodeDaemon : IDisposable
         _logoff = logoff ?? ChildSession.Logoff;
         _disconnectViewer = disconnectViewer ?? (() => _window?.BeginInvoke(new Action(() => _window.Viewer.Disconnect())));
         _changeDisplay = changeDisplay ?? ChangeViewerDisplayAsync;
+        _forceGuest = forceGuest ?? LocalAccountSignIn.ForceGuestOrNull;
         _endMessageLoop = endMessageLoop ?? EndMessageLoop;
         // Only Run ends the process; a daemon made for a check never ends the process running it.
         _exitProcess = exitProcess ?? (_ => { });
@@ -204,7 +206,7 @@ internal sealed class AnodeDaemon : IDisposable
                 lock (_lifecycleGate)
                 {
                     if (attempt == _connectionAttempt && _state == "connecting" && !cancel.IsCancellationRequested)
-                        FailStartup("error", failure);
+                        FailStartup("error", WithSignInHint(failure));
                 }
                 return;
             }
@@ -271,11 +273,13 @@ internal sealed class AnodeDaemon : IDisposable
         if (_promptForCredentials && code is 0 or 1 or 2 or unchecked((int)0xC000006D) or unchecked((int)0xC0000224))
         {
             Log.Warn($"Windows requested another sign-in attempt (code {code})");
-            _window?.SetStatus("Windows needs your attention in the sign-in dialog. The seat is not ready yet.");
+            _window?.SetStatus(WithSignInHint("Windows needs your attention in the sign-in dialog. The seat is not ready yet."));
             return;
         }
         // The daemon is still running, so `anode start --sign-in` would be refused here.
-        FailStartup("logon-error", $"The seat could not sign in (error {code}). With Windows Hello or a PIN, the user can open the viewer (`anode show` or the tray icon), click Sign in in its header and enter the account password. See {Links.Troubleshooting}#it-asks-for-a-password-every-time");
+        // A known cause goes first: with it, the Sign in advice below can't help either.
+        string cause = LocalAccountSignIn.FailureHint(_forceGuest()) is { } hint ? hint + " " : string.Empty;
+        FailStartup("logon-error", $"The seat could not sign in (error {code}). {cause}With Windows Hello or a PIN, the user can open the viewer (`anode show` or the tray icon), click Sign in in its header and enter the account password. See {Links.Troubleshooting}#it-asks-for-a-password-every-time");
     }
 
     internal void OnViewerDisconnected(int reason)
@@ -302,7 +306,10 @@ internal sealed class AnodeDaemon : IDisposable
                 _sessionId = stillThere;
                 DisposeSeatClient();
                 if (failed) Log.Info($"disconnect after startup failure: {why}");
-                else if (starting) SetState("error", $"The seat could not start. {why}");
+                // Network Level Authentication runs while connecting, where a Guest-only sharing model fails it; once
+                // the viewer is connected, it has passed.
+                else if (starting) SetState("error", _state is "starting" or "connecting"
+                    ? WithSignInHint($"The seat could not start. {why}") : $"The seat could not start. {why}");
                 else
                 {
                     _seatSignedInWithPassword = false;
@@ -324,6 +331,10 @@ internal sealed class AnodeDaemon : IDisposable
         + (_seatSignedInWithPassword || _options.PromptForCredentials
             ? "To reconnect, the user opens the viewer (`anode show` or the tray icon), presses Reconnect and enters their Windows password; an agent can't do this step."
             : "To reconnect, press Reconnect in the viewer (open it with `anode show` or the tray icon).");
+
+    /// <summary>Adds the likely cause to a failed seat sign-in when Windows signs local accounts in as Guest.</summary>
+    private string WithSignInHint(string message) =>
+        LocalAccountSignIn.FailureHint(_forceGuest()) is { } hint ? $"{message} {hint}" : message;
 
     private void FailStartup(string state, string message)
     {
