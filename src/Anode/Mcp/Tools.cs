@@ -520,6 +520,7 @@ internal static class Tools
         }
         if (name == "seat_kill_process" && Has("pid") == Has("name")) return "Provide exactly one of pid or name.";
         if (name == "seat_type" && Core.Input.TextTyping.Problem(arguments.Str("text")!, arguments.Int("perCharMs")) is { } typing) return typing;
+        if (name is "gamepad_tap" or "gamepad_set" && Core.Gamepad.GamepadManager.NameProblem(arguments) is { } control) return control;
         if (name == "android_emulator" && EmulatorProblem(arguments) is { } emulator) return emulator;
         if (name == "android_studio" && arguments.Str("project") is { } project
             && (project.Contains('\0') || !Path.IsPathFullyQualified(project) || !Directory.Exists(project)))
@@ -538,7 +539,7 @@ internal static class Tools
         }
         if (name == "steam_launch" && arguments.Str("exe") is { } exe
             && (exe.Length is 0 or > 1024 || exe.Contains('\0') || exe.IndexOfAny(Path.GetInvalidPathChars()) >= 0))
-            return "exe must name a program with 1-1024 characters.";
+            return "arguments.exe must name a program with 1-1024 characters.";
         if (name.StartsWith("seat_", StringComparison.Ordinal))
             foreach (string key in new[] { "windowId", "snapshotId", "elementId", "query" })
                 if (arguments[key] is { } text && (text.GetValue<string>().Length is 0 or > 256)) return $"{key} must contain 1-256 characters.";

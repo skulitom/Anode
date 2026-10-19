@@ -17,6 +17,16 @@
   that Anode refuses, a daemon refusal, or a lost or timed-out connection, while `anode status`
   in the same terminal gave the reason. It now prints that reason on stderr, with or without
   `--json`, and still exits 1.
+- **`anode type`, `anode steam` and `anode gamepad` refuse bad arguments before connecting.**
+  Text too long for one call, an empty, over-long or malformed `--exe`, a gamepad `--ms` outside
+  0-10,000 and an unknown button name were checked only after the CLI reached Anode, so with
+  Anode stopped they answered "Anode is not running" (exit 1) instead of the real error (exit 2).
+  An unknown gamepad button, axis or trigger was not checked until the seat host, which first
+  asked for an attached controller: `anode gamepad tap jump` said "Attach one first", and over MCP
+  `gamepad_tap` and `gamepad_set` took the desktop lease and asked for a fresh look before refusing
+  the name. Both now refuse it at once and list the names that work. The CLI's refusals name
+  `--exe` (MCP's `steam_launch` now says `arguments.exe`), and a too-long `anode type` names the
+  CLI's 15 ms pace instead of `perCharMs`, an MCP argument the CLI doesn't have.
 - **Programs Anode starts to outlive a command no longer hold the caller's output.** When the
   CLI or MCP server can't start Anode through the Task Scheduler, it starts it as a child process;
   that child inherited every inheritable handle, including a piped CLI's output or the MCP
