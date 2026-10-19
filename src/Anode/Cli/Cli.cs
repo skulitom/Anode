@@ -633,7 +633,7 @@ internal static partial class Cli
         // The CLI types at the default pace and has no perCharMs to name.
         if (Mcp.Tools.ValidateArguments("seat_type", payload) is { } error)
             throw new UsageException(error.Replace($"at perCharMs {Core.Input.TextTyping.DefaultPerCharMs}",
-                $"{Core.Input.TextTyping.DefaultPerCharMs} ms apart", StringComparison.Ordinal));
+                $"at the CLI's {Core.Input.TextTyping.DefaultPerCharMs} ms per character", StringComparison.Ordinal));
         return payload;
     }
 

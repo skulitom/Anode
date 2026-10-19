@@ -205,10 +205,10 @@ internal static class CliChecks
         string? typing = null;
         try { Cli.CheckArguments("type", new[] { new string('a', 3002) }); }
         catch (UsageException ex) { typing = ex.Message; }
-        Require(typing?.Contains("3001 characters 15 ms apart", StringComparison.Ordinal) == true && !typing.Contains("perCharMs"),
+        Require(typing?.Contains("3001 characters at the CLI's 15 ms per character", StringComparison.Ordinal) == true && !typing.Contains("perCharMs"),
             "a refused type named perCharMs or the wrong limit: " + typing);
         // A request that skipped those checks is still refused before sending, in the CLI's words; no pipe is touched.
-        var tap =new JsonObject { ["agentId"] = "test-agent", ["leaseToken"] = "test-token", ["button"] = "a", ["ms"] = 70000 };
+        var tap = new JsonObject { ["agentId"] = "test-agent", ["leaseToken"] = "test-token", ["button"] = "a", ["ms"] = 70000 };
         string? tapError = Cli.RequestAsync(null!, "gamepad.tap", tap).GetAwaiter().GetResult().Str("error");
         Require(tapError?.StartsWith("--ms ", StringComparison.Ordinal) == true, "a refused gamepad tap named an MCP argument: " + tapError);
         return $"{accepted.Length} accepted and {rejected.Length} rejected before any side effect";
