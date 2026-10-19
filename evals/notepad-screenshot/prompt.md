@@ -1,6 +1,6 @@
 ---
 description: A user wants a screenshot of an app with text typed into it, without anything appearing on their monitor.
-max_turns: 20
+max_turns: 30
 timeout_seconds: 420
 runs: 1
 tags: [anode, screenshots]

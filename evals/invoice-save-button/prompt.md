@@ -1,6 +1,6 @@
 ---
 description: A user asks for a check of their own WinForms app while they keep working on the same PC.
-max_turns: 20
+max_turns: 30
 timeout_seconds: 420
 runs: 1
 tags: [anode, app-testing]
