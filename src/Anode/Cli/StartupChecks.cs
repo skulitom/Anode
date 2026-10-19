@@ -148,9 +148,10 @@ internal static class StartupChecks
             foreach (var process in new[] { detached, control })
             {
                 if (process is null) continue;
+                // Kill returns quietly once the stand-in has exited; nothing here may hide the check's own failure.
                 try { process.Kill(); process.WaitForExit(5000); }
-                catch (InvalidOperationException) { /* already exited */ }
-                process.Dispose();
+                catch { }
+                finally { process.Dispose(); }
             }
         }
     }

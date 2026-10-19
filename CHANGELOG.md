@@ -32,9 +32,9 @@
   that child inherited every inheritable handle, including a piped CLI's output or the MCP
   client's pipes, so a command such as `anode lease acquire | Out-String` waited until Anode
   itself exited. `anode browser --sign-in`, piped to `Out-Host` as the README advises in
-  PowerShell, likewise waited until the browser was closed. Both now inherit no handles and have no standard handles,
-  as a Task Scheduler start gives them, so a daemon started this way also no longer attaches to
-  the terminal it was started from.
+  PowerShell, likewise waited until the browser was closed. Both now inherit no handles and get
+  no standard handles, like a daemon the Task Scheduler starts, so a daemon started this way also
+  no longer attaches to the terminal it was started from.
 
 ## 0.11.3 — 2026-10-15
 

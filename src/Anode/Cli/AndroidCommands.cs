@@ -151,7 +151,8 @@ internal static partial class Cli
             Console.Error.WriteLine(refusal);
             return 1;
         }
-        // Started detached, so a piped terminal (| Out-Host) gets its prompt back while the browser stays open.
+        // Started detached, so a piped terminal (| Out-Host) gets its prompt back while the browser stays open. Only the
+        // file and argument list carry over, which is all OpenForSignIn sets.
         Core.Browser.SeatBrowser.OpenForSignIn(browser, addresses, Core.Util.Env.StateDirectory, info =>
         {
             Core.Launch.DetachedProcess.Start(info.FileName, info.ArgumentList, null);
