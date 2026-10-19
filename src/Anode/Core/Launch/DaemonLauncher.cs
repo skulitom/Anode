@@ -1,4 +1,5 @@
-using System.Diagnostics;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.Text;
 using Anode.Core.Session;
 using Anode.Core.Bridge;
@@ -39,17 +40,57 @@ internal static class DaemonLauncher
             Log.Warn($"could not start the daemon through the Task Scheduler ({ex.Message}); starting it as a child process");
         }
 
-        var info = new ProcessStartInfo
-        {
-            FileName = Env.ExecutablePath,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            WorkingDirectory = AppContext.BaseDirectory
-        };
-        foreach (string argument in launchArguments) info.ArgumentList.Add(argument);
-        using var process = Process.Start(info)
-            ?? throw new InvalidOperationException("Could not start the Anode daemon.");
+        StartWithoutHandles(Env.ExecutablePath, arguments, AppContext.BaseDirectory);
     }
+
+    /// <summary>
+    /// Starts a program that inherits none of this process's handles and has no standard handles, as a Task Scheduler
+    /// start gives it. Process.Start always passes every inheritable handle on, so a daemon it started kept the caller's
+    /// output pipe open, and `anode lease acquire | Out-String` waited until the daemon exited. Returns the process id.
+    /// </summary>
+    internal static int StartWithoutHandles(string file, string arguments, string directory)
+    {
+        var startup = new StartupInfo { Size = Marshal.SizeOf<StartupInfo>(), Flags = UseStdHandles };
+        // CreateProcessW may write to the command line, so it gets a buffer of its own.
+        var commandLine = new StringBuilder(Quote(file) + " " + arguments);
+        if (!CreateProcessW(null, commandLine, IntPtr.Zero, IntPtr.Zero, false, CreateNoWindow, IntPtr.Zero, directory,
+                ref startup, out var started))
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Could not start the Anode daemon.");
+        CloseHandle(started.Thread);
+        CloseHandle(started.Process);
+        return started.ProcessId;
+    }
+
+    private const int UseStdHandles = 0x100;
+    private const uint CreateNoWindow = 0x08000000;
+
+    // With UseStdHandles and these left null, the program gets no standard handles at all.
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct StartupInfo
+    {
+        public int Size;
+        public string? Reserved, Desktop, Title;
+        public int X, Y, XSize, YSize, XCountChars, YCountChars, FillAttribute, Flags;
+        public short ShowWindow, Reserved2Size;
+        public IntPtr Reserved2, StdInput, StdOutput, StdError;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ProcessInformation
+    {
+        public IntPtr Process, Thread;
+        public int ProcessId, ThreadId;
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CreateProcessW(string? application, StringBuilder commandLine, IntPtr processAttributes,
+        IntPtr threadAttributes, [MarshalAs(UnmanagedType.Bool)] bool inheritHandles, uint flags, IntPtr environment,
+        string directory, ref StartupInfo startup, out ProcessInformation started);
+
+    [DllImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CloseHandle(IntPtr handle);
 
     // Windows command-line quoting, including empty arguments and backslashes
     // immediately before a quote or the closing delimiter.
