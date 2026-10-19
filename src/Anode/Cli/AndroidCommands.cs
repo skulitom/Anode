@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text.Json.Nodes;
 using Anode.Core.Bridge;
 
@@ -152,7 +151,12 @@ internal static partial class Cli
             Console.Error.WriteLine(refusal);
             return 1;
         }
-        Core.Browser.SeatBrowser.OpenForSignIn(browser, addresses, Core.Util.Env.StateDirectory, Process.Start);
+        // Started detached, so a piped terminal (| Out-Host) gets its prompt back while the browser stays open.
+        Core.Browser.SeatBrowser.OpenForSignIn(browser, addresses, Core.Util.Env.StateDirectory, info =>
+        {
+            Core.Launch.DetachedProcess.Start(info.FileName, info.ArgumentList, null);
+            return null;
+        });
         Console.WriteLine($"{browser.Name} opened on this desktop with Anode's seat profile ({browser.ProfileFolder}). Sign in to the sites agents "
             + $"should use, such as Play Console, then close that {browser.Name} window: the seat can use the profile only once it is closed here.");
         return 0;

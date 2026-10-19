@@ -17,11 +17,14 @@
   that Anode refuses, a daemon refusal, or a lost or timed-out connection, while `anode status`
   in the same terminal gave the reason. It now prints that reason on stderr, with or without
   `--json`, and still exits 1.
-- **A daemon started without the Task Scheduler no longer holds the caller's output.** When the
+- **Programs Anode starts to outlive a command no longer hold the caller's output.** When the
   CLI or MCP server can't start Anode through the Task Scheduler, it starts it as a child process;
-  that child inherited every inheritable handle, including a piped CLI's output, so a command
-  such as `anode lease acquire | Out-String` waited until Anode itself exited. The child now
-  inherits no handles and has no standard handles, as a Task Scheduler start gives it.
+  that child inherited every inheritable handle, including a piped CLI's output or the MCP
+  client's pipes, so a command such as `anode lease acquire | Out-String` waited until Anode
+  itself exited. `anode browser --sign-in`, piped to `Out-Host` as the README advises in
+  PowerShell, likewise waited until the browser was closed. Both now inherit no handles and have no standard handles,
+  as a Task Scheduler start gives them, so a daemon started this way also no longer attaches to
+  the terminal it was started from.
 
 ## 0.11.3 — 2026-10-15
 
