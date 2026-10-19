@@ -208,6 +208,7 @@ internal static class SelfTest
         Check(results, "startup daemon discovery", () => StartupChecks.DaemonDiscovery().GetAwaiter().GetResult());
         Check(results, "startup host connection", () => StartupChecks.HostConnection().GetAwaiter().GetResult());
         Check(results, "startup state notification", () => StartupChecks.StateNotifications().GetAwaiter().GetResult());
+        Check(results, "detached start handles", StartupChecks.LaunchHandles);
         Check(results, "log diagnostics", () => DiagnosticsChecks.Logging().GetAwaiter().GetResult());
         Check(results, "self-test log", DiagnosticsChecks.SelfTestLog);
         Check(results, "log timestamps", DiagnosticsChecks.LogTimestamps);

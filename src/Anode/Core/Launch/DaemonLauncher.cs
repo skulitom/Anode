@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text;
 using Anode.Core.Session;
 using Anode.Core.Bridge;
@@ -39,16 +38,7 @@ internal static class DaemonLauncher
             Log.Warn($"could not start the daemon through the Task Scheduler ({ex.Message}); starting it as a child process");
         }
 
-        var info = new ProcessStartInfo
-        {
-            FileName = Env.ExecutablePath,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            WorkingDirectory = AppContext.BaseDirectory
-        };
-        foreach (string argument in launchArguments) info.ArgumentList.Add(argument);
-        using var process = Process.Start(info)
-            ?? throw new InvalidOperationException("Could not start the Anode daemon.");
+        DetachedProcess.Start(Env.ExecutablePath, launchArguments, AppContext.BaseDirectory);
     }
 
     // Windows command-line quoting, including empty arguments and backslashes

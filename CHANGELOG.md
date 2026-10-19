@@ -27,6 +27,14 @@
   the name. Both now refuse it at once and list the names that work. The CLI's refusals name
   `--exe` (MCP's `steam_launch` now says `arguments.exe`), and a too-long `anode type` names the
   CLI's 15 ms pace instead of `perCharMs`, an MCP argument the CLI doesn't have.
+- **Programs Anode starts to outlive a command no longer hold the caller's output.** When the
+  CLI or MCP server can't start Anode through the Task Scheduler, it starts it as a child process;
+  that child inherited every inheritable handle, including a piped CLI's output or the MCP
+  client's pipes, so a command such as `anode lease acquire | Out-String` waited until Anode
+  itself exited. `anode browser --sign-in`, piped to `Out-Host` as the README advises in
+  PowerShell, likewise waited until the browser was closed. Both now inherit no handles and get
+  no standard handles, like a daemon the Task Scheduler starts, so a daemon started this way also
+  no longer attaches to the terminal it was started from.
 
 ## 0.11.3 — 2026-10-15
 
