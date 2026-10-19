@@ -314,7 +314,34 @@ internal sealed class GamepadManager : IDisposable
     private static byte ToTrigger(double value) =>
         (byte)Math.Round(Math.Clamp(value, 0.0, 1.0) * 255.0);
 
-    public static Xbox360Button ResolveButton(string name) => name.Trim().ToLowerInvariant() switch
+    private const string ButtonNames = "a, b, x, y, lb, rb, back, start, guide, ls, rs, up, down, left, right";
+
+    /// <summary>
+    /// Why a <c>gamepad_tap</c> or <c>gamepad_set</c> names a button, axis or trigger the controller lacks, or null.
+    /// It reads only the names, so MCP and the CLI refuse a bad one before they take the lease or connect, whether or
+    /// not a controller is plugged in.
+    /// </summary>
+    public static string? NameProblem(JsonObject arguments)
+    {
+        // Tap takes the trigger names too.
+        if (arguments.Str("button") is { } tapped && ButtonNamed(tapped) is null && TriggerNamed(tapped) is null)
+            return $"Unknown gamepad button '{tapped}'. Use {ButtonNames}, lt or rt.";
+        try
+        {
+            foreach (var (name, _) in arguments.Obj("buttons") ?? new JsonObject()) ResolveButton(name);
+            foreach (var (name, _) in arguments.Obj("axes") ?? new JsonObject()) ResolveAxis(name);
+            foreach (var (name, _) in arguments.Obj("triggers") ?? new JsonObject()) ResolveTrigger(name);
+            return null;
+        }
+        catch (ArgumentException ex) { return ex.Message; }
+    }
+
+    public static Xbox360Button ResolveButton(string name) =>
+        ButtonNamed(name) ?? throw new ArgumentException(TriggerNamed(name) is null
+            ? $"Unknown gamepad button '{name}'. Use {ButtonNames}."
+            : $"'{name}' is a trigger, not a button: tap it, or, over MCP, set it from 0 to 1 under gamepad_set's triggers.");
+
+    private static Xbox360Button? ButtonNamed(string name) => name.Trim().ToLowerInvariant() switch
     {
         "a" => Xbox360Button.A,
         "b" => Xbox360Button.B,
@@ -331,9 +358,7 @@ internal sealed class GamepadManager : IDisposable
         "down" or "dpaddown" => Xbox360Button.Down,
         "left" or "dpadleft" => Xbox360Button.Left,
         "right" or "dpadright" => Xbox360Button.Right,
-        _ => throw new ArgumentException(TriggerNamed(name) is null
-            ? $"Unknown gamepad button '{name}'. Use a, b, x, y, lb, rb, back, start, guide, ls, rs, up, down, left, right."
-            : $"'{name}' is a trigger, not a button: tap it, or, over MCP, set it from 0 to 1 under gamepad_set's triggers.")
+        _ => null
     };
 
     public static Xbox360Axis ResolveAxis(string name) => name.Trim().ToLowerInvariant() switch

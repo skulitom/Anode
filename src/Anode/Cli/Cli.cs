@@ -523,22 +523,27 @@ internal static partial class Cli
         return Report(await RequestAsync(client, "run", payload));
     }
 
-    private static async Task<int> SteamCommand(string[] args)
+    /// <summary>The <c>steam</c> launch request, validated before any daemon is reached; null for status.</summary>
+    internal static JsonObject? SteamRequest(string[] args)
     {
         var words = Words("steam", args);
-        bool status = words.Count == 0 || words[0].Equals("status", StringComparison.OrdinalIgnoreCase);
+        if (words.Count == 0 || words[0].Equals("status", StringComparison.OrdinalIgnoreCase)) return null;
+        var options = new Args(args);
+        var payload = new JsonObject { ["appId"] = int.Parse(words[0], CultureInfo.InvariantCulture), ["force"] = options.Flag("force") };
+        if (options.Value("exe") is { } exe) payload["exe"] = exe;
+        if (Mcp.Tools.ValidateArguments("steam_launch", payload) is { } error) throw new UsageException(CliError(error));
+        return payload;
+    }
+
+    private static async Task<int> SteamCommand(string[] args)
+    {
+        var payload = SteamRequest(args);
         using var client = await Connect(autoStart: false);
         if (client is null) return NotRunning();
 
-        if (status) return Report(await RequestAsync(client, "steam.status"));
-        var options = new Args(args);
-        var payload = new JsonObject
-        {
-            ["appId"] = int.Parse(words[0], CultureInfo.InvariantCulture), ["force"] = options.Flag("force"),
-            // The daemon gives the seat 60 seconds unless told otherwise; Steam may first have to start on the desktop.
-            ["timeoutMs"] = 115_000
-        };
-        if (options.Value("exe") is { } exe) payload["exe"] = exe;
+        if (payload is null) return Report(await RequestAsync(client, "steam.status"));
+        // The daemon gives the seat 60 seconds unless told otherwise; Steam may first have to start on the desktop.
+        payload["timeoutMs"] = 115_000;
         return Report(await RequestAsync(client, "steam.launch", payload, 120_000));
     }
 
@@ -621,11 +626,23 @@ internal static partial class Cli
         return Report(await RequestAsync(client, "input.key", new JsonObject { ["keys"] = args[0] }));
     }
 
+    /// <summary>The <c>type</c> request, validated before any daemon is reached: text one call can't type is refused here.</summary>
+    internal static JsonObject TypeRequest(string[] args)
+    {
+        var payload = new JsonObject { ["text"] = string.Join(' ', args) };
+        // The CLI types at the default pace and has no perCharMs to name.
+        if (Mcp.Tools.ValidateArguments("seat_type", payload) is { } error)
+            throw new UsageException(error.Replace($"at perCharMs {Core.Input.TextTyping.DefaultPerCharMs}",
+                $"{Core.Input.TextTyping.DefaultPerCharMs} ms apart", StringComparison.Ordinal));
+        return payload;
+    }
+
     private static async Task<int> TypeText(string[] args)
     {
+        var payload = TypeRequest(args);
         using var client = await Connect(autoStart: false);
         if (client is null) return NotRunning();
-        return Report(await RequestAsync(client, "input.text", new JsonObject { ["text"] = string.Join(' ', args) }));
+        return Report(await RequestAsync(client, "input.text", payload));
     }
 
     private static async Task<int> Processes(string[] args)
@@ -651,23 +668,23 @@ internal static partial class Cli
         return 0;
     }
 
-    private static async Task<int> Gamepad(string[] args)
+    /// <summary>
+    /// The <c>gamepad</c> request and its operation, validated before any daemon is reached. Its action, word count,
+    /// stick values and slot were checked first by <see cref="CheckGamepad"/>.
+    /// </summary>
+    internal static (string Op, JsonObject Payload) GamepadRequest(string[] args)
     {
-        // Actions, buttons and numbers were validated before dispatch.
         var words = Words("gamepad", args);
         string action = words.Count > 0 ? words[0].ToLowerInvariant() : "state";
         var options = new Args(args);
         var payload = new JsonObject { ["slot"] = options.Int("slot") ?? 0 };
-
-        using var client = await Connect(autoStart: false);
-        if (client is null) return NotRunning();
-
+        string op = "gamepad." + action;
         switch (action)
         {
             case "tap":
                 payload["button"] = words[1];
                 payload["ms"] = options.Int("ms") ?? 80;
-                return Report(await RequestAsync(client, "gamepad.tap", payload));
+                break;
             case "stick":
             {
                 string prefix = words[1].Equals("right", StringComparison.OrdinalIgnoreCase) ? "r" : "l";
@@ -676,15 +693,25 @@ internal static partial class Cli
                     [prefix + "x"] = double.Parse(words[2], CultureInfo.InvariantCulture),
                     [prefix + "y"] = double.Parse(words[3], CultureInfo.InvariantCulture)
                 };
-                return Report(await RequestAsync(client, "gamepad.set", payload));
+                op = "gamepad.set";
+                break;
             }
             case "hold":
             case "release":
                 payload["buttons"] = new JsonObject { [words[1]] = action == "hold" };
-                return Report(await RequestAsync(client, "gamepad.set", payload));
-            default:
-                return Report(await RequestAsync(client, "gamepad." + action, payload));
+                op = "gamepad.set";
+                break;
         }
+        if (Mcp.Tools.ValidateOperation(op, payload) is { } error) throw new UsageException(CliError(error));
+        return (op, payload);
+    }
+
+    private static async Task<int> Gamepad(string[] args)
+    {
+        var (op, payload) = GamepadRequest(args);
+        using var client = await Connect(autoStart: false);
+        if (client is null) return NotRunning();
+        return Report(await RequestAsync(client, op, payload));
     }
 
     private static int Unknown(string command)
@@ -1201,6 +1228,7 @@ internal static partial class Cli
             if (name == "android") AndroidRequest(args);
             if (name is "run" or "type" && args.Length == 0)
                 throw new UsageException(name == "run" ? "run requires a program." : "type requires text.");
+            if (name == "type") TypeRequest(args);
             if (name == "key" && args.Length != 1)
                 throw new UsageException("key takes one chord, such as ctrl+shift+esc; join keys with + and no spaces.");
             if (name == "key" && Core.Input.KeyCodes.ChordProblem(args[0]) is { } problem) throw new UsageException(problem);
@@ -1239,9 +1267,11 @@ internal static partial class Cli
                 }
                 else if (!int.TryParse(words[0], NumberStyles.None, CultureInfo.InvariantCulture, out int app) || app < 1)
                     throw new UsageException($"steam takes status or a Steam app id (the number in the game's store URL), not '{words[0]}'.");
+                else SteamRequest(args);
                 break;
             case "gamepad":
                 CheckGamepad(words, options);
+                GamepadRequest(args);
                 break;
             case "display":
                 CheckDisplay(words, options);
