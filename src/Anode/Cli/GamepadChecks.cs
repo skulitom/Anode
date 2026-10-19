@@ -220,6 +220,30 @@ internal static class GamepadChecks
     }
 
     /// <summary>
+    /// B-046: tool validation refuses a button, axis or trigger the controller lacks, so MCP says so before it takes
+    /// the lease or asks for a fresh look, and the CLI before it connects, with or without a controller plugged in.
+    /// </summary>
+    public static string Names()
+    {
+        string? Problem(string tool, string json) => Mcp.Tools.ValidateArguments(tool, JsonNode.Parse(json)!.AsObject());
+        foreach (string tap in new[] { "a", "Y", "home", "dpadup", "lt", "r2" })
+            Require(Problem("gamepad_tap", $$"""{"button":"{{tap}}"}""") is null, $"gamepad_tap refused '{tap}'");
+        Require(Problem("gamepad_set", """{"buttons":{"a":true,"select":false},"axes":{"lx":0.5,"righty":-1},"triggers":{"lt":1,"r2":0}}""") is null,
+            "gamepad_set refused names the controller has");
+        Require(Problem("gamepad_tap", """{"button":"jump"}""") is { } unknown && unknown.Contains("'jump'") && unknown.EndsWith("right, lt or rt.", StringComparison.Ordinal),
+            "an unknown tap was not refused with the names tap takes");
+        foreach (var (json, words) in new[]
+        {
+            ("""{"buttons":{"a":true,"jump":true}}""", "Unknown gamepad button 'jump'"),
+            ("""{"buttons":{"lt":true}}""", "is a trigger, not a button"),
+            ("""{"axes":{"lz":0}}""", "Unknown gamepad axis 'lz'"),
+            ("""{"triggers":{"a":1}}""", "Unknown trigger 'a'")
+        })
+            Require(Problem("gamepad_set", json)?.Contains(words, StringComparison.Ordinal) == true, $"gamepad_set {json} was not refused: {words}");
+        return "unknown buttons, axes and triggers, and a trigger held as a button, are refused before dispatch; aliases and triggers tap";
+    }
+
+    /// <summary>
     /// The full self-test's live check, on the desktop: plugs in a controller jailed to an unused session and
     /// checks that XInput and HID opens from this session are refused. It sends no input and removes its
     /// HidHide entries afterward. Skipped without HidHide.

@@ -97,6 +97,8 @@ internal static class CliChecks
             new[] { "steam", "--force", "220" }, new[] { "steam", "220", "--exe", @"bin\hl2.exe" },
             new[] { "steam", @"--exe=C:\Games\x.exe", "220" }, new[] { "gamepad" }, new[] { "pad", "attach", "--slot", "1" },
             new[] { "gamepad", "stick", "left", "0.5", "-0.25" }, new[] { "gamepad", "tap", "a", "--ms", "80" },
+            new[] { "gamepad", "tap", "lt" }, new[] { "gamepad", "hold", "dpadup" }, new[] { "pad", "release", "A", "--slot", "2" },
+            new[] { "type", new string('a', 3000) },
             new[] { "windows", "--query", "--help", "--json" }, new[] { "inspect", "--json", "w_1", "--max-depth", "20", "--offscreen" },
             new[] { "window", "w_1", "move", "--x", "-10", "--y=0", "--width", "800", "--height", "600" },
             new[] { "element", "s", "e", "set_value", "--value", "--help" }, new[] { "shot", "out.png", "--width", "1000", "--jpeg" },
@@ -134,6 +136,10 @@ internal static class CliChecks
             new[] { "steam", "status", "--exe", "x.exe" }, new[] { "steam", "220", "--exe" },
             new[] { "gamepad", "stick", "left", "x", "0" }, new[] { "gamepad", "stick", "up", "0", "0" }, new[] { "gamepad", "stick", "left", "2", "0" },
             new[] { "gamepad", "tap" }, new[] { "gamepad", "attach", "--slot", "9" }, new[] { "gamepad", "attach", "--ms", "80" },
+            // B-046: refused from the arguments, so a stopped Anode can't hide these behind "Anode is not running".
+            new[] { "type", new string('a', 3002) }, new[] { "steam", "220", "--exe=" }, new[] { "steam", "220", "--exe", new string('x', 1025) },
+            new[] { "gamepad", "tap", "jump" }, new[] { "gamepad", "hold", "lt" }, new[] { "pad", "release", "jump" },
+            new[] { "gamepad", "tap", "a", "--ms", "70000" },
             new[] { "inspect", "w", "--max-depth" }, new[] { "inspect", "w", "extra" }, new[] { "windows", "--pid", "abc" },
             new[] { "doctor", "--verbose" }, new[] { "status", "--jsn" }, new[] { "version", "--json" }, new[] { "shot", "a.png", "b.png" },
             new[] { "display", "1921x1080" }, new[] { "display", "1920" }, new[] { "display", "600x400" }, new[] { "display", "wide" },
@@ -183,7 +189,9 @@ internal static class CliChecks
             (new[] { "shot", "out.png", "--width", "0" }, "--width"),
             (new[] { "android", "adb", "emulator-5554", "--timeout", "200", "--", "shell", "input", "tap", "1", "2" }, "--timeout"),
             (new[] { "android", "shot", "emulator-5554", "--width", "0" }, "--width"),
-            (new[] { "android", "start", "Pixel_9_Pro", "--wait", "200" }, "--wait")
+            (new[] { "android", "start", "Pixel_9_Pro", "--wait", "200" }, "--wait"),
+            (new[] { "gamepad", "tap", "a", "--ms", "70000" }, "--ms"),
+            (new[] { "steam", "220", "--exe=" }, "--exe")
         })
         {
             string? message = null;
@@ -193,7 +201,13 @@ internal static class CliChecks
                 && !message.Contains("Seconds") && !message.Contains("maxWidth"),
                 $"'{string.Join(' ', line)}' named a flag the CLI doesn't have: {message ?? "accepted"}");
         }
-        // gamepad tap's --ms is bounded only by the tool, which the CLI checks before sending; no pipe is touched.
+        // A too-long type names the pace the CLI uses, not an MCP argument it lacks.
+        string? typing = null;
+        try { Cli.CheckArguments("type", new[] { new string('a', 3002) }); }
+        catch (UsageException ex) { typing = ex.Message; }
+        Require(typing?.Contains("3001 characters at the CLI's 15 ms per character", StringComparison.Ordinal) == true && !typing.Contains("perCharMs"),
+            "a refused type named perCharMs or the wrong limit: " + typing);
+        // A request that skipped those checks is still refused before sending, in the CLI's words; no pipe is touched.
         var tap = new JsonObject { ["agentId"] = "test-agent", ["leaseToken"] = "test-token", ["button"] = "a", ["ms"] = 70000 };
         string? tapError = Cli.RequestAsync(null!, "gamepad.tap", tap).GetAwaiter().GetResult().Str("error");
         Require(tapError?.StartsWith("--ms ", StringComparison.Ordinal) == true, "a refused gamepad tap named an MCP argument: " + tapError);
