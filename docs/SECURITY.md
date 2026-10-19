@@ -246,5 +246,7 @@ stopping it. The service may recreate a helper; this is not an automatic recurri
 
 ## Reporting a problem
 
-Open an issue at https://github.com/skulitom/Anode/issues. If it is a security problem, please say so
-in the title and leave out anything sensitive; a maintainer will follow up on how to share details.
+Report a security problem privately: on GitHub, open this repository's **Security** tab and choose
+**Report a vulnerability** (https://github.com/skulitom/Anode/security/advisories/new). Please don't
+open a public issue for it. For any other problem, open an issue at
+https://github.com/skulitom/Anode/issues.
