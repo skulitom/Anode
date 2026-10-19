@@ -11,6 +11,7 @@
   "homepage": "https://github.com/skulitom/Anode#readme",
   "repository": "https://github.com/skulitom/Anode",
   "license": "MIT",
+  "icon": "assets/anode-512.png",
   "keywords": [
     "windows",
     "desktop-automation",
