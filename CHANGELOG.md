@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.4 — 2026-10-21
 
 - **`anode doctor` warns when Windows signs local accounts in as Guest.** With the "Guest only"
   sharing model (`HKLM\SYSTEM\CurrentControlSet\Control\Lsa` `ForceGuest = 1`, set by some
@@ -35,6 +35,15 @@
   PowerShell, likewise waited until the browser was closed. Both now inherit no handles and get
   no standard handles, like a daemon the Task Scheduler starts, so a daemon started this way also
   no longer attaches to the terminal it was started from.
+- **Skill, docs, packaging and dependencies.** The `anode-desktop` skill, which is also
+  `anode_guide`'s text, shows the user the exact install commands and waits for their yes; it
+  downloads `install.ps1` from a named release, not `latest`, checks its SHA-256 against that
+  release's `SHA256SUMS` and installs that version. `SECURITY.md` asks for vulnerability reports
+  through GitHub's private **Report a vulnerability**. The Windows scripts and the solution file are
+  stored with CRLF line endings that Git never converts, so every checkout and archive has the
+  same bytes. CI's actions are pinned to commits and kept current by Dependabot; the build runs
+  `actions/checkout` 7.0.1, `actions/setup-dotnet` 6.0.0 and `actions/upload-artifact` 7.0.2. Seat
+  audio uses NAudio 3.2.0.
 
 ## 0.11.3 — 2026-10-15
 
