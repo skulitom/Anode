@@ -68,8 +68,9 @@ live check) in CI and on any PC.
 **Scope:** everything merged since 0.11.3:
 - fixes: #60 (doctor and seat sign-in when Windows signs local accounts in as Guest, reported by an
   outside user in #57), #61 (`anode display`'s silent status failure), #71 (`anode type`, `steam`
-  and `gamepad` check their arguments before connecting) and #72 (the fallback daemon and the
-  sign-in browser inherit no handles);
+  and `gamepad` check their arguments before connecting), #72 (the fallback daemon and the
+  sign-in browser inherit no handles) and #78 (a log line waits up to a second for other writers,
+  after CI's self-test lost one once);
 - the skill: #75 (the `anode-desktop` skill and `anode_guide` pin the installer to a release, check
   its SHA-256 and wait for the user's yes);
 - security policy: #63 and #65 (`SECURITY.md`: private vulnerability reports);
@@ -94,8 +95,8 @@ release does not include it.
 ### Build and package validation
 
 - `scripts\build.ps1 -QuickTest` on the candidate: **116 quick self-tests** passed (112 at 0.11.3's
-  last record; #60, #61, #71 and #72 add one each), and the documentation check passed (41
-  documents against 41 tools). `anode version` reports 0.11.4.
+  last record; #60, #61, #71 and #72 add one each, and #78 extends "log diagnostics"), and the
+  documentation check passed (41 documents against 41 tools). `anode version` reports 0.11.4.
 - `scripts\release-check.ps1 -DryRun` and `scripts\test-release-check.ps1` passed (no Anode or
   seat started).
 - The release workflow's own package steps (`build.ps1 -QuickTest -Package -Mcpb`,
@@ -109,8 +110,9 @@ release does not include it.
 - The live check doesn't exercise these fixes, which rest on their regression checks with
   stand-ins: doctor's **Local account sign-in** row and the sign-in error under `ForceGuest = 1`
   (#60; no PC with that setting was available), `anode display`'s failed status request (#61), the
-  argument refusals with Anode stopped (#71) and a daemon started without the Task Scheduler (#72;
-  the check starts a stand-in program the same way).
+  argument refusals with Anode stopped (#71), a daemon started without the Task Scheduler (#72;
+  the check starts a stand-in program the same way) and a log line waiting out another writer
+  (#78; the check holds a log file for 300 ms and runs eight writers at once).
 - NAudio 3.2.0 is covered by the quick checks' WAV clips and the audio protocol with an injected
   renderer. Real seat audio (`seat_audio_listen`, `seat_audio_play`) is not part of the live check.
 - The skill inside 0.11.4 (`anode_guide`, and the copy `anode configure` installs) names the 0.11.3
@@ -122,9 +124,8 @@ release does not include it.
   of the live check.
 - Known issues: a Chrome window's first observation can omit the page (observe again with
   `maxDepth` 16); `invoke` on Windows' Open File security dialog reports success without running
-  anything; `anode type` has no pace option; `anode.log` is not rotated, and under heavy contention
-  a writer can give up on a log line (seen once in CI's self-test); with Anode stopped, a desktop
-  command without an agent id says "Anode is not running" before it asks for the id.
+  anything; `anode type` has no pace option; `anode.log` is not rotated; with Anode stopped, a
+  desktop command without an agent id says "Anode is not running" before it asks for the id.
 
 ## 0.11.3 release validation
 

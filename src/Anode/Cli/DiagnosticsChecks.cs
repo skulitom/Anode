@@ -877,6 +877,9 @@ internal static class DiagnosticsChecks
         string marker = options.Value("marker") ?? throw new ArgumentException("log probe needs --marker");
         // Marker is a name, never a path outside the disposable state directory.
         if (marker != Path.GetFileName(marker)) throw new ArgumentException("Invalid log probe marker.");
+        if (options.Value("share-wait-ms") is { } wait)
+            Log.ShareWait = int.TryParse(wait, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int ms)
+                ? TimeSpan.FromMilliseconds(ms) : throw new ArgumentException("Invalid log probe wait.");
         Log.SetRole("log-probe");
         Log.Info(marker);
         Env.EnsureStateDirectory();
@@ -890,8 +893,9 @@ internal static class DiagnosticsChecks
         return Log.LastWriteError is null ? 0 : 1;
     }
 
-    private static string ProbeArguments(string directory, string marker) =>
-        $"__log-probe --state-dir {DaemonLauncher.Quote(directory)} --marker {marker}";
+    private static string ProbeArguments(string directory, string marker, int? shareWaitMs = null) =>
+        $"__log-probe --state-dir {DaemonLauncher.Quote(directory)} --marker {marker}"
+        + (shareWaitMs is { } ms ? $" --share-wait-ms {ms}" : "");
 
     public static async Task<string> Logging()
     {
@@ -902,7 +906,8 @@ internal static class DiagnosticsChecks
         {
             using (var held = new FileStream(log, FileMode.Create, FileAccess.ReadWrite, FileShare.None))
             {
-                var failure = await RunProbe(directory, "locked");
+                // A short wait keeps this quick; the shipped wait is checked below.
+                var failure = await RunProbe(directory, "locked", shareWaitMs: 100);
                 var result = JsonLine.Parse(await File.ReadAllTextAsync(Path.Combine(directory, "locked.json")))!;
                 Require(failure.Code == 1 && failure.Error.Contains("Cannot write Anode log")
                     && result.Str("logError")!.Contains(log), "log write failure was silent or lost the path");
@@ -910,13 +915,23 @@ internal static class DiagnosticsChecks
             Require((await RunProbe(directory, "recovered")).Code == 0, "logging did not recover after the file was unlocked");
             Require((await File.ReadAllTextAsync(log)).Contains("[log-probe]") && (await File.ReadAllTextAsync(log)).Contains("recovered"),
                 "subprocess did not use its explicit state directory");
+            // A line waits out another writer that keeps the file longer than the 100 ms it used to (B-054).
+            Require(Log.LastWriteError is null, $"the self-test's own log is failing: {Log.LastWriteError}");
+            string busy = Path.Combine(directory, "busy.log");
+            var holder = new FileStream(busy, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+            var release = Task.Run(async () => { await Task.Delay(300); holder.Dispose(); });
+            try { using (Log.Divert(busy)) Log.Info("after the other writer"); }
+            finally { await release; }
+            Require((await File.ReadAllTextAsync(busy)).Contains("after the other writer"),
+                $"a line gave up while another writer held the log for 300 ms: {Log.LastWriteError}");
             var writers = Enumerable.Range(0, 8).Select(i => RunProbe(directory, $"writer-{i}")).ToArray();
             var results = await Task.WhenAll(writers);
-            Require(results.All(r => r.Code == 0), "concurrent log writers failed");
+            Require(results.All(r => r.Code == 0), "concurrent log writers failed: " + string.Join("; ", results
+                .Select((r, i) => (r, i)).Where(x => x.r.Code != 0).Select(x => $"writer-{x.i} exit {x.r.Code}: {x.r.Error.Trim()}")));
             var lines = await File.ReadAllLinesAsync(log);
             foreach (int i in Enumerable.Range(0, 8))
                 Require(lines.Count(line => line.EndsWith($"writer-{i}")) == 1, "a concurrent log line was lost or duplicated");
-            return "explicit paths, concurrent subprocess writers, and visible write failures verified";
+            return "explicit paths, a line outlasting another writer's 300 ms hold, concurrent subprocess writers, and visible write failures verified";
         }
         finally { Directory.Delete(directory, recursive: true); }
     }
@@ -981,9 +996,9 @@ internal static class DiagnosticsChecks
         }
     }
 
-    private static async Task<(int Code, string Error)> RunProbe(string directory, string marker)
+    private static async Task<(int Code, string Error)> RunProbe(string directory, string marker, int? shareWaitMs = null)
     {
-        using var process = Process.Start(new ProcessStartInfo(Env.ExecutablePath, ProbeArguments(directory, marker))
+        using var process = Process.Start(new ProcessStartInfo(Env.ExecutablePath, ProbeArguments(directory, marker, shareWaitMs))
         {
             UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true, RedirectStandardOutput = true
         }) ?? throw new InvalidOperationException("could not launch the log probe");
