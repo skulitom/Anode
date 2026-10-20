@@ -327,17 +327,18 @@ try {
             $temps = @([regex]::Matches($section, '"(\$env:TEMP\\[^"]+)"') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
             Check ($temps.Count -eq 1) 'skills/anode-desktop/SKILL.md keeps the installer at one path in %TEMP%' "found $($temps -join ', ')"
             if ($temps.Count -eq 1) {
-                # Every line that runs a file or names that path is the download, the hash check or a pinned run.
+                # Every command line in the install section's PowerShell blocks has one of three exact shapes: the one
+                # download of the pinned URL to that path, the hash check of that path, or a run of it with the pinned -Version.
                 $q = [regex]::Escape('"' + $temps[0] + '"')
-                $kinds = @(($section -split '\r?\n') | Where-Object { $_ -match '-File\b' -or $_.Contains($temps[0]) } | ForEach-Object {
-                    if ($_ -match "Invoke-WebRequest .*-OutFile $q") { 'download' }
-                    elseif ($_ -match "Get-FileHash $q ") { 'hash' }
-                    elseif ($_ -match "-File $q -Version (\d+\.\d+\.\d+) -Client [A-Za-z]+") { 'run ' + $Matches[1] }
-                    else { 'other' }
-                })
-                Check ('download' -in $kinds -and 'hash' -in $kinds) 'skills/anode-desktop/SKILL.md downloads and hashes the installer at that path'
-                $unpinned = @($kinds | Where-Object { $_ -ne 'download' -and $_ -ne 'hash' -and $_ -ne ('run ' + $pins[0]) })
-                Check (@($kinds | Where-Object { $_ -like 'run *' }).Count -ge 1 -and $unpinned.Count -eq 0) "skills/anode-desktop/SKILL.md runs that installer only with -Version $($pins[0])" "found $($kinds -join '; ')"
+                $url = [regex]::Escape("https://github.com/skulitom/Anode/releases/download/v$($pins[0])/install.ps1")
+                $shapes = [ordered]@{
+                    download = '^\s*\[Net\.ServicePointManager\]::SecurityProtocol = \[Net\.ServicePointManager\]::SecurityProtocol -bor \[Net\.SecurityProtocolType\]::Tls12; Invoke-WebRequest -UseBasicParsing ' + $url + ' -OutFile ' + $q + '\s*$'
+                    hash     = '^\s*\(Get-FileHash ' + $q + ' -Algorithm SHA256\)\.Hash -eq ''[0-9A-Fa-f]{64}''\s*$'
+                    run      = '^\s*powershell -NoProfile -ExecutionPolicy Bypass -File ' + $q + ' -Version ' + [regex]::Escape($pins[0]) + ' -Client (?:None|Auto|Both|Codex|Claude)\s*$'
+                }
+                $codeLines = @([regex]::Matches($section, '(?s)```powershell\r?\n(.*?)```') | ForEach-Object { $_.Groups[1].Value -split '\r?\n' } | Where-Object { $_.Trim() })
+                $kinds = @($codeLines | ForEach-Object { $line = $_; $kind = 'other'; foreach ($name in $shapes.Keys) { if ($line -cmatch $shapes[$name]) { $kind = $name; break } }; $kind })
+                Check (@($kinds | Where-Object { $_ -eq 'download' }).Count -eq 1 -and 'hash' -in $kinds -and 'run' -in $kinds -and 'other' -notin $kinds) "skills/anode-desktop/SKILL.md's commands are one pinned download, its hash check and runs with -Version $($pins[0])" "found $($kinds -join '; ')"
             }
             # Every version the install section names (URL, temp file, -Version, prose) is the pinned one.
             $others = @([regex]::Matches($section, '(?<![\d.])\d+\.\d+\.\d+(?!\d|\.\d)') | ForEach-Object { $_.Value } | Where-Object { $_ -ne $pins[0] } | Select-Object -Unique)

@@ -7,7 +7,8 @@ Desktop host; Windows Home is unsupported. Install only with the user's authoriz
 the pinned, hash-checked commands in the
 [anode-desktop skill](https://github.com/skulitom/Anode/blob/main/skills/anode-desktop/SKILL.md#discover-and-start)
 and wait for their yes before running them. If the installer warns that Windows kept
-files private to the app you run inside, ask the user to run it from their own terminal. The PATH
+files private to the app you run inside, ask the user to run the same pinned lines in their own
+Windows PowerShell. The PATH
 change reaches only new processes, so in the same shell use
 `& "$env:LOCALAPPDATA\Programs\Anode\anode.exe"` (for example with `doctor | Out-Host`). The user runs `anode setup` once and approves its administrator
 prompt; it can restart Remote Desktop Services. The skill's install command registers Codex and

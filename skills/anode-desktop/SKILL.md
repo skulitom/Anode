@@ -60,7 +60,8 @@ the options.
    ```
 
    If the last line prints anything but `True`, stop and tell the user; don't run the file.
-2. Run the installer on the same release:
+2. Run the installer on the same release. With the Claude Code plugin, show and run the
+   `-Client None` command below instead:
 
    ```powershell
    powershell -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\anode-install-0.11.3.ps1" -Version 0.11.3 -Client Auto
@@ -70,6 +71,8 @@ the options.
    before installing; the bypass applies to this one PowerShell process. It installs `anode.exe`,
    adds it to the user PATH and registers detected agent clients with the copy of this skill that
    0.11.3 bundles (that copy's install steps are older; they only matter on a PC without Anode).
+   If it warns that Windows kept the files private to the app you run in, ask the user to run the
+   same pinned lines in their own Windows PowerShell.
 3. Run `anode doctor | Out-Host` (from a new terminal, or with the path the installer printed)
    to read the prerequisites.
 4. If setup is missing, the user runs `anode setup | Out-Host` and approves the administrator
