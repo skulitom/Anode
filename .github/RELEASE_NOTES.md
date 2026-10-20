@@ -24,6 +24,9 @@ or commands were added; there are still 41 tools.
   as `anode lease acquire | Out-String` waited until Anode itself exited, and
   `anode browser --sign-in | Out-Host` until the browser was closed. Both now start with no
   inherited or standard handles.
+- **Log lines no longer go missing when several Anode processes write at once.** A line waited
+  only about 100 ms for the other writers to `anode.log` before it was dropped; it now waits up to
+  a second.
 - **The skill asks before it installs anything.** The `anode-desktop` skill and `anode_guide` show
   the user the exact install commands and wait for their yes. They download the installer from a
   named release, not `latest`, and check its SHA-256 before running it.

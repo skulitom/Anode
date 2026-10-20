@@ -35,6 +35,11 @@
   PowerShell, likewise waited until the browser was closed. Both now inherit no handles and get
   no standard handles, like a daemon the Task Scheduler starts, so a daemon started this way also
   no longer attaches to the terminal it was started from.
+- **Log lines no longer go missing when several Anode processes write at once.** The daemon, the
+  seat host, the CLI and MCP servers all append to `anode.log`, and a line waited only about 100 ms
+  for the others before it was dropped and `logError` set; eight writers on a slow machine outlasted
+  that. A line now waits up to a second. Once a write has failed, later lines wait the old 100 ms
+  until one succeeds, so a log another program keeps locked costs one wait, not one per line.
 - **Skill, docs, packaging and dependencies.** The `anode-desktop` skill, which is also
   `anode_guide`'s text, shows the user the exact install commands and waits for their yes; it
   downloads `install.ps1` from a named release, not `latest`, checks its SHA-256 against that
