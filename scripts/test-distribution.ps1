@@ -316,24 +316,41 @@ try {
     $skillPath = Join-Path $root 'skills\anode-desktop\SKILL.md'
     if (Test-Path -LiteralPath $skillPath -PathType Leaf) {
         $skill = Read-Text $skillPath
-        Check ($skill -notmatch 'releases/latest/download/install\.ps1') 'skills/anode-desktop/SKILL.md does not install from the latest release'
-        Check ((Read-Text (Join-Path $root 'llms.txt')) -notmatch 'releases/latest/download/install\.ps1') 'llms.txt does not send agents to the latest installer'
-        $pins = @([regex]::Matches($skill, 'releases/download/v(\d+\.\d+\.\d+)/install\.ps1') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
-        Check ($pins.Count -eq 1 -and (Compare-Version $pins[0] $version) -le 0) "skills/anode-desktop/SKILL.md pins one released installer, not after $version" "found $($pins -join ', ')"
+        $section = [regex]::Match($skill, '(?s)If Anode is absent.*?(?=\r?\n## )').Value
+        Check ($skill -notmatch 'releases/latest') 'skills/anode-desktop/SKILL.md does not install from the latest release'
+        Check ((Read-Text (Join-Path $root 'llms.txt')) -notmatch 'releases/latest') 'llms.txt does not send agents to the latest release'
+        $pinPattern = 'https://github\.com/skulitom/Anode/releases/download/v(\d+\.\d+\.\d+)/install\.ps1'
+        $pins = @([regex]::Matches($section, $pinPattern) | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+        $urls = [regex]::Matches($section, 'https?://\S*install\.ps1').Count
+        Check ($pins.Count -eq 1 -and $urls -eq [regex]::Matches($section, $pinPattern).Count -and (Compare-Version $pins[0] $version) -le 0) "skills/anode-desktop/SKILL.md downloads one released installer from skulitom/Anode, not after $version" "found $($pins -join ', ') in $urls URL(s)"
         if ($pins.Count -eq 1) {
-            $runs = @([regex]::Matches($skill, '-File "[^"]+" -Version (\d+\.\d+\.\d+) -Client [A-Za-z]+') | ForEach-Object { $_.Groups[1].Value })
-            $commands = [regex]::Matches($skill, '-ExecutionPolicy Bypass -File ').Count
-            Check ($runs.Count -ge 1 -and $runs.Count -eq $commands -and @($runs | Where-Object { $_ -ne $pins[0] }).Count -eq 0) "skills/anode-desktop/SKILL.md runs install.ps1 only with -Version $($pins[0])" "found $($runs -join ', ') in $commands command(s)"
+            $temps = @([regex]::Matches($section, '"(\$env:TEMP\\[^"]+)"') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+            Check ($temps.Count -eq 1) 'skills/anode-desktop/SKILL.md keeps the installer at one path in %TEMP%' "found $($temps -join ', ')"
+            if ($temps.Count -eq 1) {
+                # Every line that runs a file or names that path is the download, the hash check or a pinned run.
+                $q = [regex]::Escape('"' + $temps[0] + '"')
+                $kinds = @(($section -split '\r?\n') | Where-Object { $_ -match '-File\b' -or $_.Contains($temps[0]) } | ForEach-Object {
+                    if ($_ -match "Invoke-WebRequest .*-OutFile $q") { 'download' }
+                    elseif ($_ -match "Get-FileHash $q ") { 'hash' }
+                    elseif ($_ -match "-File $q -Version (\d+\.\d+\.\d+) -Client [A-Za-z]+") { 'run ' + $Matches[1] }
+                    else { 'other' }
+                })
+                Check ('download' -in $kinds -and 'hash' -in $kinds) 'skills/anode-desktop/SKILL.md downloads and hashes the installer at that path'
+                $unpinned = @($kinds | Where-Object { $_ -ne 'download' -and $_ -ne 'hash' -and $_ -ne ('run ' + $pins[0]) })
+                Check (@($kinds | Where-Object { $_ -like 'run *' }).Count -ge 1 -and $unpinned.Count -eq 0) "skills/anode-desktop/SKILL.md runs that installer only with -Version $($pins[0])" "found $($kinds -join '; ')"
+            }
             # Every version the install section names (URL, temp file, -Version, prose) is the pinned one.
-            $section = [regex]::Match($skill, '(?s)If Anode is absent.*?(?=\r?\n## )').Value
             $others = @([regex]::Matches($section, '(?<![\d.])\d+\.\d+\.\d+(?!\d|\.\d)') | ForEach-Object { $_.Value } | Where-Object { $_ -ne $pins[0] } | Select-Object -Unique)
-            Check ($section -and $others.Count -eq 0) "skills/anode-desktop/SKILL.md's install section names only $($pins[0])" "found $($others -join ', ')"
-            $pinnedHashes = @([regex]::Matches($skill, "\.Hash -eq '([0-9A-Fa-f]{64})'") | ForEach-Object { $_.Groups[1].Value.ToLowerInvariant() } | Select-Object -Unique)
-            Check ($pinnedHashes.Count -eq 1) 'skills/anode-desktop/SKILL.md checks install.ps1 against one SHA-256' "found $($pinnedHashes.Count)"
-            # When the pin is the version under test, its hash must be this package's install.ps1, the file that release publishes.
+            Check ($others.Count -eq 0) "skills/anode-desktop/SKILL.md's install section names only $($pins[0])" "found $($others -join ', ')"
+            $pinnedHashes = @([regex]::Matches($section, "\.Hash -eq '([0-9A-Fa-f]{64})'") | ForEach-Object { $_.Groups[1].Value.ToLowerInvariant() } | Select-Object -Unique)
+            Check ($pinnedHashes.Count -eq 1) 'skills/anode-desktop/SKILL.md checks the installer against one SHA-256' "found $($pinnedHashes.Count)"
+            # The pinned hash is the install.ps1 line of v<pin>'s published SHA256SUMS. This package's install.ps1 equals it
+            # only while scripts\install.ps1 is unchanged since that release, so a difference is a warning, not a failure.
             $packagedInstaller = Join-Path $ArchiveDirectory 'install.ps1'
             if ($pinnedHashes.Count -eq 1 -and (Compare-Version $pins[0] $version) -eq 0 -and (Test-Path -LiteralPath $packagedInstaller -PathType Leaf)) {
-                Check ($pinnedHashes[0] -eq (Get-FileSha256 $packagedInstaller)) "skills/anode-desktop/SKILL.md pins the SHA-256 of $version's install.ps1" "found $($pinnedHashes[0])"
+                $packagedHash = Get-FileSha256 $packagedInstaller
+                if ($pinnedHashes[0] -eq $packagedHash) { Write-Host "[ok] skills/anode-desktop/SKILL.md's SHA-256 equals this package's install.ps1" }
+                else { Warn "skills/anode-desktop/SKILL.md's SHA-256 $($pinnedHashes[0]) differs from this package's install.ps1 ($packagedHash). Keep the hash from v$($pins[0])'s published SHA256SUMS; re-pin only after a release (CONTRIBUTING.md step 7)." }
             }
         }
     }

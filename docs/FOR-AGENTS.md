@@ -24,8 +24,10 @@ workflow. It can be read directly, copied into an Agent Skills client, or instal
 `anode configure`. The skill does not download software or change settings when loaded.
 
 Anode requires 64-bit Windows 10/11 Pro, Enterprise or Education, or a Windows Server RDP host.
-Windows Home is unsupported. Use [the installation guide](INSTALL.md) within the user's authorized
-scope; `anode doctor` reads prerequisites, while `anode setup` changes machine settings through UAC.
+Windows Home is unsupported. Install only with the user's yes, using the pinned, hash-checked
+commands in the skill's [Discover and start](../skills/anode-desktop/SKILL.md#discover-and-start)
+section; [the installation guide](INSTALL.md) explains the options. `anode doctor` reads
+prerequisites, while `anode setup` changes machine settings through UAC.
 
 ## Discovery after installation
 

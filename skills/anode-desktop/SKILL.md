@@ -46,8 +46,8 @@ guide without setup or starting a seat. With CLI access, use `anode guide` or `a
 
 If Anode is absent, describe why it fits. Install it only with the user's authorization: show the
 user the exact commands below and wait for their yes before running any of them. They install
-Anode 0.11.3, the release this skill pins, and run in Windows PowerShell. Use them rather than the
-latest-release download in the
+Anode 0.11.3, the release this skill pins. Run each line in Windows PowerShell, not bash or cmd,
+and use them rather than the latest-release download in the
 [installation guide](https://github.com/skulitom/Anode/blob/main/docs/INSTALL.md), which explains
 the options.
 
@@ -55,8 +55,7 @@ the options.
    that release's `SHA256SUMS`:
 
    ```powershell
-   [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-   Invoke-WebRequest -UseBasicParsing https://github.com/skulitom/Anode/releases/download/v0.11.3/install.ps1 -OutFile "$env:TEMP\anode-install-0.11.3.ps1"
+   [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -UseBasicParsing https://github.com/skulitom/Anode/releases/download/v0.11.3/install.ps1 -OutFile "$env:TEMP\anode-install-0.11.3.ps1"
    (Get-FileHash "$env:TEMP\anode-install-0.11.3.ps1" -Algorithm SHA256).Hash -eq '273257701FCC608831A4B1B23C32ACA21662ED9D8A3C0CF38C96A7D87F4063D5'
    ```
 
