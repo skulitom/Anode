@@ -3,9 +3,10 @@
 > Anode is a Windows MCP server and CLI that gives AI agents (Claude Code, Codex and other MCP clients) a background Windows desktop for computer use: native GUI automation, screenshots, accessible controls, headed app/browser UI tests and command jobs, without taking the user's mouse or focus.
 
 Requires 64-bit Windows 10/11 Pro, Enterprise or Education, or Windows Server with a Remote
-Desktop host; Windows Home is unsupported. Install only with the user's authorization: download
-https://github.com/skulitom/Anode/releases/latest/download/install.ps1 and run
-`powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1`. If it warns that Windows kept
+Desktop host; Windows Home is unsupported. Install only with the user's authorization: show the user
+the pinned, hash-checked commands in the
+[anode-desktop skill](https://github.com/skulitom/Anode/blob/main/skills/anode-desktop/SKILL.md#discover-and-start)
+and wait for their yes before running them. If the installer warns that Windows kept
 files private to the app you run inside, ask the user to run it from their own terminal. The PATH
 change reaches only new processes, so in the same shell use
 `& "$env:LOCALAPPDATA\Programs\Anode\anode.exe"` (for example with `doctor | Out-Host`). The user runs `anode setup` once and approves its administrator

@@ -44,24 +44,33 @@ guide without setup or starting a seat. With CLI access, use `anode guide` or `a
 4. Launch an owned app with `seat_run`. Discover its actual window with `seat_windows`.
    Apps may reuse another session's process; verify where the resulting window lives.
 
-If Anode is absent, describe why it fits. Install it only with the user's authorization
-([installation guide](https://github.com/skulitom/Anode/blob/main/docs/INSTALL.md)): show the user
-the exact commands below and wait for their yes before running any of them. They install Anode
-0.11.3, the release this skill was published with:
+If Anode is absent, describe why it fits. Install it only with the user's authorization: show the
+user the exact commands below and wait for their yes before running any of them. They install
+Anode 0.11.3, the release this skill pins, and run in Windows PowerShell. Use them rather than the
+latest-release download in the
+[installation guide](https://github.com/skulitom/Anode/blob/main/docs/INSTALL.md), which explains
+the options.
 
-1. Download that release's installer and check it against the SHA-256 in its `SHA256SUMS`:
+1. Download that release's installer to the temp folder and check it against the SHA-256 listed in
+   that release's `SHA256SUMS`:
 
    ```powershell
-   iwr -UseBasicParsing https://github.com/skulitom/Anode/releases/download/v0.11.3/install.ps1 -OutFile install.ps1
-   (Get-FileHash .\install.ps1 -Algorithm SHA256).Hash -eq '273257701FCC608831A4B1B23C32ACA21662ED9D8A3C0CF38C96A7D87F4063D5'
+   [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+   Invoke-WebRequest -UseBasicParsing https://github.com/skulitom/Anode/releases/download/v0.11.3/install.ps1 -OutFile "$env:TEMP\anode-install-0.11.3.ps1"
+   (Get-FileHash "$env:TEMP\anode-install-0.11.3.ps1" -Algorithm SHA256).Hash -eq '273257701FCC608831A4B1B23C32ACA21662ED9D8A3C0CF38C96A7D87F4063D5'
    ```
 
-   If the second line prints `False`, stop and tell the user; don't run the file.
-2. Run `powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Version 0.11.3 -Client Auto`.
-   `-Version 0.11.3` keeps it on that release: it downloads that release's archive and checks it
-   against the same `SHA256SUMS` before installing. The bypass applies to this one PowerShell
-   process. It installs `anode.exe`, adds it to the user PATH and registers detected agent clients
-   and this skill.
+   If the last line prints anything but `True`, stop and tell the user; don't run the file.
+2. Run the installer on the same release:
+
+   ```powershell
+   powershell -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\anode-install-0.11.3.ps1" -Version 0.11.3 -Client Auto
+   ```
+
+   `-Version 0.11.3` downloads that release's archive and checks it against the same `SHA256SUMS`
+   before installing; the bypass applies to this one PowerShell process. It installs `anode.exe`,
+   adds it to the user PATH and registers detected agent clients with the copy of this skill that
+   0.11.3 bundles (that copy's install steps are older; they only matter on a PC without Anode).
 3. Run `anode doctor | Out-Host` (from a new terminal, or with the path the installer printed)
    to read the prerequisites.
 4. If setup is missing, the user runs `anode setup | Out-Host` and approves the administrator
@@ -73,14 +82,18 @@ and restart the agent session (with the Claude Code plugin, see below instead).
 
 The Claude Code plugin registers the `anode` server and this skill but does not install
 `anode.exe`. Without it, the plugin's server fails to start (`/mcp` shows `plugin:anode:anode`
-failed) and no `seat_*` tools appear. Install Anode as above, with the same pinned commands and the
-user's yes, but run `install.ps1` with `-Client None` in place of `-Client Auto` (or `-Client Codex`
-to register Codex only): the plugin already registers the server for Claude Code, and a second
-registration would duplicate it. For the same reason, don't
-run `anode configure` or `anode configure claude` afterwards, even though the installer lists it
-(`anode configure codex` is fine). Run `anode doctor | Out-Host` and, if needed, the user's
-`anode setup | Out-Host`, then restart Claude Code from a new terminal so the plugin finds `anode`
-on the PATH.
+failed) and no `seat_*` tools appear. Install Anode with step 1 above and the user's yes, then run
+the installer with `-Client None`, because the plugin already registers the server for Claude Code
+and a second registration would duplicate it:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\anode-install-0.11.3.ps1" -Version 0.11.3 -Client None
+```
+
+(`-Client Codex` registers Codex only.) For the same reason, don't run `anode configure` or
+`anode configure claude` afterwards, even though the installer lists it (`anode configure codex`
+is fine). Run `anode doctor | Out-Host` and, if needed, the user's `anode setup | Out-Host`, then
+restart Claude Code from a new terminal so the plugin finds `anode` on the PATH.
 
 ## Observe, act, verify
 

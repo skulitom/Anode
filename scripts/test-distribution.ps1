@@ -317,11 +317,24 @@ try {
     if (Test-Path -LiteralPath $skillPath -PathType Leaf) {
         $skill = Read-Text $skillPath
         Check ($skill -notmatch 'releases/latest/download/install\.ps1') 'skills/anode-desktop/SKILL.md does not install from the latest release'
+        Check ((Read-Text (Join-Path $root 'llms.txt')) -notmatch 'releases/latest/download/install\.ps1') 'llms.txt does not send agents to the latest installer'
         $pins = @([regex]::Matches($skill, 'releases/download/v(\d+\.\d+\.\d+)/install\.ps1') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
         Check ($pins.Count -eq 1 -and (Compare-Version $pins[0] $version) -le 0) "skills/anode-desktop/SKILL.md pins one released installer, not after $version" "found $($pins -join ', ')"
         if ($pins.Count -eq 1) {
-            Check ($skill -match ('-Version ' + [regex]::Escape($pins[0]) + '(?![\d.])')) "skills/anode-desktop/SKILL.md runs install.ps1 with -Version $($pins[0])"
-            Check ($skill -match "\.Hash -eq '[0-9A-Fa-f]{64}'") 'skills/anode-desktop/SKILL.md checks install.ps1 against a SHA-256'
+            $runs = @([regex]::Matches($skill, '-File "[^"]+" -Version (\d+\.\d+\.\d+) -Client [A-Za-z]+') | ForEach-Object { $_.Groups[1].Value })
+            $commands = [regex]::Matches($skill, '-ExecutionPolicy Bypass -File ').Count
+            Check ($runs.Count -ge 1 -and $runs.Count -eq $commands -and @($runs | Where-Object { $_ -ne $pins[0] }).Count -eq 0) "skills/anode-desktop/SKILL.md runs install.ps1 only with -Version $($pins[0])" "found $($runs -join ', ') in $commands command(s)"
+            # Every version the install section names (URL, temp file, -Version, prose) is the pinned one.
+            $section = [regex]::Match($skill, '(?s)If Anode is absent.*?(?=\r?\n## )').Value
+            $others = @([regex]::Matches($section, '(?<![\d.])\d+\.\d+\.\d+(?!\d|\.\d)') | ForEach-Object { $_.Value } | Where-Object { $_ -ne $pins[0] } | Select-Object -Unique)
+            Check ($section -and $others.Count -eq 0) "skills/anode-desktop/SKILL.md's install section names only $($pins[0])" "found $($others -join ', ')"
+            $pinnedHashes = @([regex]::Matches($skill, "\.Hash -eq '([0-9A-Fa-f]{64})'") | ForEach-Object { $_.Groups[1].Value.ToLowerInvariant() } | Select-Object -Unique)
+            Check ($pinnedHashes.Count -eq 1) 'skills/anode-desktop/SKILL.md checks install.ps1 against one SHA-256' "found $($pinnedHashes.Count)"
+            # When the pin is the version under test, its hash must be this package's install.ps1, the file that release publishes.
+            $packagedInstaller = Join-Path $ArchiveDirectory 'install.ps1'
+            if ($pinnedHashes.Count -eq 1 -and (Compare-Version $pins[0] $version) -eq 0 -and (Test-Path -LiteralPath $packagedInstaller -PathType Leaf)) {
+                Check ($pinnedHashes[0] -eq (Get-FileSha256 $packagedInstaller)) "skills/anode-desktop/SKILL.md pins the SHA-256 of $version's install.ps1" "found $($pinnedHashes[0])"
+            }
         }
     }
     $winget = @(Get-ChildItem -LiteralPath (Join-Path $root 'packaging\winget') -Filter '*.yaml' -File -ErrorAction SilentlyContinue)

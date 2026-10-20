@@ -97,10 +97,10 @@ release, update to the current supported patch, and rebuild and test the package
 7. After the release is published, set the version, the archive URL and its SHA-256 from the
    release's `SHA256SUMS` in `bucket/anode.json` and `packaging/winget/*` (winget expects the hash
    in upper case), then push. Scoop users get the update from that commit. In the same change, pin
-   the skill's install steps (`skills/anode-desktop/SKILL.md`) to the new release: the
-   `releases/download/v<version>/install.ps1` URL, the `-Version` argument and `install.ps1`'s
+   the install section of `skills/anode-desktop/SKILL.md` to the new release: every version in it
+   (the download URL, the temp file name, the `-Version` arguments and the prose) and `install.ps1`'s
    SHA-256 from the same `SHA256SUMS`. Plugin directories review the skill with the installer it
-   names, so it never points at `latest`.
+   names, so it never points at `latest`; `scripts\test-distribution.ps1` checks that they agree.
 
 The Release workflow checks the tag against the project version, builds a self-contained x64
 binary, runs quick and installation checks, then publishes the ZIP, installer and SHA-256 sums.
