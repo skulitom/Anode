@@ -878,7 +878,8 @@ internal static class DiagnosticsChecks
         // Marker is a name, never a path outside the disposable state directory.
         if (marker != Path.GetFileName(marker)) throw new ArgumentException("Invalid log probe marker.");
         if (options.Value("share-wait-ms") is { } wait)
-            Log.ShareWait = TimeSpan.FromMilliseconds(int.Parse(wait, System.Globalization.CultureInfo.InvariantCulture));
+            Log.ShareWait = int.TryParse(wait, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int ms)
+                ? TimeSpan.FromMilliseconds(ms) : throw new ArgumentException("Invalid log probe wait.");
         Log.SetRole("log-probe");
         Log.Info(marker);
         Env.EnsureStateDirectory();
@@ -915,13 +916,14 @@ internal static class DiagnosticsChecks
             Require((await File.ReadAllTextAsync(log)).Contains("[log-probe]") && (await File.ReadAllTextAsync(log)).Contains("recovered"),
                 "subprocess did not use its explicit state directory");
             // A line waits out another writer that keeps the file longer than the 100 ms it used to (B-054).
+            Require(Log.LastWriteError is null, $"the self-test's own log is failing: {Log.LastWriteError}");
             string busy = Path.Combine(directory, "busy.log");
             var holder = new FileStream(busy, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
             var release = Task.Run(async () => { await Task.Delay(300); holder.Dispose(); });
-            try { Log.Append(busy, "after the other writer", Log.ShareWait); }
-            catch (IOException ex) { throw new InvalidOperationException($"a line gave up while another writer held the log for 300 ms: {ex.Message}"); }
+            try { using (Log.Divert(busy)) Log.Info("after the other writer"); }
             finally { await release; }
-            Require((await File.ReadAllTextAsync(busy)).Contains("after the other writer"), "a line that waited for another writer was lost");
+            Require((await File.ReadAllTextAsync(busy)).Contains("after the other writer"),
+                $"a line gave up while another writer held the log for 300 ms: {Log.LastWriteError}");
             var writers = Enumerable.Range(0, 8).Select(i => RunProbe(directory, $"writer-{i}")).ToArray();
             var results = await Task.WhenAll(writers);
             Require(results.All(r => r.Code == 0), "concurrent log writers failed: " + string.Join("; ", results

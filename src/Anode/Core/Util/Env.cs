@@ -154,7 +154,8 @@ internal static class Log
     /// <summary>
     /// How long a line waits for other writers to finish theirs. Every role shares the file, and eight writers on a
     /// slow machine outlasted the 100 ms this used to be. Once a write has failed, later lines wait only
-    /// <see cref="FailingShareWait"/> until one succeeds, so a log held open for good costs one wait, not one per line.
+    /// <see cref="FailingShareWait"/> until one succeeds, so a log another program keeps locked costs one long wait,
+    /// then the old 100 ms a line, not a second a line.
     /// </summary>
     internal static TimeSpan ShareWait { get; set; } = TimeSpan.FromSeconds(1);
     internal static readonly TimeSpan FailingShareWait = TimeSpan.FromMilliseconds(100);
@@ -199,24 +200,26 @@ internal static class Log
         // One format in every culture: a Thai Windows would otherwise write year 2569, a Finnish one 23.34.16.
         string line = $"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture)} {level} [{_role}] pid={System.Environment.ProcessId} {message}";
         string path = Env.LogPath;
-        try
+        string? error = null;
+        lock (Gate)
         {
-            lock (Gate)
+            try
             {
                 path = _diverted ?? Env.LogPath;
                 Env.EnsureStateDirectory();
                 Append(path, line, LastWriteError is null ? ShareWait : FailingShareWait);
                 Volatile.Write(ref _lastWriteError, null);
             }
+            catch (Exception ex)
+            {
+                // Set under the gate, so a failure can't overwrite a later line's success and shorten its wait.
+                error = $"Cannot write Anode log '{path}': {ex.GetType().Name}: {ex.Message}";
+                Volatile.Write(ref _lastWriteError, error);
+            }
         }
-        catch (Exception ex)
-        {
-            string error = $"Cannot write Anode log '{path}': {ex.GetType().Name}: {ex.Message}";
-            Volatile.Write(ref _lastWriteError, error);
-            // A detached process may have no stderr. Status also exposes this error.
-            if (Interlocked.Exchange(ref _reportedFailure, 1) == 0)
-                try { Console.Error.WriteLine(error); } catch { }
-        }
+        // A detached process may have no stderr. Status also exposes this error.
+        if (error is not null && Interlocked.Exchange(ref _reportedFailure, 1) == 0)
+            try { Console.Error.WriteLine(error); } catch { }
     }
 
     internal static void Append(string path, string line, TimeSpan wait)

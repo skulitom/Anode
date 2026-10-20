@@ -112,7 +112,7 @@ release does not include it.
   (#60; no PC with that setting was available), `anode display`'s failed status request (#61), the
   argument refusals with Anode stopped (#71), a daemon started without the Task Scheduler (#72;
   the check starts a stand-in program the same way) and a log line waiting out another writer
-  (#78; the check holds the log for 300 ms and runs eight writers at once).
+  (#78; the check holds a log file for 300 ms and runs eight writers at once).
 - NAudio 3.2.0 is covered by the quick checks' WAV clips and the audio protocol with an injected
   renderer. Real seat audio (`seat_audio_listen`, `seat_audio_play`) is not part of the live check.
 - The skill inside 0.11.4 (`anode_guide`, and the copy `anode configure` installs) names the 0.11.3
