@@ -151,6 +151,14 @@ internal static class Log
     private static int _reportedFailure;
     private static string? _diverted;
 
+    /// <summary>
+    /// How long a line waits for other writers to finish theirs. Every role shares the file, and eight writers on a
+    /// slow machine outlasted the 100 ms this used to be. Once a write has failed, later lines wait only
+    /// <see cref="FailingShareWait"/> until one succeeds, so a log held open for good costs one wait, not one per line.
+    /// </summary>
+    internal static TimeSpan ShareWait { get; set; } = TimeSpan.FromSeconds(1);
+    internal static readonly TimeSpan FailingShareWait = TimeSpan.FromMilliseconds(100);
+
     public static string? LastWriteError => Volatile.Read(ref _lastWriteError);
 
     /// <summary>The file this process's lines go to instead of the log, or null.</summary>
@@ -197,7 +205,7 @@ internal static class Log
             {
                 path = _diverted ?? Env.LogPath;
                 Env.EnsureStateDirectory();
-                Append(path, line);
+                Append(path, line, LastWriteError is null ? ShareWait : FailingShareWait);
                 Volatile.Write(ref _lastWriteError, null);
             }
         }
@@ -211,21 +219,23 @@ internal static class Log
         }
     }
 
-    internal static void Append(string path, string line)
+    internal static void Append(string path, string line, TimeSpan wait)
     {
         // Every role opens the same file. Retry sharing violations at open time,
         // before writing any bytes, so a collision neither loses nor repeats a line.
+        // A random pause keeps writers that collided from colliding again in step.
+        long deadline = System.Environment.TickCount64 + (long)wait.TotalMilliseconds;
         FileStream file;
-        for (int attempt = 0; ; attempt++)
+        while (true)
         {
             try
             {
                 file = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read);
                 break;
             }
-            catch (IOException ex) when (attempt < 5 && (ex.HResult & 0xffff) is 32 or 33)
+            catch (IOException ex) when ((ex.HResult & 0xffff) is 32 or 33 && System.Environment.TickCount64 < deadline)
             {
-                Thread.Sleep(20);
+                Thread.Sleep(Random.Shared.Next(5, 21));
             }
         }
         using (file)
