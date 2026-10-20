@@ -311,6 +311,19 @@ try {
         # A PATH entry rather than a shim: Scoop's shim detaches the console a GUI-subsystem exe borrows.
         Check ('anode.exe' -cin @($bucket.bin) -or '.' -cin @($bucket.env_add_path)) 'bucket/anode.json puts anode.exe on PATH'
     }
+    # The skill's install steps name one published installer and its hash, never latest: plugin directories review the
+    # skill with the installer it points at. Like Scoop, the pin may trail an unreleased csproj version.
+    $skillPath = Join-Path $root 'skills\anode-desktop\SKILL.md'
+    if (Test-Path -LiteralPath $skillPath -PathType Leaf) {
+        $skill = Read-Text $skillPath
+        Check ($skill -notmatch 'releases/latest/download/install\.ps1') 'skills/anode-desktop/SKILL.md does not install from the latest release'
+        $pins = @([regex]::Matches($skill, 'releases/download/v(\d+\.\d+\.\d+)/install\.ps1') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+        Check ($pins.Count -eq 1 -and (Compare-Version $pins[0] $version) -le 0) "skills/anode-desktop/SKILL.md pins one released installer, not after $version" "found $($pins -join ', ')"
+        if ($pins.Count -eq 1) {
+            Check ($skill -match ('-Version ' + [regex]::Escape($pins[0]) + '(?![\d.])')) "skills/anode-desktop/SKILL.md runs install.ps1 with -Version $($pins[0])"
+            Check ($skill -match "\.Hash -eq '[0-9A-Fa-f]{64}'") 'skills/anode-desktop/SKILL.md checks install.ps1 against a SHA-256'
+        }
+    }
     $winget = @(Get-ChildItem -LiteralPath (Join-Path $root 'packaging\winget') -Filter '*.yaml' -File -ErrorAction SilentlyContinue)
     if ($winget.Count) {
         $fields = @{}
