@@ -311,6 +311,50 @@ try {
         # A PATH entry rather than a shim: Scoop's shim detaches the console a GUI-subsystem exe borrows.
         Check ('anode.exe' -cin @($bucket.bin) -or '.' -cin @($bucket.env_add_path)) 'bucket/anode.json puts anode.exe on PATH'
     }
+    # The skill's install steps name one published installer and its hash, never latest: plugin directories review the
+    # skill with the installer it points at. Like Scoop, the pin may trail an unreleased csproj version.
+    $skillPath = Join-Path $root 'skills\anode-desktop\SKILL.md'
+    if (Test-Path -LiteralPath $skillPath -PathType Leaf) {
+        $skill = Read-Text $skillPath
+        $section = [regex]::Match($skill, '(?s)If Anode is absent.*?(?=\r?\n## )').Value
+        Check ($skill -notmatch 'releases/latest') 'skills/anode-desktop/SKILL.md does not install from the latest release'
+        Check ((Read-Text (Join-Path $root 'llms.txt')) -notmatch 'releases/latest') 'llms.txt does not send agents to the latest release'
+        $pinPattern = 'https://github\.com/skulitom/Anode/releases/download/v(\d+\.\d+\.\d+)/install\.ps1'
+        $pins = @([regex]::Matches($section, $pinPattern) | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+        $urls = [regex]::Matches($section, 'https?://\S*install\.ps1').Count
+        Check ($pins.Count -eq 1 -and $urls -eq [regex]::Matches($section, $pinPattern).Count -and (Compare-Version $pins[0] $version) -le 0) "skills/anode-desktop/SKILL.md downloads one released installer from skulitom/Anode, not after $version" "found $($pins -join ', ') in $urls URL(s)"
+        if ($pins.Count -eq 1) {
+            $temps = @([regex]::Matches($section, '"(\$env:TEMP\\[^"]+)"') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+            Check ($temps.Count -eq 1) 'skills/anode-desktop/SKILL.md keeps the installer at one path in %TEMP%' "found $($temps -join ', ')"
+            if ($temps.Count -eq 1) {
+                # Every command line in the install section's PowerShell blocks has one of three exact shapes: the one
+                # download of the pinned URL to that path, the hash check of that path, or a run of it with the pinned -Version.
+                $q = [regex]::Escape('"' + $temps[0] + '"')
+                $url = [regex]::Escape("https://github.com/skulitom/Anode/releases/download/v$($pins[0])/install.ps1")
+                $shapes = [ordered]@{
+                    download = '^\s*\[Net\.ServicePointManager\]::SecurityProtocol = \[Net\.ServicePointManager\]::SecurityProtocol -bor \[Net\.SecurityProtocolType\]::Tls12; Invoke-WebRequest -UseBasicParsing ' + $url + ' -OutFile ' + $q + '\s*$'
+                    hash     = '^\s*\(Get-FileHash ' + $q + ' -Algorithm SHA256\)\.Hash -eq ''[0-9A-Fa-f]{64}''\s*$'
+                    run      = '^\s*powershell -NoProfile -ExecutionPolicy Bypass -File ' + $q + ' -Version ' + [regex]::Escape($pins[0]) + ' -Client (?:None|Auto|Both|Codex|Claude)\s*$'
+                }
+                $codeLines = @([regex]::Matches($section, '(?s)```powershell\r?\n(.*?)```') | ForEach-Object { $_.Groups[1].Value -split '\r?\n' } | Where-Object { $_.Trim() })
+                $kinds = @($codeLines | ForEach-Object { $line = $_; $kind = 'other'; foreach ($name in $shapes.Keys) { if ($line -cmatch $shapes[$name]) { $kind = $name; break } }; $kind })
+                Check (@($kinds | Where-Object { $_ -eq 'download' }).Count -eq 1 -and 'hash' -in $kinds -and 'run' -in $kinds -and 'other' -notin $kinds) "skills/anode-desktop/SKILL.md's commands are one pinned download, its hash check and runs with -Version $($pins[0])" "found $($kinds -join '; ')"
+            }
+            # Every version the install section names (URL, temp file, -Version, prose) is the pinned one.
+            $others = @([regex]::Matches($section, '(?<![\d.])\d+\.\d+\.\d+(?!\d|\.\d)') | ForEach-Object { $_.Value } | Where-Object { $_ -ne $pins[0] } | Select-Object -Unique)
+            Check ($others.Count -eq 0) "skills/anode-desktop/SKILL.md's install section names only $($pins[0])" "found $($others -join ', ')"
+            $pinnedHashes = @([regex]::Matches($section, "\.Hash -eq '([0-9A-Fa-f]{64})'") | ForEach-Object { $_.Groups[1].Value.ToLowerInvariant() } | Select-Object -Unique)
+            Check ($pinnedHashes.Count -eq 1) 'skills/anode-desktop/SKILL.md checks the installer against one SHA-256' "found $($pinnedHashes.Count)"
+            # The pinned hash is the install.ps1 line of v<pin>'s published SHA256SUMS. This package's install.ps1 equals it
+            # only while scripts\install.ps1 is unchanged since that release, so a difference is a warning, not a failure.
+            $packagedInstaller = Join-Path $ArchiveDirectory 'install.ps1'
+            if ($pinnedHashes.Count -eq 1 -and (Compare-Version $pins[0] $version) -eq 0 -and (Test-Path -LiteralPath $packagedInstaller -PathType Leaf)) {
+                $packagedHash = Get-FileSha256 $packagedInstaller
+                if ($pinnedHashes[0] -eq $packagedHash) { Write-Host "[ok] skills/anode-desktop/SKILL.md's SHA-256 equals this package's install.ps1" }
+                else { Warn "skills/anode-desktop/SKILL.md's SHA-256 $($pinnedHashes[0]) differs from this package's install.ps1 ($packagedHash). Keep the hash from v$($pins[0])'s published SHA256SUMS; re-pin only after a release (CONTRIBUTING.md step 7)." }
+            }
+        }
+    }
     $winget = @(Get-ChildItem -LiteralPath (Join-Path $root 'packaging\winget') -Filter '*.yaml' -File -ErrorAction SilentlyContinue)
     if ($winget.Count) {
         $fields = @{}
