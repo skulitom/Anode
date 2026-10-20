@@ -63,6 +63,69 @@ and the .NET 10 SDK, Node.js and Chrome installed. It takes the desktop lease, c
 `scripts\test-release-check.ps1` tests the script's dry run (`-DryRun`, which starts no Anode and no
 live check) in CI and on any PC.
 
+## 0.11.4 release validation
+
+**Scope:** everything merged since 0.11.3:
+- fixes: #60 (doctor and seat sign-in when Windows signs local accounts in as Guest, reported by an
+  outside user in #57), #61 (`anode display`'s silent status failure), #71 (`anode type`, `steam`
+  and `gamepad` check their arguments before connecting) and #72 (the fallback daemon and the
+  sign-in browser inherit no handles);
+- the skill: #75 (the `anode-desktop` skill and `anode_guide` pin the installer to a release, check
+  its SHA-256 and wait for the user's yes);
+- security policy: #63 and #65 (`SECURITY.md`: private vulnerability reports);
+- packaging, CI and dependencies: #64 (the Windows scripts and the solution stored as CRLF, `-text`),
+  #65 (actions pinned to commits, Dependabot) and #76 (the build workflow on `actions/checkout`
+  7.0.1, `actions/setup-dotnet` 6.0.0 and `actions/upload-artifact` 7.0.2; NAudio.Wasapi 3.1.0 to
+  **3.2.0** for seat audio);
+- tests and evals: #62 and #74 (the plugin eval suite and its mock) and #73 (a shorter control wait
+  in "detached start handles").
+
+#70 (the Scoop and winget manifests for 0.11.3) changed only package listings. The self-contained
+runtime stays .NET 10.0.13, still Microsoft's latest 10.0 patch (checked against
+[Microsoft's release metadata](https://builds.dotnet.microsoft.com/dotnet/release-metadata/10.0/releases.json)
+on 20 October 2026). No tools or commands were added; the tool count stays 41.
+
+### Live validation
+
+Recorded here on `main` after the owner's `scripts\release-check.ps1` run on the release commit
+(its `summary.txt`). The tag stays on the tested commit, so the copy of this file inside the
+release does not include it.
+
+### Build and package validation
+
+- `scripts\build.ps1 -QuickTest` on the candidate: **116 quick self-tests** passed (112 at 0.11.3's
+  last record; #60, #61, #71 and #72 add one each), and the documentation check passed (41
+  documents against 41 tools). `anode version` reports 0.11.4.
+- `scripts\release-check.ps1 -DryRun` and `scripts\test-release-check.ps1` passed (no Anode or
+  seat started).
+- The release workflow's own package steps (`build.ps1 -QuickTest -Package -Mcpb`,
+  `registry-entry.ps1`, `test-distribution.ps1 -Release`) passed.
+- Windows CI on the candidate repeats the build, packaging, quick suite, installation,
+  distribution and documentation checks, and runs the environment self-test on a GitHub-hosted
+  Windows runner.
+
+### Coverage limits and known issues
+
+- The live check doesn't exercise these fixes, which rest on their regression checks with
+  stand-ins: doctor's **Local account sign-in** row and the sign-in error under `ForceGuest = 1`
+  (#60; no PC with that setting was available), `anode display`'s failed status request (#61), the
+  argument refusals with Anode stopped (#71) and a daemon started without the Task Scheduler (#72;
+  the check starts a stand-in program the same way).
+- NAudio 3.2.0 is covered by the quick checks' WAV clips and the audio protocol with an injected
+  renderer. Real seat audio (`seat_audio_listen`, `seat_audio_play`) is not part of the live check.
+- The skill inside 0.11.4 (`anode_guide`, and the copy `anode configure` installs) names the 0.11.3
+  installer and its SHA-256, the latest release when it was built, so its install steps, which
+  matter only on a PC without Anode, install 0.11.3. The repository's skill moves to 0.11.4 after
+  the release ([release process](../CONTRIBUTING.md#release-process), step 7).
+- The environment self-test ran on CI's hosted runner, not inside a seat. Audio, the virtual
+  gamepad, Android, the foreground pointer phases and the Claude Desktop bundle test are not part
+  of the live check.
+- Known issues: a Chrome window's first observation can omit the page (observe again with
+  `maxDepth` 16); `invoke` on Windows' Open File security dialog reports success without running
+  anything; `anode type` has no pace option; `anode.log` is not rotated, and under heavy contention
+  a writer can give up on a log line (seen once in CI's self-test); with Anode stopped, a desktop
+  command without an agent id says "Anode is not running" before it asks for the id.
+
 ## 0.11.3 release validation
 
 **Scope:** everything merged since 0.11.2:

@@ -1,51 +1,32 @@
-## What's new in 0.11.3
+## What's new in 0.11.4
 
-This patch fixes bugs found after 0.11.2, most of them by AI agents using Anode every day. No tools
+This patch fixes bugs found after 0.11.3, the first of them reported by an outside user. No tools
 or commands were added; there are still 41 tools.
 
-- **Input waits for a look after Anode takes the lease.** When a lease lapsed and an agent's next
-  click made Anode take it again, that click was refused with a request to observe first, but keys
-  and text the client had already sent behind it ran, and could land on whatever window had come
-  forward meanwhile. Now, from the moment Anode takes the lease for an agent, or the agent's lease
-  ends, its pointer, keyboard and gamepad input is refused until it observes the desktop again.
-- **Reconnect works on a seat that signed in with your password.** Such a seat's message said to
-  press **Reconnect**, which then tried automatic sign-in and failed (disconnect reason 2055 on every
-  press). Reconnect now asks for the password again, and the seat and its programs carry on. A
-  detached seat's `seat_status`, screenshot error and `seat_display` reply now say why capture is
-  down and what to do, and Windows' own disconnect causes are named.
-- **A seat stopped during a display change stays stopped.** A `seat_display` change that failed as
-  the seat was being stopped could report the stopped seat as `detached`, or carry its old display
-  and advice into a seat started straight afterwards. It now answers "The seat was stopped while its
-  display was changing."
-- **A refused Reconnect leaves a running seat alone.** When Remote Desktop, its listener or child
-  sessions stopped working under a running seat, **Reconnect** was refused but also set the seat to
-  `error`: display reconnects then answered "stopped", and the next viewer disconnect dropped the
-  seat. The viewer now says what is missing, and the seat and its agents carry on.
-- **`anode selftest` no longer writes made-up events into your log.** Each quick self-test wrote
-  about 110 lines from its stand-ins into `anode.log`, such as games launched and sign-ins refused.
-  The checks now log to a temporary file, deleted when every check passes.
-- **Log times read the same in every Windows language.** On Thai Windows the year came out as 2569,
-  on Finnish Windows the time as 23.34.16. Log lines now always read `2026-10-13 23:34:16`, and
-  screenshot file names and backup dates always use the Gregorian calendar.
-- **`seat_window` `raise` says when it didn't take.** It answered `requested` while Windows left the
-  window behind another. It now retries once and answers `raised: true`, or `raised: false` with the
-  covering window in `coveredBy`; `focus` then brings the window forward.
-- **`seat_key` knows the backtick key by the names agents try** (`grave`, `backtick`, `oem3`,
-  `VK_OEM_3`) and other punctuation by plain names. `ctrl++`, which pressed ctrl alone and reported
-  success, is refused; the plus key is `plus`.
-- **A refused `gamepad_set` changes nothing.** When a later name in the call was unknown, the call
-  failed but the buttons, sticks and triggers before it went out with the agent's next
-  `gamepad_set` or `gamepad_tap`. Every name is now checked first. A trigger passed as a button is
-  told it is a trigger, and `gamepad_tap` also takes `l2` and `r2`.
-- **`anode quit` ends Anode while the sign-in dialog is open,** instead of leaving it running and
-  giving up after 60 seconds.
-- **CLI errors name the flags you typed.** Some refusals named the MCP argument instead, such as
-  `--durationMs` for `anode audio listen --ms` or `arguments.maxWidth` for `anode shot --width`, so
-  retyping the suggestion failed. A busy desktop's refusal tells CLI users `--wait SECONDS` instead
-  of `waitSeconds`, and TROUBLESHOOTING now describes the lease's first-come line.
-- **A long `seat_key` hold no longer detaches the seat.** A `holdMs` near its old 60000 maximum
-  outlasted the request, and Anode lost contact with the seat for every agent. A key hold or
-  `gamepad_tap` now ends at the request's deadline and answers `timed_out`, and both take 0-10000 ms.
+- **`anode doctor` warns when Windows signs local accounts in as Guest.** With Windows' "Guest
+  only" sharing model (`ForceGuest = 1` under `HKLM\SYSTEM\CurrentControlSet\Control\Lsa`, set by
+  some security suites and hardened images), the seat could never sign in, even with the password
+  the lock screen accepts, while every doctor row read `[ok]` and the seat's error was only
+  "extended reason 0". Doctor now has a **Local account sign-in** row that warns while it is set, a
+  failed seat sign-in names it, and
+  [TROUBLESHOOTING](https://github.com/skulitom/Anode/blob/main/docs/TROUBLESHOOTING.md#windows-refuses-the-right-password-for-a-local-account)
+  explains how to check it. Anode never changes the setting.
+  ([#57](https://github.com/skulitom/Anode/issues/57))
+- **`anode display` says why it can't read the seat's status.** With nothing to change, it exited 1
+  and printed nothing when its status request failed. It now prints the reason on stderr.
+- **`anode type`, `anode steam` and `anode gamepad` refuse bad arguments before connecting.** With
+  Anode stopped, text too long for one call, a bad `--exe`, a gamepad `--ms` out of range or an
+  unknown button answered "Anode is not running" (exit 1) instead of the real error (exit 2). An
+  unknown gamepad button, axis or trigger is now refused at once, with the names that work, on the
+  CLI and over MCP, where `gamepad_tap` and `gamepad_set` used to take the desktop lease first.
+- **A piped command no longer waits for Anode to exit.** When Anode couldn't be started through the
+  Task Scheduler, the daemon it started instead inherited the caller's handles, so a command such
+  as `anode lease acquire | Out-String` waited until Anode itself exited, and
+  `anode browser --sign-in | Out-Host` until the browser was closed. Both now start with no
+  inherited or standard handles.
+- **The skill asks before it installs anything.** The `anode-desktop` skill and `anode_guide` show
+  the user the exact install commands and wait for their yes. They download the installer from a
+  named release, not `latest`, and check its SHA-256 before running it.
 
 **Known issues.** A Chrome window's first observation can come back without the page, and the
 page's controls sit deeper than the default `maxDepth` of 8: observe again with `maxDepth` 16. On
@@ -59,9 +40,9 @@ installation, distribution, and the environment self-test on a GitHub-hosted Win
 on the release commit. The owner's live check, `scripts\release-check.ps1` (native controls, Chrome
 forms, real input, File Explorer and display changes on Windows 11), runs on the release commit
 before it is tagged; its summary and coverage limits are in the
-[validation record](https://github.com/skulitom/Anode/blob/main/docs/RELEASE-READINESS.md#0113-release-validation).
-Release builds now include .NET 10.0.13, Microsoft's October security update.
-See the [changelog](https://github.com/skulitom/Anode/blob/v0.11.3/CHANGELOG.md#0113--2026-10-15) for every
+[validation record](https://github.com/skulitom/Anode/blob/main/docs/RELEASE-READINESS.md#0114-release-validation).
+Release builds include .NET 10.0.13, Microsoft's October security update.
+See the [changelog](https://github.com/skulitom/Anode/blob/v0.11.4/CHANGELOG.md#0114--2026-10-21) for every
 change.
 
 ## Install or upgrade
@@ -90,7 +71,7 @@ anode capabilities | Out-Host
 agent afterward. Other MCP clients can launch `anode.exe` with the argument `mcp`.
 
 **Upgrading:** save seat work, run `anode quit` (which closes every program in the seat), and close
-agent sessions using Anode. Install 0.11.3, start Anode again and restart those agent sessions.
+agent sessions using Anode. Install 0.11.4, start Anode again and restart those agent sessions.
 Run `anode configure` to refresh the installed skill.
 
 Requires 64-bit Windows 10/11 Pro, Enterprise or Education, or Windows Server with a Remote Desktop
