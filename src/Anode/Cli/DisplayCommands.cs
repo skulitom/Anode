@@ -22,10 +22,10 @@ internal static partial class Cli
         }
         if (Mcp.Tools.ValidateArguments("seat_display", request) is { } invalid) throw new UsageException(CliError(invalid));
 
-        using var client = await Connect(autoStart: false);
-        if (client is null) return NotRunning();
         // A change Windows does not make live reconnects the viewer, which the daemon's usual minute may not cover.
         request["timeoutMs"] = 175_000;
+        using var client = await Connect("display.set", request);
+        if (client is null) return NotRunning();
         var response = await RequestAsync(client, "display.set", request, 180_000);
         if (response.Bool("ok") != true || response.Obj("result") is not { } result)
         {

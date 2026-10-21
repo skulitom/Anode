@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using Anode.Core.Agents;
 using Anode.Core.Bridge;
 using Anode.Core.Session;
 using Anode.Core.Util;
@@ -8,9 +9,9 @@ using Anode.Core.Util;
 namespace Anode.Cli;
 
 /// <summary>
-/// Command-line routing and wording, tested through pure functions. Nothing here connects to
-/// a pipe or elevates, and the only process started is `anode mcp --help` with its input
-/// closed: if help routing regressed, launching `anode kill --help` would sign out the live seat.
+/// Command-line routing and wording, tested without a desktop. Nothing here connects to
+/// a real daemon or elevates. Subprocesses run only `anode mcp --help` with its input closed
+/// and `type hi` on a unique, unserved channel. Command checks replace the connection boundary.
 /// </summary>
 internal static class CliChecks
 {
@@ -74,6 +75,101 @@ internal static class CliChecks
             Require(process.ExitCode == 0 && stdout.Result.Length == 0, $"mcp --help exited {process.ExitCode} or wrote to stdout");
             Require(stderr.Result.Contains("anode mcp", StringComparison.Ordinal), "mcp --help printed no help on stderr");
             return "help on stderr, nothing on stdout, exit 0";
+        }
+        finally
+        {
+            if (!process.HasExited) { process.Kill(); process.WaitForExit(); }
+        }
+    }
+
+    public static string AgentBeforeConnect()
+    {
+        // Exercise the actual command routes with a disconnected stand-in, including branches and aliases.
+        // No request is sent, even with credentials; audio listen reserves and removes only this temp file.
+        string recording = Path.Combine(Path.GetTempPath(), $"anode-cli-{Guid.NewGuid():N}.wav");
+        string[][] leased =
+        {
+            new[] { "click" }, new[] { "click", "10", "20" }, new[] { "move", "1", "2" },
+            new[] { "scroll" }, new[] { "key", "ctrl+c" }, new[] { "type", "hi" },
+            new[] { "run", "notepad" }, new[] { "shot" }, new[] { "screenshot", "out.png" },
+            new[] { "ps", "kill", "42" }, new[] { "ps", "kill", "notepad" }, new[] { "steam", "220" },
+            new[] { "gamepad", "attach" }, new[] { "gamepad", "detach" }, new[] { "gamepad", "reset" },
+            new[] { "gamepad", "tap", "a" }, new[] { "gamepad", "stick", "left", "0.5", "0" },
+            new[] { "gamepad", "hold", "a" }, new[] { "pad", "release", "a" },
+            new[] { "windows" }, new[] { "inspect", "w_1" }, new[] { "window", "w_1", "focus" },
+            new[] { "element", "s_1", "e_1", "invoke" }, new[] { "wait", "w_1", "--name", "Ready" },
+            new[] { "exec", "--cwd", Path.GetTempPath(), "--", "cmd.exe", "/c", "echo hi" },
+            new[] { "display", "1920x1080" }, new[] { "display", "--scale", "125" }, new[] { "display", "reset" },
+            new[] { "display", "1920x1080", "--shot", "out.png" }, new[] { "browser" },
+            new[] { "browser", "https://example.com", "--edge" }, new[] { "android", "start", "Pixel_9_Pro" },
+            new[] { "android", "stop", "emulator-5554" }, new[] { "android", "shot", "emulator-5554" },
+            new[] { "android", "screenshot", "emulator-5554" },
+            new[] { "android", "adb", "emulator-5554", "--", "shell", "echo", "hi" }, new[] { "android", "studio" },
+            new[] { "audio", "listen", recording }, new[] { "audio", "play", recording }, new[] { "audio", "stop" }
+        };
+        string[][] identityOnly = { new[] { "job", "j_1" }, new[] { "job", "j_1", "--cancel" }, new[] { "jobs" } };
+        string[][] unowned =
+        {
+            new[] { "status", "--json" }, new[] { "show" }, new[] { "hide" }, new[] { "kill" }, new[] { "stop" }, new[] { "quit" },
+            new[] { "control" }, new[] { "control", "take" }, new[] { "control", "give" },
+            new[] { "ps" }, new[] { "ps", "--all" }, new[] { "steam" }, new[] { "steam", "status" },
+            new[] { "gamepad" }, new[] { "pad", "state" }, new[] { "display" }, new[] { "display", "--json" },
+            new[] { "android" }, new[] { "android", "status" }, new[] { "audio" }, new[] { "audio", "status" },
+            new[] { "capabilities" }, new[] { "capabilities", "--no-capture" }
+        };
+        // Doctor's help path is local too; don't add machine prerequisite probes to this routing check.
+        string[][] local = { new[] { "doctor", "--help" }, new[] { "version" }, new[] { "help" }, new[] { "type", "--help" } };
+        var failures = new List<string>();
+        int checkedLines = 0;
+        foreach (var (agent, token) in new (string?, string?)[] { (null, null), ("test-agent", null), ("test-agent", "test-token"), (null, "test-token") })
+        {
+            string? Expected(string op) => AgentAccess.Validate(AgentAccess.Attach(new JsonObject { ["op"] = op }, agent, token));
+            void Check(string[] line, string? expected, bool connects = true)
+            {
+                var (code, connected, error) = Cli.CheckWithoutDaemon(line, agent, token);
+                bool ok = expected is null ? code != 2 && connected == connects
+                    : code == 2 && !connected && error.Contains(expected, StringComparison.Ordinal) && !error.Contains("Anode is not running", StringComparison.Ordinal);
+                if (!ok) failures.Add($"'{string.Join(' ', line)}' ({agent ?? "no id"}, {token ?? "no token"}): exit {code}, connected={connected}, {error.Trim()}");
+                checkedLines++;
+            }
+            foreach (var line in leased) Check(line, Expected("input.text"));
+            foreach (var line in identityOnly) Check(line, Expected("exec.read"));
+            foreach (var line in unowned) Check(line, null);
+            foreach (var line in local) Check(line, null, connects: false);
+        }
+        // Prefix flags also supply the credentials before connecting.
+        var prefix = Cli.CheckWithoutDaemon(new[] { "--agent", "flag-agent", "--lease", "flag-token", "type", "hi" }, null, null);
+        Require(prefix.Code == 1 && prefix.Connected, "prefix credentials were not attached before connecting");
+        Require(!File.Exists(recording), "audio routing check left its reserved file behind");
+        Require(failures.Count == 0, $"{failures.Count}/{checkedLines} routing cases failed: " + string.Join("; ", failures.Take(6)));
+        return $"{checkedLines} command/credential cases plus prefix flags; no daemon reached or started";
+    }
+
+    public static string MissingAgentProcess()
+    {
+        // SetChannel only chooses names. This command neither resolves a state directory nor logs,
+        // including on the old NotRunning path, so a unique 32-character channel leaves no files.
+        string channel = "cli-" + Guid.NewGuid().ToString("N")[..28];
+        var info = new ProcessStartInfo(Env.ExecutablePath)
+        {
+            UseShellExecute = false, CreateNoWindow = true,
+            RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true
+        };
+        foreach (string argument in new[] { "--channel", channel, "type", "hi" }) info.ArgumentList.Add(argument);
+        foreach (string variable in new[] { "ANODE_AGENT_ID", "ANODE_LEASE_TOKEN", "ANODE_AGENT_NAME" }) info.Environment.Remove(variable);
+        using var process = Process.Start(info) ?? throw new InvalidOperationException("could not start private-channel type check");
+        try
+        {
+            Task<string> stdout = process.StandardOutput.ReadToEndAsync();
+            Task<string> stderr = process.StandardError.ReadToEndAsync();
+            process.StandardInput.Close();
+            Require(process.WaitForExit(5000), "private-channel type did not exit");
+            string output = stdout.GetAwaiter().GetResult(), error = stderr.GetAwaiter().GetResult();
+            Require(process.ExitCode == 2 && error.Contains("An agentId is required.", StringComparison.Ordinal)
+                && !error.Contains("Anode is not running", StringComparison.Ordinal) && output.Length == 0,
+                $"private-channel type: exit {process.ExitCode}, stdout '{output.Trim()}', stderr '{error.Trim()}'");
+            Require(!Directory.Exists(Path.Combine(Env.LocalAppData, "Anode-" + channel)), "private-channel type created a state directory");
+            return "unserved private channel: agent-id message on stderr, no NotRunning, exit 2";
         }
         finally
         {
@@ -267,5 +363,41 @@ internal static class CliChecks
         Require(ready.Bool("ready") == true && ready.Str("version") == Cli.VersionText() && ready["checks"] is JsonArray { Count: 2 }
             && blocked.Bool("ready") == false && blocked["checks"]?[0]?["state"]?.GetValue<string>() == "fail", "doctor JSON is incomplete");
         return $"one table covers {Dispatched.Length} command names; wording, suggestions and JSON shapes hold";
+    }
+}
+
+internal static partial class Cli
+{
+    /// <summary>Run the real CLI parser and command body, stopping at an injected connection boundary.</summary>
+    internal static (int Code, bool Connected, string Error) CheckWithoutDaemon(string[] args, string? agent, string? token)
+    {
+        var identity = (_agentId, _leaseToken, _agentName);
+        string[] variables = { "ANODE_AGENT_ID", "ANODE_LEASE_TOKEN", "ANODE_AGENT_NAME", "ANODE_CHANNEL" };
+        var previous = variables.Select(Environment.GetEnvironmentVariable).ToArray();
+        var output = Console.Out;
+        var error = Console.Error;
+        var connect = ConnectForCheck;
+        using var captured = new StringWriter();
+        bool connected = false;
+        try
+        {
+            Environment.SetEnvironmentVariable("ANODE_AGENT_ID", agent);
+            Environment.SetEnvironmentVariable("ANODE_LEASE_TOKEN", token);
+            Environment.SetEnvironmentVariable("ANODE_AGENT_NAME", null);
+            Environment.SetEnvironmentVariable("ANODE_CHANNEL", null);
+            Console.SetOut(TextWriter.Null);
+            Console.SetError(captured);
+            ConnectForCheck = _ => { connected = true; return Task.FromResult<JsonPipeClient?>(null); };
+            int code = Run(args);
+            return (code, connected, captured.ToString());
+        }
+        finally
+        {
+            ConnectForCheck = connect;
+            Console.SetOut(output);
+            Console.SetError(error);
+            (_agentId, _leaseToken, _agentName) = identity;
+            for (int i = 0; i < variables.Length; i++) Environment.SetEnvironmentVariable(variables[i], previous[i]);
+        }
     }
 }

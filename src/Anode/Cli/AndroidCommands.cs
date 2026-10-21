@@ -83,11 +83,11 @@ internal static partial class Cli
     private static async Task<int> AndroidCommand(string[] args)
     {
         var call = AndroidRequest(args);
-        using var client = await Connect(autoStart: false);
-        if (client is null) return NotRunning();
         var payload = (JsonObject)call.Payload.DeepClone();
         // Booting an emulator can take minutes; the daemon's usual minute would not cover it.
         if (call.Tool == "android_emulator") payload["timeoutMs"] = 175_000;
+        using var client = await Connect(call.Op, payload);
+        if (client is null) return NotRunning();
         var response = await RequestAsync(client, call.Op, payload, 180_000);
         if (response.Bool("ok") != true || response.Obj("result") is not { } result) return Report(response);
         string? action = call.Payload.Str("action");
@@ -117,7 +117,7 @@ internal static partial class Cli
         var options = new Args(args);
         if (options.Flag("sign-in")) return SignInHere(options.Flag("edge") ? "edge" : null, SignInAddresses(args));
         var payload = BrowserRequest(args);
-        using var client = await Connect(autoStart: false);
+        using var client = await Connect("browser.open", payload);
         if (client is null) return NotRunning();
         var response = await RequestAsync(client, "browser.open", payload);
         if (response.Bool("ok") != true || response.Obj("result") is not { } result) return Report(response);

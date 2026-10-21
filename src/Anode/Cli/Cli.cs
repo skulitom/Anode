@@ -202,7 +202,7 @@ internal static partial class Cli
         }
         if (Mcp.Tools.ValidateArguments(tool, payload) is { } error) throw new UsageException(CliError(error));
         Mcp.Tools.TryResolve(tool, out string op, out _);
-        using var client = await Connect(autoStart: false);
+        using var client = await Connect(op, payload);
         if (client is null) return NotRunning();
         var response = await RequestAsync(client, op, payload, 20_000);
         if (response.Bool("ok") != true) return Report(response);
@@ -518,7 +518,7 @@ internal static partial class Cli
         var payload = new JsonObject { ["path"] = args[0] };
         if (args.Length > 1) payload["args"] = new JsonArray(args.Skip(1).Select(a => (JsonNode)a!).ToArray());
 
-        using var client = await Connect(autoStart: false);
+        using var client = await Connect("run", payload);
         if (client is null) return NotRunning();
         return Report(await RequestAsync(client, "run", payload));
     }
@@ -538,13 +538,12 @@ internal static partial class Cli
     private static async Task<int> SteamCommand(string[] args)
     {
         var payload = SteamRequest(args);
-        using var client = await Connect(autoStart: false);
-        if (client is null) return NotRunning();
-
-        if (payload is null) return Report(await RequestAsync(client, "steam.status"));
+        string op = payload is null ? "steam.status" : "steam.launch";
         // The daemon gives the seat 60 seconds unless told otherwise; Steam may first have to start on the desktop.
-        payload["timeoutMs"] = 115_000;
-        return Report(await RequestAsync(client, "steam.launch", payload, 120_000));
+        if (payload is not null) payload["timeoutMs"] = 115_000;
+        using var client = await Connect(op, payload);
+        if (client is null) return NotRunning();
+        return Report(await RequestAsync(client, op, payload, payload is null ? 60_000 : 120_000));
     }
 
     /// <summary>The <c>shot</c> request, validated before any daemon is reached.</summary>
@@ -566,7 +565,7 @@ internal static partial class Cli
 
         var payload = ScreenshotRequest(args);
 
-        using var client = await Connect(autoStart: false);
+        using var client = await Connect("screenshot", payload);
         if (client is null) return NotRunning();
 
         var response = await RequestAsync(client, "screenshot", payload, 30_000);
@@ -593,7 +592,7 @@ internal static partial class Cli
             payload["y"] = int.Parse(point[1], CultureInfo.InvariantCulture);
         }
 
-        using var client = await Connect(autoStart: false);
+        using var client = await Connect("input.click", payload);
         if (client is null) return NotRunning();
         return Report(await RequestAsync(client, "input.click", payload));
     }
@@ -605,7 +604,7 @@ internal static partial class Cli
         {
             ["x"] = int.Parse(point[0], CultureInfo.InvariantCulture), ["y"] = int.Parse(point[1], CultureInfo.InvariantCulture)
         };
-        using var client = await Connect(autoStart: false);
+        using var client = await Connect("input.move", payload);
         if (client is null) return NotRunning();
         return Report(await RequestAsync(client, "input.move", payload));
     }
@@ -614,16 +613,18 @@ internal static partial class Cli
     {
         var words = Words("scroll", args);
         int amount = words.Count == 1 ? int.Parse(words[0], CultureInfo.InvariantCulture) : -3;
-        using var client = await Connect(autoStart: false);
+        var payload = new JsonObject { ["amount"] = amount };
+        using var client = await Connect("input.scroll", payload);
         if (client is null) return NotRunning();
-        return Report(await RequestAsync(client, "input.scroll", new JsonObject { ["amount"] = amount }));
+        return Report(await RequestAsync(client, "input.scroll", payload));
     }
 
     private static async Task<int> Key(string[] args)
     {
-        using var client = await Connect(autoStart: false);
+        var payload = new JsonObject { ["keys"] = args[0] };
+        using var client = await Connect("input.key", payload);
         if (client is null) return NotRunning();
-        return Report(await RequestAsync(client, "input.key", new JsonObject { ["keys"] = args[0] }));
+        return Report(await RequestAsync(client, "input.key", payload));
     }
 
     /// <summary>The <c>type</c> request, validated before any daemon is reached: text one call can't type is refused here.</summary>
@@ -640,7 +641,7 @@ internal static partial class Cli
     private static async Task<int> TypeText(string[] args)
     {
         var payload = TypeRequest(args);
-        using var client = await Connect(autoStart: false);
+        using var client = await Connect("input.text", payload);
         if (client is null) return NotRunning();
         return Report(await RequestAsync(client, "input.text", payload));
     }
@@ -648,18 +649,18 @@ internal static partial class Cli
     private static async Task<int> Processes(string[] args)
     {
         var words = Words("ps", args);
-        using var client = await Connect(autoStart: false);
-        if (client is null) return NotRunning();
-
+        var payload = new JsonObject();
+        string op = words.Count == 2 ? "ps.kill" : "ps.list";
         if (words.Count == 2)
         {
-            var payload = new JsonObject();
             if (int.TryParse(words[1], NumberStyles.None, CultureInfo.InvariantCulture, out int pid)) payload["pid"] = pid; else payload["name"] = words[1];
-            return Report(await RequestAsync(client, "ps.kill", payload));
         }
+        else payload["windowedOnly"] = !new Args(args).Flag("all");
 
-        var options = new Args(args);
-        var response = await RequestAsync(client, "ps.list", new JsonObject { ["windowedOnly"] = !options.Flag("all") });
+        using var client = await Connect(op, payload);
+        if (client is null) return NotRunning();
+        var response = await RequestAsync(client, op, payload);
+        if (op == "ps.kill") return Report(response);
         if (response.Obj("result")?["processes"] is not JsonArray processes) return Report(response);
 
         Console.WriteLine($"{"pid",-8} {"name",-28} title");
@@ -709,7 +710,7 @@ internal static partial class Cli
     private static async Task<int> Gamepad(string[] args)
     {
         var (op, payload) = GamepadRequest(args);
-        using var client = await Connect(autoStart: false);
+        using var client = await Connect(op, payload);
         if (client is null) return NotRunning();
         return Report(await RequestAsync(client, op, payload));
     }
@@ -738,8 +739,12 @@ internal static partial class Cli
     /// <summary>Set when Connect refused to start Anode: prerequisites are missing or another channel has the seat.</summary>
     private static bool _startBlocked;
 
+    // Quick checks replace the connection boundary; they must never reach or start a real daemon.
+    internal static Func<bool, Task<JsonPipeClient?>>? ConnectForCheck { private get; set; }
+
     private static async Task<JsonPipeClient?> Connect(bool autoStart)
     {
+        if (ConnectForCheck is { } connect) return await connect(autoStart);
         var client = await DaemonLauncher.ConnectExistingAsync(800);
         if (client is not null || !autoStart) return client;
 

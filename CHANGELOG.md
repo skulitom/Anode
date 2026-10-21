@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **Desktop commands ask for a missing agent ID or lease token before connecting.** With Anode
+  stopped, a command such as `anode type hi` run without `ANODE_AGENT_ID` (or `--agent`) said
+  "Anode is not running" (exit 1), and once Anode was started it failed again, now for the missing
+  ID. Every command that needs the desktop lease now names the missing agent ID or lease token
+  first, before it connects (exit 2, as `anode lease` already did); `job` and `jobs` do the same
+  for their agent ID. Status, `show`, `hide`, `kill`, `quit` and the other commands that need
+  neither behave as before.
+
 ## 0.11.4 — 2026-10-21
 
 - **`anode doctor` warns when Windows signs local accounts in as Guest.** With the "Guest only"

@@ -59,7 +59,7 @@ internal static partial class Cli
         if (command == "exec" && !request.ContainsKey("path")) throw new UsageException("exec requires -- and then the program to run.");
         if (Mcp.Tools.ValidateArguments(tool, request) is { } error) throw new UsageException(CliError(error));
         Mcp.Tools.TryResolve(tool, out string op, out _);
-        using var client = await Connect(autoStart: false);
+        using var client = await Connect(op, request);
         if (client is null) return NotRunning();
         var response = await RequestAsync(client, op, request, 45000);
         if (response.Bool("ok") != true) return Report(response);
