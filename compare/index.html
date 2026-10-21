@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anode comparisons: Windows desktop automation tools for AI agents</title>
+<meta name="description" content="Anode&#x27;s comparison pages: which Windows desktop automation MCP servers act in your own session and move your real pointer, and when to use Anode or something else.">
+<link rel="canonical" href="https://skulitom.github.io/Anode/compare/">
+<style>
+:root { --bg: #ffffff; --fg: #1d1d1f; --muted: #5b5b66; --link: #0b57d0; --rule: #d9d9e0; }
+@media (prefers-color-scheme: dark) { :root { --bg: #16171a; --fg: #e8e8ec; --muted: #a2a2ad; --link: #8ab4f8; --rule: #33343a; } }
+body { background: var(--bg); color: var(--fg); font: 17px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; }
+main { max-width: 46rem; margin: 0 auto; padding: 2rem 16px 4rem; }
+a { color: var(--link); }
+h1 { font-size: 1.7rem; line-height: 1.25; margin: 0 0 1rem; }
+h2 { font-size: 1.2rem; margin: 2rem 0 0.5rem; }
+.muted { color: var(--muted); font-size: 0.9rem; }
+h2 a { text-decoration: none; }
+footer { border-top: 1px solid var(--rule); margin-top: 3rem; padding-top: 1rem; }
+</style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  "name": "Anode comparisons: Windows desktop automation tools for AI agents",
+  "description": "Anode's comparison pages: which Windows desktop automation MCP servers act in your own session and move your real pointer, and when to use Anode or something else.",
+  "url": "https://skulitom.github.io/Anode/compare/",
+  "inLanguage": "en",
+  "dateModified": "2026-10-21",
+  "isPartOf": {
+    "@type": "WebSite",
+    "name": "Anode",
+    "url": "https://skulitom.github.io/Anode/"
+  },
+  "about": {
+    "@type": "SoftwareApplication",
+    "name": "Anode",
+    "url": "https://github.com/skulitom/Anode"
+  },
+  "mainEntity": {
+    "@type": "ItemList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "url": "https://skulitom.github.io/Anode/compare/windows-desktop-automation-for-ai-agents/",
+        "name": "Windows desktop automation for AI agents: Anode, Windows-MCP, Desktop Touch MCP, windows-computer-use-mcp and Terminator compared"
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "url": "https://github.com/skulitom/Anode/blob/main/docs/COMPARISON.md",
+        "name": "When to use Anode, and when to use something else"
+      }
+    ]
+  }
+}
+</script>
+</head>
+<body>
+<main>
+<h1>Anode comparisons</h1>
+<p>We make Anode, a Windows MCP server and CLI that gives an AI agent a hidden Windows session with its own screen, pointer and keyboard focus. These pages compare it with other tools that let an AI agent work on a Windows PC. Each says which numbers we measured and which we read from the other tools&#x27; docs and source, and when it was last checked.</p>
+<h2><a href="windows-desktop-automation-for-ai-agents/">Windows desktop automation for AI agents: Anode, Windows-MCP, Desktop Touch MCP, windows-computer-use-mcp and Terminator compared</a></h2>
+<p>Checked 16 October 2026. Anode runs the agent in a separate Windows session with its own pointer and keyboard focus. Windows-MCP, Desktop Touch MCP, windows-computer-use-mcp and Terminator act in your own session, and each of the four has click paths that move your real pointer (read from their docs and source code, not run by us). In Anode&#x27;s live release check of version 0.11.1, with your real pointer over Anode&#x27;s hidden viewer, Windows&#x27; Remote Desktop control tried 7 times to copy the agent&#x27;s pointer moves to your pointer, and Anode blocked all 7. The page also compares tools, setup and telemetry.</p>
+<h2><a href="https://github.com/skulitom/Anode/blob/main/docs/COMPARISON.md">When to use Anode, and when to use something else</a></h2>
+<p>A document in Anode&#x27;s repository on GitHub; facts read on 8 October 2026 (Windows-MCP&#x27;s stars and supported Windows versions re-read on 16 October 2026). How Anode differs from Windows-MCP, Cua Driver, Desktop Commander and Windows 365 for Agents, and which to pick for which job.</p>
+<h2>Comparisons for our other tools</h2>
+<ul>
+<li><a href="https://skulitom.github.io/Pixelbolt/compare/pixel-art-mcp-servers-for-ai-agents/">Pixel art and sprite MCP servers for AI agents</a> (Pixelbolt, checked 17 October 2026)</li>
+<li><a href="https://skulitom.github.io/Pixelbolt/compare/pixel-fx-designer-alternatives/">Pixel FX Designer alternatives</a> (Pixelbolt, checked 19 October 2026)</li>
+<li><a href="https://skulitom.github.io/Cutbolt/compare/local-video-editing-mcp-servers/">Local video editing MCP servers for AI agents</a> (Cutbolt, checked 17 October 2026)</li>
+<li><a href="https://skulitom.github.io/Inkbolt/compare/svg-vector-editing-mcp-servers/">SVG and vector editing MCP servers for AI agents</a> (Inkbolt, checked 18 October 2026)</li>
+<li><a href="https://skulitom.github.io/Nestbolt/compare/nesting-for-ai-agents/">Nesting MCP servers and CLIs for AI agents</a> (Nestbolt, checked 20 October 2026)</li>
+<li><a href="https://skulitom.github.io/Nestbolt/deepnest-alternative/">A Deepnest alternative, with the benchmark</a> (Nestbolt, benchmark run 13 October 2026)</li>
+</ul>
+<footer class="muted"><p>Plain static pages: no JavaScript, trackers or cookies. Made by the Anode maintainers. <a href="../">Anode</a> · <a href="https://github.com/skulitom/Anode">GitHub</a> · <a href="https://github.com/skulitom/Anode/issues/new">Report a mistake</a></p></footer>
+</main>
+</body>
+</html>
