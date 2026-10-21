@@ -153,11 +153,8 @@ internal static partial class Cli
         }
         // Started detached, so a piped terminal (| Out-Host) gets its prompt back while the browser stays open. Only the
         // file and argument list carry over, which is all OpenForSignIn sets.
-        Core.Browser.SeatBrowser.OpenForSignIn(browser, addresses, Core.Util.Env.StateDirectory, info =>
-        {
-            Core.Launch.DetachedProcess.Start(info.FileName, info.ArgumentList, null);
-            return null;
-        });
+        Core.Browser.SeatBrowser.OpenForSignIn(browser, addresses, Core.Util.Env.StateDirectory,
+            info => Core.Launch.DetachedProcess.Start(info.FileName, info.ArgumentList, null));
         Console.WriteLine($"{browser.Name} opened on this desktop with Anode's seat profile ({browser.ProfileFolder}). Sign in to the sites agents "
             + $"should use, such as Play Console, then close that {browser.Name} window: the seat can use the profile only once it is closed here.");
         return 0;
