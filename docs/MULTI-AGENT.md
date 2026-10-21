@@ -22,7 +22,9 @@ Use separate agent IDs for independent tasks. Agents deliberately using the same
   wait ends, calling acquire again within 5 seconds keeps the place. An acquire with
   `waitSeconds: 0` never joins or jumps the line.
 - **Keeping it.** Each desktop action extends the lease to a full lifetime from when it starts
-  (`ttlSeconds`, 10-600, default 120). An agent that keeps working never renews; `renew` is for
+  (`ttlSeconds`, 10-600, default 120), keeps it while it runs, and leaves a full lifetime from when
+  it ends, so even an action longer than the lifetime, such as a Steam launch, ends with the lease
+  still held. An agent that keeps working never renews; `renew` is for
   pausing longer than the lifetime without acting. Nothing revives a lease that already expired.
 - **Handing it on.** Release when finished. While others wait, desktop results tell the owner
   (MCP adds a note; pipe responses carry `waitingAgents`). Ending an MCP session releases its lease
