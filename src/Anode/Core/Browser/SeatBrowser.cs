@@ -176,7 +176,7 @@ internal static class SeatBrowser
     /// window is for, then each address in its own tab. Signing in works without the page, so one that cannot be
     /// written is left out.
     /// </summary>
-    internal static void OpenForSignIn(Kind browser, IReadOnlyList<string> addresses, string folder, Func<ProcessStartInfo, Process?> start)
+    internal static void OpenForSignIn(Kind browser, IReadOnlyList<string> addresses, string folder, Action<ProcessStartInfo> start)
     {
         var tabs = new List<string>(addresses);
         try
@@ -193,7 +193,7 @@ internal static class SeatBrowser
         }
         var info = new ProcessStartInfo(browser.Executable) { UseShellExecute = false };
         foreach (string argument in Arguments(browser, tabs.ToArray())) info.ArgumentList.Add(argument);
-        using var process = start(info);
+        start(info);
     }
 
     /// <summary>

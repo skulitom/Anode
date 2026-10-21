@@ -525,24 +525,25 @@ internal static class AndroidChecks
         string[] window = { $"--user-data-dir={browser.ProfileFolder}", "--no-first-run", "--no-default-browser-check", "--new-window" };
         string[] addresses = { "https://play.google.com/console", "https://x.test/?a=1&b=<2>" };
         ProcessStartInfo? seen = null;
-        Process? Start(ProcessStartInfo info) { seen = info; return null; }
+        void Opened(ProcessStartInfo info) => seen = info;
+        Process? Start(ProcessStartInfo info) { Opened(info); return null; }
 
-        SeatBrowser.OpenForSignIn(browser, addresses, state, Start);
+        SeatBrowser.OpenForSignIn(browser, addresses, state, Opened);
         Require(seen?.FileName == chrome && seen.ArgumentList.SequenceEqual(window.Append(first).Concat(addresses)) && first.StartsWith("file:///", StringComparison.Ordinal)
             && !first.Contains(' '), "the sign-in window does not open its page, then each address: " + string.Join(' ', seen!.ArgumentList));
         string html = File.ReadAllText(page);
         Require(html.Contains("Close this window when you are done") && html.Contains("Sign in on the other tabs of this window")
             && html.Contains("R&amp;D") && html.Contains("a=1&amp;b=&lt;2&gt;") && !html.Contains("<2>"), "the page lacks its instructions or shows text unescaped: " + html);
 
-        SeatBrowser.OpenForSignIn(browser, Array.Empty<string>(), state, Start);
+        SeatBrowser.OpenForSignIn(browser, Array.Empty<string>(), state, Opened);
         Require(seen!.ArgumentList.SequenceEqual(window.Append(first)) && File.ReadAllText(page).Contains("Open each site your agents should use"),
             "a bare sign-in window does not say what to do");
 
         // The page is a help: where it cannot be written, the window opens as it did before there was one.
         string unwritable = Path.Combine(chrome, "state");
-        SeatBrowser.OpenForSignIn(browser, Array.Empty<string>(), unwritable, Start);
+        SeatBrowser.OpenForSignIn(browser, Array.Empty<string>(), unwritable, Opened);
         Require(seen!.ArgumentList.SequenceEqual(window.Append("about:blank")), "a page that could not be written stopped the bare sign-in");
-        SeatBrowser.OpenForSignIn(browser, addresses, unwritable, Start);
+        SeatBrowser.OpenForSignIn(browser, addresses, unwritable, Opened);
         Require(seen!.ArgumentList.SequenceEqual(window.Concat(addresses)), "a page that could not be written stopped the sign-in");
 
         string Summary(JsonObject request) => SeatBrowser.Open(request, fixture.Get, _ => null, Start).Obj("result")!.Str("summary")!;
