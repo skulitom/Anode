@@ -76,6 +76,8 @@ internal static class SelfTest
         Check(results, "CLI argument checks", CliChecks.Arguments);
         Check(results, "CLI help and messages", CliChecks.HelpText);
         Check(results, "CLI mcp --help", CliChecks.McpHelp);
+        Check(results, "CLI agent before connect", CliChecks.AgentBeforeConnect);
+        Check(results, "CLI missing agent subprocess", CliChecks.MissingAgentProcess);
         Check(results, "channel names", ChannelChecks.Names);
         Check(results, "one seat per session", ChannelChecks.Seat);
 

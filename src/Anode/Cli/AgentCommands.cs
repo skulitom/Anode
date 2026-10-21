@@ -33,6 +33,18 @@ internal static partial class Cli
         return args[index..];
     }
 
+    /// <summary>Reject missing ownership before discovering the daemon, using the envelope RequestAsync sends.</summary>
+    private static Task<JsonPipeClient?> Connect(string op, JsonObject? arguments = null)
+    {
+        if (AgentAccess.RequiresLease(op) || op == "exec.read")
+        {
+            var envelope = AgentAccess.Attach(arguments, _agentId, _leaseToken);
+            envelope["op"] = op;
+            if (AgentAccess.Validate(envelope) is { } error) throw new UsageException(error);
+        }
+        return Connect(autoStart: false);
+    }
+
     internal static Task<JsonObject> RequestAsync(JsonPipeClient client, string op, JsonObject? arguments = null,
         int timeoutMs = 60000, CancellationToken cancel = default)
     {
