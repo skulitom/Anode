@@ -132,7 +132,8 @@ internal sealed class DesktopLease
     private JsonObject? Check(JsonObject request)
     {
         Expire();
-        if (_token is null || _expires <= _milliseconds())
+        // An action still running keeps its owner's lease, even past the lifetime; it ends only once the action has.
+        if (_token is null || !_active && _expires <= _milliseconds())
             return Fail("lease_expired", "The desktop lease is absent or expired. Acquire again and observe the desktop before acting.", request.Str("agentId"));
         if (_owner != request.Str("agentId"))
             return Fail("seat_busy", $"The desktop is busy with {Label(_owner!, _ownerName)}. Wait until it releases the lease or the lease expires.", request.Str("agentId"));
@@ -153,7 +154,7 @@ internal sealed class DesktopLease
             {
                 long now = _milliseconds();
                 // An uncertain acquire can be recovered without silently extending its lifetime.
-                if (_owner == agent && _expires > now)
+                if (_owner == agent && (_expires > now || _active))
                 {
                     RememberClient(request);
                     return JsonLine.Ok(State(agent, includeToken: true));
@@ -269,7 +270,17 @@ internal sealed class DesktopLease
         catch (OperationCanceledException) when (OutOfTime()) { return TimedOut(op, timeoutMs, admitted); }
         finally
         {
-            try { if (admitted) lock (_state) { _active = false; Expire(); } }
+            try
+            {
+                if (admitted) lock (_state)
+                {
+                    _active = false;
+                    // And a full lifetime from its end, so an action longer than the lifetime, such as a Steam
+                    // launch, leaves its owner the desktop rather than a lease that ran out while it worked.
+                    _expires = Math.Max(_expires, _milliseconds() + _ttl);
+                    Expire();
+                }
+            }
             finally { _interaction.Release(); }
         }
     }

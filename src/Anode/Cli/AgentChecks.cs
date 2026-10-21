@@ -71,12 +71,16 @@ internal static class AgentChecks
         cleanupBlocked = false;
         Require((await failureLease.HandleAsync(Lease("B", "acquire"), Dispatch)).Bool("ok") == true, "cleanup recovery could not transfer ownership");
 
-        var activeFailure = new DesktopLease(() => { if (cleanupBlocked) throw new InvalidOperationException("simulated cleanup failure after an action"); }, milliseconds: () => now);
-        string activeToken = Token(await activeFailure.HandleAsync(Lease("A", "acquire"), Dispatch));
+        bool clientAlive = true;
+        var activeFailure = new DesktopLease(() => { if (cleanupBlocked) throw new InvalidOperationException("simulated cleanup failure after an action"); },
+            milliseconds: () => now, clientAlive: (_, _) => clientAlive);
+        var tracked = Lease("A", "acquire"); tracked["clientPid"] = 10; tracked["clientStarted"] = 100L;
+        string activeToken = Token(await activeFailure.HandleAsync(tracked, Dispatch));
         cleanupBlocked = true;
         try
         {
-            await activeFailure.HandleAsync(Input("A", activeToken), (_, _) => { now += 120001; return Task.FromResult(JsonLine.Ok()); });
+            // The client exits while its action runs, so the lease ends, and its cleanup fails, as the action finishes.
+            await activeFailure.HandleAsync(Input("A", activeToken), (_, _) => { clientAlive = false; return Task.FromResult(JsonLine.Ok()); });
             throw new InvalidOperationException("cleanup failure was ignored");
         }
         catch (InvalidOperationException ex) when (ex.Message == "simulated cleanup failure after an action") { }
@@ -217,7 +221,8 @@ internal static class AgentChecks
         long now = 0;
         int actions = 0;
         var entered = Signal(); var finish = Signal();
-        var lease = new DesktopLease(milliseconds: () => Interlocked.Read(ref now));
+        bool clientAlive = true;
+        var lease = new DesktopLease(milliseconds: () => Interlocked.Read(ref now), clientAlive: (_, _) => Volatile.Read(ref clientAlive));
         using var stopping = new CancellationTokenSource();
         async Task<JsonObject> Dispatch(JsonObject request, CancellationToken cancel)
         {
@@ -236,7 +241,8 @@ internal static class AgentChecks
         server.Start();
         using var a = await JsonPipeClient.TryConnectAsync(pipe, 2000) ?? throw new InvalidOperationException("private pipe unavailable");
         using var b = await JsonPipeClient.TryConnectAsync(pipe, 2000) ?? throw new InvalidOperationException("private pipe unavailable");
-        string token = (await a.RequestAsync("lease", new JsonObject { ["agentId"] = "A", ["action"] = "acquire" })).Obj("result")!.Str("leaseToken")!;
+        var tracked = new JsonObject { ["agentId"] = "A", ["action"] = "acquire", ["clientPid"] = 10, ["clientStarted"] = 100L };
+        string token = (await a.RequestAsync("lease", tracked)).Obj("result")!.Str("leaseToken")!;
         Task<JsonObject> active = a.RequestAsync("input.text", Input("A", token));
         try
         {
@@ -247,7 +253,18 @@ internal static class AgentChecks
             Require((await b.RequestAsync("lease", new JsonObject { ["agentId"] = "B", ["action"] = "acquire" })).Str("errorCode") == "seat_busy", "lease transferred during an admitted action");
             finish.TrySetResult();
             Require((await active.WaitAsync(TimeSpan.FromSeconds(2))).Bool("ok") == true, "admitted action did not finish");
-            Require((await queued.WaitAsync(TimeSpan.FromSeconds(2))).Bool("ok") == false && actions == 1, "expired queued input was executed");
+            // The owner was working all along (B-048), so its input queued behind an action that outlasted the lifetime runs.
+            Require((await queued.WaitAsync(TimeSpan.FromSeconds(2))).Bool("ok") == true && actions == 2, "a working owner's queued input was refused after a long action");
+
+            // Once the lease has ended, here because the owner's client exited mid-action, queued input is fenced.
+            entered = Signal(); finish = Signal();
+            active = a.RequestAsync("input.text", Input("A", token));
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            queued = lease.HandleAsync(Input("A", token), Dispatch, stopping.Token);
+            Volatile.Write(ref clientAlive, false);
+            finish.TrySetResult();
+            Require((await active.WaitAsync(TimeSpan.FromSeconds(2))).Bool("ok") == true, "admitted action did not finish");
+            Require((await queued.WaitAsync(TimeSpan.FromSeconds(2))).Bool("ok") == false && actions == 3, "queued input ran after its lease ended");
 
             string second = (await a.RequestAsync("lease", new JsonObject { ["agentId"] = "A", ["action"] = "acquire" })).Obj("result")!.Str("leaseToken")!;
             a.Dispose();
@@ -265,10 +282,10 @@ internal static class AgentChecks
             await active.WaitAsync(TimeSpan.FromSeconds(2));
             try { await queued; throw new InvalidOperationException("Stop admitted queued input"); }
             catch (OperationCanceledException) { }
-            Require(actions == 2, "queued input survived Stop");
+            Require(actions == 4, "queued input survived Stop");
         }
         finally { stopping.Cancel(); finish.TrySetResult(); }
-        return "private clients contend, expired queued input is fenced, disconnect recovers by expiry, and Stop bypasses ownership";
+        return "private clients contend, a working owner's queued input runs after a long action, ended leases fence queued input, disconnect recovers by expiry, and Stop bypasses ownership";
     }
 
     public static async Task<string> QueueTime()
@@ -468,6 +485,45 @@ internal static class AgentChecks
         lease.ExpireIdle();
         Require((await Call(Input("B", b))).Str("errorCode") == "lease_expired", "an idle owner kept the desktop");
         return "first-come line, places kept only while asking, no-wait acquires refused while agents wait (CLI told --wait), owner names, waiting counts and leases extended by work";
+    }
+
+    /// <summary>
+    /// B-048: an action longer than the lease's lifetime, such as a Steam launch (up to 175 s) under the default 120 s,
+    /// keeps its owner's lease while it runs and leaves a full lifetime from when it ends.
+    /// </summary>
+    public static async Task<string> LongAction()
+    {
+        long now = 0;
+        var lease = new DesktopLease(milliseconds: () => Interlocked.Read(ref now));
+        Task<JsonObject> Call(JsonObject request) => lease.HandleAsync(request, (_, _) => Task.FromResult(JsonLine.Ok()));
+        string token = (await Call(Lease("A", "acquire"))).Obj("result")!.Str("leaseToken")!;
+
+        var done = await lease.HandleAsync(Input("A", token), (_, _) => { Interlocked.Add(ref now, 175_000); return Task.FromResult(JsonLine.Ok()); });
+        var status = (await Call(Lease("A", "status"))).Obj("result")!;
+        Require(done.Bool("ok") == true && status.Str("ownerAgentId") == "A" && status.Int("expiresInMs") == 120_000,
+            "an action longer than the lifetime ended with its owner's lease expired, not a full lifetime left");
+        Require((await Call(Lease("B", "acquire"))).Str("errorCode") == "seat_busy", "another agent took the desktop as a long action ended");
+        Require((await Call(Input("A", token))).Bool("ok") == true, "the owner had to acquire again after its long action");
+
+        // While the action runs past the lifetime, its owner still holds the lease: a recovering acquire gets the same
+        // token, renew works, and nobody else gets the desktop.
+        var finish = Signal();
+        Task<JsonObject> running = lease.HandleAsync(Input("A", token), async (_, _) => { await finish.Task; return JsonLine.Ok(); });
+        try
+        {
+            Require(!running.IsCompleted, "the long action was not admitted");
+            Interlocked.Add(ref now, 300_000);
+            lease.ExpireIdle();
+            Require((await Call(Lease("A", "acquire"))).Obj("result")?.Str("leaseToken") == token,
+                "the owner's recovering acquire during its own long action was refused or given a new token");
+            Require((await Call(Lease("B", "acquire"))).Str("errorCode") == "seat_busy", "another agent took the desktop during a long action");
+            Require((await Call(Lease("A", "renew", token))).Bool("ok") == true, "the owner could not renew during its own long action");
+        }
+        finally { finish.TrySetResult(); await running.WaitAsync(TimeSpan.FromSeconds(2)); }
+        Interlocked.Add(ref now, 120_001);
+        lease.ExpireIdle();
+        Require((await Call(Input("A", token))).Str("errorCode") == "lease_expired", "an idle owner kept the desktop after a long action");
+        return "an action longer than the lifetime keeps the lease while it runs and leaves its owner a full lifetime from its end";
     }
 
     /// <summary>
