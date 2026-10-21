@@ -38,7 +38,8 @@ Desktop operations additionally require an `agentId` and live `leaseToken`, acqu
 `lease` with `action: "acquire"`, and may carry an `agentName` for status and the viewer. `lease`
 also supports `status`, `renew` and `release`, with `ttlSeconds` (10-600, default 120) on
 acquire/renew, `waitSeconds` (0-300) and `startSeat` on acquire, and `cancelJobs` on release. A
-desktop operation extends its lease to a full `ttlSeconds` from when it starts; while other agents
+desktop operation extends its lease to a full `ttlSeconds` from when it starts, keeps it while it
+runs and extends it again from when it ends; while other agents
 wait, its response carries `waitingAgents`. Owned job reads require `agentId` but no lease. See
 [the full ownership protocol](MULTI-AGENT.md#protocol-and-upgrades).
 

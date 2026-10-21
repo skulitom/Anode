@@ -162,6 +162,7 @@ internal static class SelfTest
         Check(results, "agent queue time", () => AgentChecks.QueueTime().GetAwaiter().GetResult());
         Check(results, "agent deadline replies", () => AgentChecks.DeadlineReplies().GetAwaiter().GetResult());
         Check(results, "agent line", () => AgentChecks.Line().GetAwaiter().GetResult());
+        Check(results, "agent lease after a long action", () => AgentChecks.LongAction().GetAwaiter().GetResult());
         Check(results, "agent names", () => AgentChecks.Names().GetAwaiter().GetResult());
         Check(results, "MCP ownership", () => AgentChecks.McpOwnership().GetAwaiter().GetResult());
         Check(results, "MCP lease helper", () => AgentChecks.McpLeaseHelper().GetAwaiter().GetResult());

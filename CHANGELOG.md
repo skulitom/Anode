@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **A desktop action longer than the lease's lifetime no longer ends with the lease gone.** Each
+  action extended its owner's lease to a full lifetime from when it started, so one that ran
+  longer, such as a `steam_launch` of up to 175 s under the default 120 s, finished with the lease
+  already expired: the agent had to acquire the desktop again (and, over MCP, look again), and an
+  agent waiting in line could take it in between. While it ran, the owner's renew was refused as
+  expired, and its next action, queued behind it, was refused when its turn came. An action now
+  keeps the lease while it runs and leaves a full lifetime from when it ends, as `ttlSeconds`
+  ("lease lifetime after your last desktop action") always said. A lease that ends for another
+  reason, such as its client exiting, still refuses the queued action.
 - **Desktop commands ask for a missing agent ID or lease token before connecting.** With Anode
   stopped, a command such as `anode type hi` run without `ANODE_AGENT_ID` (or `--agent`) said
   "Anode is not running" (exit 1), and once Anode was started it failed again, now for the missing
