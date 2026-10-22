@@ -1,0 +1,22 @@
+{
+ "session": 1,
+ "samples": 4762,
+ "seconds": 240.0,
+ "distinct_cursor_positions": 1,
+ "first_position": [
+  -1764,
+  0
+ ],
+ "foreground_changes": 0,
+ "foreground": [
+  {
+   "t_s": 0.0,
+   "hwnd": 657066,
+   "pid": 35216,
+   "title_len": 7
+  }
+ ],
+ "min_idle_ms": 33394610,
+ "cursor_moves_without_parent_input": [],
+ "out": "run/parent.csv"
+}

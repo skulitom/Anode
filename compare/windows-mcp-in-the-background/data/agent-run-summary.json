@@ -1,0 +1,58 @@
+{
+ "client": "Claude Code 2.1.302, claude -p --mcp-config mcp-config.json --strict-mcp-config, model claude-sonnet-5-5",
+ "allowed_tools": [
+  "mcp__windows-mcp__ControlStatus",
+  "mcp__windows-mcp__App",
+  "mcp__windows-mcp__Snapshot",
+  "mcp__windows-mcp__Type",
+  "mcp__windows-mcp__Screenshot"
+ ],
+ "prompt": "agent-prompt.txt",
+ "windows_mcp_calls": [
+  {
+   "tool": "ControlStatus",
+   "args": {},
+   "ok": true
+  },
+  {
+   "tool": "App",
+   "args": {
+    "mode": "switch",
+    "name": "C-074 test pad"
+   },
+   "ok": true
+  },
+  {
+   "tool": "Snapshot",
+   "args": {},
+   "ok": true
+  },
+  {
+   "tool": "Type",
+   "args": {
+    "text": "Typed by Claude Code through Windows-MCP inside an Anode seat.",
+    "loc": [
+     360,
+     251
+    ],
+    "clear": true
+   },
+   "ok": true
+  },
+  {
+   "tool": "Screenshot",
+   "args": {},
+   "ok": true
+  },
+  {
+   "tool": "ControlStatus",
+   "args": {},
+   "ok": true
+  }
+ ],
+ "gate_words_seen": [],
+ "duration_ms": 48306,
+ "num_turns": 8,
+ "result": "success",
+ "note": "Extracted from the run's stream-json output (25 events); the raw stream holds local paths and session ids, so it is not published. The client also made one ToolSearch call to load the tools."
+}

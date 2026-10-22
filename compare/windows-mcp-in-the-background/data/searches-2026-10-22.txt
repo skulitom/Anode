@@ -1,0 +1,37 @@
+The searches this page answers
+Run on 22 October 2026, 14:56 to 14:57 (London), in Claude Code's web search tool (standard mode, US results).
+For each: the results in the order returned, and what the tool's own summary said. Anode appeared in none of them.
+
+1. "Windows-MCP in the background"
+   Results: dev.co (Windows-MCP overview), forum.cursor.com (MCP servers opening empty terminals on Windows),
+   x-cmd.com (install page), claude.com/connectors/windows-mcp, promptarmor.com (connector page), devclass.com
+   (MCP in Windows, 2025), discuss.pytorch.kr (Korean overview), glama.ai (Windows-MCP SECURITY.md mirror),
+   ai.g2.com (marketplace listing).
+   Summary: the results don't address running Windows-MCP without taking over the user's screen; it points to the
+   project's README and issues.
+
+2. "Windows-MCP USER_CONTROL agent pauses when I move the mouse"
+   Results: glama.ai (WindowsPC-MCP listing), msdn.microsoft.com (Mouse.Hover), policylayer.com (three move_mouse
+   tool pages), launchpad.net (two unrelated mouse-interrupt requests), trendmicro.com.
+   Summary: found nothing documenting USER_CONTROL in Windows-MCP; the closest match was WindowsPC-MCP's own
+   HUMAN_OVERRIDE mode.
+
+3. "run Windows-MCP without taking over my mouse and keyboard"
+   Results: glama.ai (Windows-MCP SECURITY.md mirror), glama.ai (three other Windows MCP servers, one of them
+   WindowsPC-MCP), claude.com/connectors/windows-mcp, docsearch.algolia.com, glama.ai (two mirrors of a fork),
+   x-cmd.com.
+   Summary: no documented Windows-MCP setting found; it suggested WindowsPC-MCP (a different server) or a virtual
+   machine.
+
+4. "Windows-MCP control gate disable 0.8.8"
+   Results: nvd.nist.gov and five other pages on CVE-2026-48989 (fixed in 0.7.5), glama.ai (SECURITY.md mirrors),
+   pepy.tech (download stats).
+   Summary: no result mentions a control gate or a way to disable it in 0.8.8.
+
+5. "AI agent use Windows desktop in the background while I keep working MCP"
+   Results: dev.co (Windows-MCP), glama.ai (two listings), skillselion.com (Bridge MCP, Windows-MCP), glama.ai
+   (mcp-windows-desktop-automation), themenonlab.blog (Windows-MCP overview), ai.g2.com (Bridge MCP).
+   Summary: none clearly confirms a "work alongside me" mode.
+
+Not found by these searches, read on GitHub the same day: Windows-MCP's own issues on the gate (#456, #457, #464,
+#465, #474, #475) and the merged opt-out (#458) and gate policies (#466), which are on main but in no release.
