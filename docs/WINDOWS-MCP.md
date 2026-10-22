@@ -29,16 +29,19 @@ sampler read the parent desktop every 50 ms through both client runs.
 The run's data and scripts, and when to use something else instead: [Windows-MCP in the background](https://skulitom.github.io/Anode/compare/windows-mcp-in-the-background/).
 
 **What this does and doesn't show:**
-- **Why the gate stays quiet:** it watches for physical input through low-level hooks and raw input, and ignores
-  its own injected input. Those hooks see only their own session, and nobody types in the seat. If you press
+- **Why the gate should stay quiet:** it watches for physical input through low-level hooks and raw input, and
+  ignores its own injected input. Global hooks see only their own desktop
+  ([SetWindowsHookEx](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowshookexw)), and
+  nobody types in the seat. With nobody at the PC, our run can't show this yet (see "Nobody used the PC" below). If you press
   **Take control** in Anode's viewer, your input does reach the seat, and the gate should then pause the agent as it
   would on your own desktop (not tested).
 - **The seat removes your input as a trigger, not every trigger.** In 0.8.8 the gate can also report `USER_CONTROL`,
   or get stuck at `CONTROL_UNAVAILABLE`, when its on-screen indicator stalls for more than a second, with nobody
   touching anything ([Windows-MCP #465](https://github.com/CursorTouch/Windows-MCP/issues/465), open). That happens
   inside Windows-MCP, so it can happen in the seat too. Restart the server if it sticks. Our run didn't hit it.
-- **Nobody used the PC during the run.** The sampler separates your own moves from anything else. We haven't yet
-  repeated the run with someone working at the same time.
+- **Nobody used the PC during the run.** The sampler flags pointer moves made while the PC's own input is idle;
+  moves during your own input can't be told apart that way. We haven't yet repeated the run with someone working at
+  the same time.
 - **Where your pointer was:** it was away from the hidden viewer's rectangle. If it rests there, Anode's pointer
   guard stops seat programs from moving it; see [architecture](ARCHITECTURE.md#design-decisions-worth-defending).
   `anode status` counts these moves on its `your pointer` line.
