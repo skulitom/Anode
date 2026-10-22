@@ -4,7 +4,7 @@
 
 - **New guide: keep working while Windows-MCP clicks.** [docs/WINDOWS-MCP.md](docs/WINDOWS-MCP.md)
   starts CursorTouch's Windows-MCP inside the seat with `anode run`, where its control gate (0.8.8)
-  sees only the seat's input, not yours. It has the setup steps, a Claude Code config and a measured
+  should see only the seat's input, not yours. It has the setup steps, a Claude Code config and a measured
   run with nobody at the PC: 13 tool calls over two clients, no gate trip, and in 240 s the user's
   pointer never moved and their foreground window never changed. Docs only; no code changed.
 - **A desktop action longer than the lease's lifetime no longer ends with the lease gone.** Each

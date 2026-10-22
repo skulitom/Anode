@@ -1,13 +1,14 @@
 # Keep working while Windows-MCP clicks
 
 [Windows-MCP](https://github.com/CursorTouch/Windows-MCP) (CursorTouch, MIT) drives the Windows desktop it runs on.
-Since 0.8.8, its control gate pauses the agent whenever you touch your own mouse or keyboard: `ControlStatus`
-reports `user`, and its click and type calls fail with `USER_CONTROL`. Without the gate, you and the agent fight
-over one pointer.
+Since 0.8.8, its control gate pauses the agent when you use your own mouse or keyboard: once you take over,
+`ControlStatus` reports `user`, and every tool except `ControlStatus` fails with `USER_CONTROL` until you have been
+idle for 10 seconds. Without the gate, you and the agent fight over one pointer.
 
 Anode gives you a way out without changing Windows-MCP. Start Windows-MCP **inside Anode's seat**: a second Windows
-session with its own screen, pointer and keyboard focus. Windows-MCP then clicks and types there, its gate sees
-only the seat's input, not yours, and your own desktop stays yours.
+session with its own screen, pointer and keyboard focus. Windows-MCP then clicks and types there, and your own
+desktop stays yours. Your input stays in your own session, so the gate should have nothing to react to (expected, not
+yet measured with someone at the PC; see below).
 
 ## What we measured
 
@@ -18,7 +19,7 @@ sampler read the parent desktop every 50 ms through both client runs.
 | Check | Result |
 |---|---|
 | Windows-MCP's process | in the seat's session, not yours |
-| Tool calls (ControlStatus, App, Snapshot, Type, Screenshot) | 7/7 (script) and 6/6 (Claude Code) succeeded |
+| Tool calls (ControlStatus, App, Snapshot, Type, Screenshot) | 7/7 (script) and 6/6 (Claude Code) returned without an error; Claude Code's typed line landed mid-text in the test window |
 | `USER_CONTROL` or `TAKEOVER_PENDING` in any result or the server log | never |
 | `ControlStatus` | `ready` before, `ai` after: the agent kept control |
 | Your pointer, sampled 4,762 times over 240 s | never moved |
@@ -26,15 +27,16 @@ sampler read the parent desktop every 50 ms through both client runs.
 | Text typed by `Type` | landed in a window in the seat |
 | Call times | Type 1.4 s, Screenshot 0.4 s, Snapshot 16–26 s |
 
-The run's data and scripts, and when to use something else instead: [Windows-MCP in the background](https://skulitom.github.io/Anode/compare/windows-mcp-in-the-background/).
+The run's data and scripts, and when to use something else instead:
+[Windows-MCP in the background](https://skulitom.github.io/Anode/compare/windows-mcp-in-the-background/).
 
 **What this does and doesn't show:**
 - **Why the gate should stay quiet:** it watches for physical input through low-level hooks and raw input, and
   ignores its own injected input. Global hooks see only their own desktop
   ([SetWindowsHookEx](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowshookexw)), and
-  nobody types in the seat. With nobody at the PC, our run can't show this yet (see "Nobody used the PC" below). If you press
-  **Take control** in Anode's viewer, your input does reach the seat, and the gate should then pause the agent as it
-  would on your own desktop (not tested).
+  nobody types in the seat. With nobody at the PC, our run can't show this yet (see "Nobody used the PC" below).
+  If you press **Take control** in Anode's viewer, your input does reach the seat, and the gate should then pause the
+  agent as it would on your own desktop (not tested).
 - **The seat removes your input as a trigger, not every trigger.** In 0.8.8 the gate can also report `USER_CONTROL`,
   or get stuck at `CONTROL_UNAVAILABLE`, when its on-screen indicator stalls for more than a second, with nobody
   touching anything ([Windows-MCP #465](https://github.com/CursorTouch/Windows-MCP/issues/465), open). That happens
@@ -133,8 +135,8 @@ Get-NetTCPConnection -LocalPort 8765 -State Listen | ForEach-Object { Stop-Proce
 - **Careful with Notepad for test typing.** Windows 11 Notepad keeps its saved tabs per user, not per session, so a
   Notepad started in the seat may open the tabs you left unsaved in your own session. We typed into a throwaway
   window instead.
-- **Snapshot took 16–26 s in our run**, including retries on a window that was closing. We didn't compare it
-  outside the seat. Screenshot took 0.4 s.
+- **Snapshot took 16–26 s in our run.** The slower call included repeated attempts on one window that UI
+  Automation could no longer read. We didn't compare it outside the seat. Screenshot took 0.4 s.
 
 When you'd rather not run two tools, Anode's own MCP server does the same jobs (windows, accessible controls,
 screenshots, clicks and typing) in the seat, with the lease built in. See [when to use which](COMPARISON.md).
