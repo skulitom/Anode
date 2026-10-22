@@ -31,7 +31,10 @@ internal static class ScreenSettle
 
     public static bool IsScrollingKey(string chord) => KeyCodes.Chord(chord).Any(key => key is >= 0x21 and <= 0x24);
 
-    /// <summary>Runs input exactly once; a failure to observe it never prevents it or asks for it to be replayed.</summary>
+    /// <summary>
+    /// Runs input exactly once; a failure to observe it never prevents it or asks for it to be replayed. Cancellation
+    /// before the input throws <see cref="OperationCanceledException"/> without sending it.
+    /// </summary>
     public static JsonObject Around(Action input, string action, Watcher watcher, int timeoutMs = 60_000)
     {
         double began = watcher.Now();
@@ -68,6 +71,9 @@ internal static class ScreenSettle
             reason = "the screen was already changing, so take a fresh screenshot before clicking by coordinates";
         }
 
+        // A request cancelled before its input (its deadline, or a stopping seat) sends nothing and answers timed_out,
+        // as InputInjector.Press does: its caller has given up, so the scroll must not happen afterwards.
+        watcher.Cancel.ThrowIfCancellationRequested();
         // Keep input outside capture's catch: a real input error must still reach the caller, without a retry.
         input();
         double start = watcher.Now(), lastChange = start;

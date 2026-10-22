@@ -282,7 +282,9 @@ after a change followed by 200 ms of quiet, `unchanged` after 500 ms without a c
 if the screen was already moving before input or kept moving until the cap, or `unknown` if capture
 failed, the wait was cancelled or too little time remained to tell. `screenWaitMs` is the integer
 milliseconds spent watching after input, 0 when no wait was needed. Input still runs if capture
-fails. After `changing` or `unknown`, take a fresh screenshot before clicking by coordinates.
+fails. A request cancelled before its input, by its deadline or a stopping seat, sends nothing and
+fails as timed out, as a key press already does. After `changing` or `unknown`, take a fresh
+screenshot before clicking by coordinates.
 
 Buttons: `left`, `right`, `middle`, `x1`, `x2`. Key names: letters, digits, `f1`–`f24`, `num0`–`num9`,
 `enter`, `esc`, `space`, `tab`, `backspace`, `del`, `ins`, `home`, `end`, `pgup`, `pgdn`, arrows,

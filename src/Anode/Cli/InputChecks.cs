@@ -372,16 +372,30 @@ internal static class InputChecks
         var resized = new ScreenRecorder();
         Expect(resized, resized.Run(r => r.Inputs == 0 ? [0] : [0, 0]), "settled", 240, "resolution changed with identical pixels");
 
-        using (var cut = new CancellationTokenSource())
+        // A request cancelled before its input (its deadline, or a stopping seat) sends nothing, as a key press doesn't:
+        // the caller gets timed_out, so a scroll it gave up on must not happen afterwards.
+        foreach (bool duringWait in new[] { false, true })
         {
-            var cancelled = new ScreenRecorder();
-            var unknown = cancelled.Run(r =>
+            using var cut = new CancellationTokenSource();
+            var recorder = new ScreenRecorder();
+            bool refused = false;
+            try
             {
-                if (r.Grabs == 2) cut.Cancel();
-                return [(byte)r.Grabs];
-            }, cancel: cut.Token);
-            Expect(cancelled, unknown, "unknown", 0, "cancelled while grabbing the baseline");
-            Require(cancelled.AfterGrabs == 0, "baseline cancellation still watched after input");
+                recorder.Run(r => { if (!duringWait && r.Grabs == 2) cut.Cancel(); return [(byte)r.Grabs]; }, cancel: cut.Token,
+                    wait: (r, ms) => { r.Now += ms; if (duringWait && r.Inputs == 0) cut.Cancel(); });
+            }
+            catch (OperationCanceledException) { refused = true; }
+            Require(refused && recorder.Inputs == 0 && recorder.AfterGrabs == 0,
+                $"a request cancelled {(duringWait ? "between the baseline frames" : "while grabbing the baseline")} still sent its input or watched the screen");
+        }
+        using (var expired = new CancellationTokenSource())
+        {
+            expired.Cancel();
+            var early = new ScreenRecorder();
+            bool refused = false;
+            try { early.Run(_ => [0], cancel: expired.Token); }
+            catch (OperationCanceledException) { refused = true; }
+            Require(refused && early.Inputs == 0 && early.Grabs == 0, "a request whose time had already run out still read the screen or sent its input");
         }
 
         // The real grab alternates buffers: the next capture must not overwrite the previous frame.
