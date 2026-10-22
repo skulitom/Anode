@@ -38,7 +38,7 @@ jobs:
       version: '${{ steps.plan.outputs.version }}'
       reason: '${{ steps.plan.outputs.reason }}'
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Decide what to publish
         id: plan
         shell: bash
@@ -148,11 +148,11 @@ jobs:
       id-token: write # Authenticate to the MCP Registry through GitHub OIDC, without a secret.
       attestations: read # Verify the bundle was attested by this repository's Release workflow.
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: '${{ needs.plan.outputs.ref }}'
       # Older release tags predate these helpers. Use the workflow commit's publishing tools.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: '${{ github.workflow_sha }}'
           path: artifacts/registry-workflow
