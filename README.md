@@ -28,6 +28,9 @@ cut, and the nine clicks, which took 0.4 s, are shown four times slower.</sub>
 - **Compared with** Windows-MCP, Desktop Touch MCP, windows-computer-use-mcp and Terminator, on whether the agent moves
   your real pointer, with Anode's measured results: [Windows desktop automation for AI agents, compared](https://skulitom.github.io/Anode/compare/windows-desktop-automation-for-ai-agents/)
   (checked 16 October 2026).
+- **Using Windows-MCP?** Since 0.8.8, its control gate pauses the agent while you use your own mouse or keyboard. Run
+  it inside the seat, where the gate sees only the seat's input: [Windows-MCP in the background](https://skulitom.github.io/Anode/compare/windows-mcp-in-the-background/)
+  (tested 22 October 2026 with nobody at the PC: 13 tool calls, no pause, your pointer never moved).
 
 ## Install in 3 commands
 

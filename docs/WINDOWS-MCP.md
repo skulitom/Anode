@@ -26,6 +26,8 @@ sampler read the parent desktop every 50 ms through both client runs.
 | Text typed by `Type` | landed in a window in the seat |
 | Call times | Type 1.4 s, Screenshot 0.4 s, Snapshot 16–26 s |
 
+The run's data and scripts, and when to use something else instead: [Windows-MCP in the background](https://skulitom.github.io/Anode/compare/windows-mcp-in-the-background/).
+
 **What this does and doesn't show:**
 - **Why the gate stays quiet:** it watches for physical input through low-level hooks and raw input, and ignores
   its own injected input. Those hooks see only their own session, and nobody types in the seat. If you press
