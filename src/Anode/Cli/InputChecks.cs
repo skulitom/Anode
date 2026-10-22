@@ -1,6 +1,8 @@
 using System.Diagnostics;
+using System.Drawing.Imaging;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 using Anode.Core.Bridge;
 using Anode.Core.Capture;
@@ -425,6 +427,25 @@ internal static class InputChecks
         var afterHold = held.Run(r => [r.Inputs == 0 ? (byte)0 : (byte)r.AfterGrabs], timeoutMs: 1000, inputMs: 800);
         Expect(held, afterHold, "changing", 120, "key hold used most of the request");
         Require(held.Now < 1000, "screen wait after a long key hold consumed the reply's time");
+
+        // The real grab compares fingerprints, not copies of frames. In-memory pictures, so nothing captures the screen.
+        using (var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256))
+        {
+            byte[] Print(Bitmap picture)
+            {
+                var bits = picture.LockBits(new Rectangle(Point.Empty, picture.Size), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+                try { return ScreenSettle.Fingerprint(bits, picture.Width, picture.Height, hash); }
+                finally { picture.UnlockBits(bits); }
+            }
+            using var picture = new Bitmap(64, 48, PixelFormat.Format32bppArgb);
+            using var turned = new Bitmap(48, 64, PixelFormat.Format32bppArgb); // the same bytes in another shape
+            byte[] first = Print(picture), again = Print(picture), other = Print(turned);
+            picture.SetPixel(63, 47, Color.FromArgb(255, 1, 2, 3));
+            byte[] changed = Print(picture);
+            Require(first.Length == 32 && first.AsSpan().SequenceEqual(again), "the same frame gave two fingerprints");
+            Require(!first.AsSpan().SequenceEqual(changed), "a changed last pixel kept the frame's fingerprint");
+            Require(!first.AsSpan().SequenceEqual(other), "a frame of another size with the same bytes kept the fingerprint");
+        }
 
         foreach (string chord in new[] { "pagedown", "ctrl+end", "pgup", "home", "shift+pageup", "VK_NEXT", "ctrl+vk24" })
             Require(ScreenSettle.IsScrollingKey(chord), $"scrolling chord '{chord}' does not settle");

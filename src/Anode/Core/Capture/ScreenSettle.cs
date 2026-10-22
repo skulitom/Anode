@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 using Anode.Core.Input;
 
@@ -21,7 +22,7 @@ internal static class ScreenSettle
     /// <summary>What watching needs from Windows. Quick checks pass stand-ins.</summary>
     internal sealed class Watcher
     {
-        /// <summary>Pixels that stay valid through the next grab, or null when capture fails.</summary>
+        /// <summary>A frame's pixels, or a fingerprint of them, valid through the next grab; null when capture fails.</summary>
         public required Func<byte[]?> Grab { get; init; }
         public required Action<int> Wait { get; init; }
         /// <summary>Milliseconds on a monotonic clock.</summary>
@@ -130,11 +131,27 @@ internal static class ScreenSettle
         }, timeoutMs);
     }
 
+    /// <summary>
+    /// A SHA-256 of a 32bpp picture's size and pixels, read row by row from its locked bits. Frames are compared by
+    /// this rather than by copies: a full frame of the largest seat (8192x8192) is 256 MiB, and a scroll may take
+    /// dozens of them.
+    /// </summary>
+    internal static unsafe byte[] Fingerprint(BitmapData bits, int width, int height, IncrementalHash hash)
+    {
+        Span<int> size = [width, height];
+        hash.AppendData(MemoryMarshal.AsBytes(size));
+        int rowBytes = checked(width * 4);
+        for (int row = 0; row < height; row++)
+            hash.AppendData(new ReadOnlySpan<byte>((byte*)bits.Scan0 + (long)row * bits.Stride, rowBytes));
+        return hash.GetHashAndReset();
+    }
+
+    /// <summary>One reused bitmap the size of a screenshot; each grab returns its fingerprint.</summary>
     private sealed class Frames : IDisposable
     {
         private Bitmap? _bitmap;
         private Graphics? _graphics;
-        private byte[] _next = [], _previous = [];
+        private readonly IncrementalHash _hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
 
         public byte[]? Grab()
         {
@@ -144,37 +161,36 @@ internal static class ScreenSettle
                 if (bounds.Width <= 0 || bounds.Height <= 0) return null;
                 if (_bitmap is null || _bitmap.Size != bounds.Size)
                 {
-                    Dispose();
+                    DisposeBitmap();
                     _bitmap = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppArgb);
                     _graphics = Graphics.FromImage(_bitmap);
-                    _next = new byte[checked(bounds.Width * bounds.Height * 4)];
-                    _previous = new byte[_next.Length];
                 }
                 _graphics!.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size, CopyPixelOperation.SourceCopy);
                 var bits = _bitmap.LockBits(new Rectangle(Point.Empty, bounds.Size), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
-                try
-                {
-                    int rowBytes = checked(bounds.Width * 4);
-                    if (bits.Stride == rowBytes) Marshal.Copy(bits.Scan0, _next, 0, _next.Length);
-                    else
-                        for (int row = 0; row < bounds.Height; row++)
-                            Marshal.Copy(IntPtr.Add(bits.Scan0, row * bits.Stride), _next, row * rowBytes, rowBytes);
-                }
+                try { return Fingerprint(bits, bounds.Width, bounds.Height, _hash); }
                 finally { _bitmap.UnlockBits(bits); }
-                // Keep the returned pixels intact while the next frame is copied into the other buffer.
-                (_next, _previous) = (_previous, _next);
-                return _previous;
             }
-            catch { return null; }
+            catch
+            {
+                // A frame that failed partway must not leave its rows in the next frame's hash.
+                try { _hash.GetHashAndReset(); } catch { }
+                return null;
+            }
         }
 
-        public void Dispose()
+        private void DisposeBitmap()
         {
             // Even cleanup of unavailable capture resources must not turn a sent scroll into a failure.
             try { _graphics?.Dispose(); } catch { }
             try { _bitmap?.Dispose(); } catch { }
             _graphics = null;
             _bitmap = null;
+        }
+
+        public void Dispose()
+        {
+            DisposeBitmap();
+            try { _hash.Dispose(); } catch { }
         }
     }
 }
