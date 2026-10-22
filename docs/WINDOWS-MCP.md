@@ -33,8 +33,8 @@ The run's data and scripts, and when to use something else instead:
 **What this does and doesn't show:**
 - **Why the gate should stay quiet:** it watches for physical input through low-level hooks and raw input, and
   ignores its own injected input. Global hooks see only their own desktop
-  ([SetWindowsHookEx](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowshookexw)), and
-  nobody types in the seat. With nobody at the PC, our run can't show this yet (see "Nobody used the PC" below).
+  ([SetWindowsHookEx](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowshookexw)), the
+  seat is a separate session with its own desktop and input queue, and nobody types in the seat. With nobody at the PC, our run can't show this yet (see "Nobody used the PC" below).
   If you press **Take control** in Anode's viewer, your input does reach the seat, and the gate should then pause the
   agent as it would on your own desktop (not tested).
 - **The seat removes your input as a trigger, not every trigger.** In 0.8.8 the gate can also report `USER_CONTROL`,
