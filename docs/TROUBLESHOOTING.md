@@ -493,6 +493,18 @@ the services and main desktop. It is not an automatic service change, and the he
 may return. From a source checkout, retest with `scripts/test-development.ps1 -VerifyInput`
 to prove delivery.
 
+### A click right after a scroll lands on the wrong element
+
+Browsers and many other apps animate a scroll over several frames, and the seat may draw fewer
+frames than your own screen, so a screenshot taken the moment a scroll is sent can still show the
+old position. `seat_scroll` (`anode scroll`), and `seat_key` (`anode key`) with PageUp, PageDown,
+Home or End, therefore wait until the seat's screen stops changing, for up to about 2.5 seconds,
+and say how that ended in `screen`: `settled`, `unchanged`, `changing` (it was already moving, as
+with a video, or kept moving) or `unknown` (the seat could not be captured, or there was too little
+time). After `changing` or `unknown`, take a fresh screenshot before clicking by coordinates, or
+act through `seat_element`, which does not depend on where a control is drawn. Other keys, such as
+arrows and Space, don't wait.
+
 ### `seat_observe` fails with "Object reference not set to an instance of an object"
 
 In 0.11.1 and earlier, `seat_observe` and `seat_wait` (CLI: `anode inspect` and `anode wait`) fail

@@ -23,6 +23,13 @@
   first, before it connects (exit 2, as `anode lease` already did); `job` and `jobs` do the same
   for their agent ID. Status, `show`, `hide`, `kill`, `quit` and the other commands that need
   neither behave as before.
+- **Scrolling waits for the screen to catch up before it replies.** A wheel scroll or PageDown
+  answered before a browser finished drawing it, so the next screenshot could show the old page
+  and a click based on it could land on a different element. Wheel scrolling and PageUp, PageDown,
+  Home and End now wait for the screen to settle, up to about 2.5 seconds, and report whether it
+  settled, stayed unchanged, kept changing or could not be checked. An already moving screen
+  skips the wait after input; if capture fails, the input still runs. A reply that says `changing`
+  or `unknown` calls for a fresh screenshot before clicking by coordinates.
 
 ## 0.11.4 — 2026-10-21
 

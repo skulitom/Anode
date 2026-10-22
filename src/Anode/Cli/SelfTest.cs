@@ -58,6 +58,7 @@ internal static class SelfTest
         Check(results, "text typing limits", InputChecks.Limits);
         Check(results, "key and tap holds", InputChecks.Holds);
         Check(results, "text typing waits", InputChecks.Waits);
+        Check(results, "scroll screen settle", InputChecks.ScreenSettles);
 
         Check(results, "gamepad mapping", () =>
         {

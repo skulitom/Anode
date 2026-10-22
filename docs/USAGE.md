@@ -301,8 +301,8 @@ Every `lease` action needs an agent ID; `renew` and `release` also need the toke
 | --- | --- |
 | `anode click [x y] [--right\|--middle] [--double]` | *Lease.* Click at a point, or where the seat's pointer is when no coordinates are given. |
 | `anode move <x> <y>` | *Lease.* Move the seat's pointer. |
-| `anode scroll [notches]` | *Lease.* Scroll the wheel; negative is down, default -3. |
-| `anode key <chord>` | *Lease.* Press one key or chord, such as `ctrl+shift+esc`. |
+| `anode scroll [notches]` | *Lease.* Scroll the wheel; negative is down, default -3. Waits for the screen to settle (up to about 2.5 s), then prints `screen`, `screenWaitMs` and a summary as JSON. |
+| `anode key <chord>` | *Lease.* Press one key or chord, such as `ctrl+shift+esc`. A chord with PageUp, PageDown, Home or End waits for the screen to settle, as `scroll` does, and prints the same JSON. |
 | `anode type <text>` | *Lease.* Type literal text into the focused control. |
 
 ### Virtual controller

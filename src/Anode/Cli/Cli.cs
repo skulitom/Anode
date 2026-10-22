@@ -969,10 +969,13 @@ internal static partial class Cli
             ("anode click [x y] [--right|--middle] [--double]", "click at x y, or where the seat's pointer is")),
         Row("Drive the seat", "move", "", 2, null,
             ("anode move <x> <y>", "move the seat's pointer; yours stays put")),
-        Row("Drive the seat", "scroll", "", 1, null,
+        Row("Drive the seat", "scroll", "", 1,
+            "Waits until the seat's screen stops changing (up to about 2.5 s), then prints screen (settled, unchanged, changing or unknown), "
+            + "screenWaitMs and a summary as JSON. After changing or unknown, take a fresh screenshot before clicking by coordinates.",
             ("anode scroll [notches]", "turn the wheel; negative scrolls down (default -3)")),
         Row("Drive the seat", "key", null, 0,
-            "Pass one token and join keys with +. Punctuation goes by symbol or name (ctrl+grave, ctrl+plus), or as vk<hex>. Keys go out as scan codes so games see them.",
+            "Pass one token and join keys with +. Punctuation goes by symbol or name (ctrl+grave, ctrl+plus), or as vk<hex>. Keys go out as scan codes so games see them. "
+            + "A chord with PageUp, PageDown, Home or End waits for the screen to settle, as scroll does.",
             ("anode key <chord>", "press a key or chord, e.g. anode key ctrl+shift+esc")),
         Row("Drive the seat", "type", null, 0,
             "Arguments are joined with single spaces; quote text to keep it exact. Characters go out 15 ms apart and pause "
