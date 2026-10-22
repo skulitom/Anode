@@ -53,7 +53,7 @@ If uv picks a free-threaded build (`3.14t`), pywin32 won't install. Name a regul
 `--python cpython-3.14.7-windows-x86_64-none`.
 
 **2. Save a start script** as `C:\tools\windows-mcp\start-windows-mcp.cmd`. It listens on 127.0.0.1 only, turns off
-Windows-MCP's anonymous telemetry, enables the six tools we measured, and writes a log next to it.
+Windows-MCP's anonymous telemetry, enables the same six tools as our run, and writes a log next to it.
 
 ```bat
 @echo off
@@ -68,7 +68,7 @@ the tools you need. Windows-MCP's `--auth-key` adds a bearer-token check; your c
 desktop lease, which you can release straight after.
 
 If you sign in to Windows with a PIN or Windows Hello, a new seat may stop at sign-in, and `anode lease acquire`
-then fails. Choose **Sign in…** from the Anode tray icon, for each new seat and again after a **Reconnect**. An agent
+can't get you a usable desktop until it's signed in. Choose **Sign in…** from the Anode tray icon, for each new seat and again after a **Reconnect**. An agent
 can't do this step for you; see [sign-in troubleshooting](TROUBLESHOOTING.md#it-asks-for-a-password-every-time).
 
 ```powershell
