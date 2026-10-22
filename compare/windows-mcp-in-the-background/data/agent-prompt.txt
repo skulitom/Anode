@@ -1,0 +1,9 @@
+You are testing the windows-mcp MCP server. Use only its tools, in this order, and report each tool's raw result briefly.
+1. ControlStatus.
+2. App: mode "switch", name "C-074 test pad" (the window is already open).
+3. Snapshot, to find the test pad's edit box ("Test pad text").
+4. Type: clear the edit box and type exactly "Typed by Claude Code through Windows-MCP inside an Anode seat." into it (use its label or coordinates from the Snapshot).
+5. Screenshot.
+6. ControlStatus again.
+Do not click or type anywhere outside the test pad window, do not close any window, and do not use any other tool.
+Finally say whether any tool result contained USER_CONTROL or TAKEOVER_PENDING, and list each tool's name with ok or error.

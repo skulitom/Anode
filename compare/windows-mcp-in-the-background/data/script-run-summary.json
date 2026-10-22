@@ -1,0 +1,65 @@
+{
+ "tools_listed": [
+  "App",
+  "Click",
+  "ControlStatus",
+  "Screenshot",
+  "Snapshot",
+  "Type"
+ ],
+ "steps": [
+  {
+   "step": 1,
+   "tool": "ControlStatus",
+   "ok": true,
+   "seconds": 0.48
+  },
+  {
+   "step": 2,
+   "tool": "App",
+   "ok": true,
+   "seconds": 0.13
+  },
+  {
+   "step": 3,
+   "tool": "Snapshot",
+   "ok": true,
+   "seconds": 15.97
+  },
+  {
+   "step": 4,
+   "tool": "Type",
+   "ok": true,
+   "seconds": 1.38
+  },
+  {
+   "step": 5,
+   "tool": "Screenshot",
+   "ok": true,
+   "seconds": 0.4
+  },
+  {
+   "step": 6,
+   "tool": "Snapshot",
+   "ok": true,
+   "seconds": 25.66
+  },
+  {
+   "step": 7,
+   "tool": "ControlStatus",
+   "ok": true,
+   "seconds": 0.01
+  }
+ ],
+ "gate_words_seen": [],
+ "control_status_first": {
+  "state": "ready",
+  "generation": 1,
+  "wait_seconds": 0.0
+ },
+ "control_status_last": {
+  "state": "ai",
+  "generation": 2,
+  "wait_seconds": 0.0
+ }
+}

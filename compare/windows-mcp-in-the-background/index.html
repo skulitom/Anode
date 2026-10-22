@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Windows-MCP in the background: run it in a hidden Windows session</title>
+<meta name="description" content="Tested 22 Oct 2026, nobody at the PC: Windows-MCP 0.8.8 in Anode's hidden Windows session, 13 calls, no USER_CONTROL pause, pointer unmoved.">
+<link rel="canonical" href="https://skulitom.github.io/Anode/compare/windows-mcp-in-the-background/">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "Windows-MCP in the background: run it in Anode's hidden Windows session",
+  "description": "How to run CursorTouch's Windows-MCP inside Anode's hidden Windows session, where its control gate should see only input in that session, with one measured run (nobody at the PC) on Windows-MCP 0.8.8 and Anode 0.11.3, the setup steps, the limits, and when to use something else.",
+  "datePublished": "2026-10-22",
+  "dateModified": "2026-10-22",
+  "inLanguage": "en",
+  "url": "https://skulitom.github.io/Anode/compare/windows-mcp-in-the-background/",
+  "author": {"@type": "Organization", "name": "Anode maintainers", "url": "https://github.com/skulitom/Anode"},
+  "about": [
+    {"@type": "SoftwareApplication", "name": "Windows-MCP", "url": "https://github.com/CursorTouch/Windows-MCP", "operatingSystem": "Windows", "softwareVersion": "0.8.8"},
+    {"@type": "SoftwareApplication", "name": "Anode", "url": "https://github.com/skulitom/Anode", "operatingSystem": "Windows", "softwareVersion": "0.11.3"}
+  ]
+}
+</script>
+<style>
+:root { --bg: #ffffff; --fg: #1d1d1f; --muted: #5b5b66; --link: #0b57d0; --rule: #d9d9e0; --head: #f3f3f6; --note: #fff8e1; }
+@media (prefers-color-scheme: dark) { :root { --bg: #16171a; --fg: #e8e8ec; --muted: #a2a2ad; --link: #8ab4f8; --rule: #33343a; --head: #202126; --note: #2a2618; } }
+body { background: var(--bg); color: var(--fg); font: 17px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; }
+main { max-width: 52rem; margin: 0 auto; padding: 2rem 16px 4rem; }
+a { color: var(--link); }
+h1 { font-size: 1.65rem; line-height: 1.25; margin: 0 0 1rem; }
+h2 { font-size: 1.25rem; margin: 2.2rem 0 0.6rem; }
+h3 { font-size: 1.05rem; margin: 1.6rem 0 0.4rem; }
+.lead { font-size: 1.08rem; }
+.meta, .muted { color: var(--muted); font-size: 0.92rem; }
+.note { background: var(--note); border: 1px solid var(--rule); border-radius: 6px; padding: 0.6rem 0.9rem; }
+.wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 1rem 0; }
+table { border-collapse: collapse; font-size: 0.92rem; }
+th, td { border: 1px solid var(--rule); padding: 0.45rem 0.55rem; text-align: left; vertical-align: top; }
+thead th { background: var(--head); }
+tbody th { background: var(--head); font-weight: 600; }
+code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 0.88em; overflow-wrap: anywhere; }
+pre { background: var(--head); border: 1px solid var(--rule); border-radius: 6px; padding: 0.7rem; overflow-x: auto; font-size: 0.85rem; }
+pre code { overflow-wrap: normal; }
+figure { margin: 1.2rem 0; }
+figure img { max-width: 100%; height: auto; border: 1px solid var(--rule); }
+figcaption { color: var(--muted); font-size: 0.9rem; }
+li { margin: 0.25rem 0; }
+footer { border-top: 1px solid var(--rule); margin-top: 3rem; padding-top: 1rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>Windows-MCP in the background: run it in Anode's hidden Windows session</h1>
+
+<p class="lead"><strong>Tested on 22 October 2026: we started Windows-MCP 0.8.8 inside Anode's hidden Windows
+session (the <em>seat</em>), and all 13 of its tool calls returned without an error (7 from a script, 6 from Claude
+Code), with no <code>USER_CONTROL</code> pause from its control gate, while the pointer on the PC's own desktop,
+sampled every 50 ms for 240 s, never moved and its foreground window never changed.</strong> Nobody used the PC during
+the run, so it shows that the agent's clicks and typing stayed in the seat, not yet that the gate ignores you while
+you work: we expect it to, because Windows' global input hooks see only their own desktop
+(<a href="https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowshookexw">Microsoft's
+SetWindowsHookEx docs</a>), but we haven't measured it. Anode needs Windows 10/11 Pro, Enterprise or Education. Method,
+data and the setup steps are below.</p>
+
+<p class="note"><strong>We make Anode.</strong> Windows-MCP is CursorTouch's project (MIT); we don't maintain it, and
+this page isn't affiliated with it. Our numbers come from one run that you can repeat with the scripts listed under
+<a href="#method">Method</a>; everything about Windows-MCP's own behaviour links to its README, issues or source. If we
+got something wrong, <a href="https://github.com/skulitom/Anode/issues/new">open an issue</a> and we will correct
+it.</p>
+
+<p class="meta">Last checked: 22 October 2026 · Windows-MCP 0.8.8, the latest release on PyPI and GitHub (its
+<code>main</code> at <code>0ffef41</code> has unreleased gate changes) · Anode 0.11.3 · Next check by 21 November 2026,
+or sooner when Windows-MCP releases.</p>
+
+<h2 id="short-answer">The short answer</h2>
+<ul>
+<li><strong>To let it work while you keep using the PC, on today's 0.8.8:</strong> start Windows-MCP inside Anode's seat,
+a second Windows session for your account with its own screen, pointer and keyboard focus. In our run the agent's
+clicks and typing stayed in the seat. Your own input stays in your session, so the gate should have nothing to react
+to; we haven't yet measured that with someone at the PC. The steps are <a href="#setup">below</a>.</li>
+<li><strong>If you are on Windows Home:</strong> this doesn't work. Anode needs Windows 10/11 Pro, Enterprise or
+Education.</li>
+<li><strong>If you want to watch the agent work on your own desktop:</strong> plain Windows-MCP with the gate on. There,
+the gate is what lets you take over.</li>
+<li><strong>If you just want the gate off:</strong> Windows-MCP's <code>main</code> branch has an opt-out
+(<code>--no-control</code>, <a href="https://github.com/CursorTouch/Windows-MCP/pull/458">#458</a>) and gate policies
+(<a href="https://github.com/CursorTouch/Windows-MCP/pull/466">#466</a>). You can install it from GitHub today, but no
+release has them yet; <a href="https://github.com/CursorTouch/Windows-MCP/issues/475">#475</a> asks for one. With the
+gate off, you and the agent share one pointer again. See <a href="#other-options">when to use something
+else</a>.</li>
+<li><strong>If you need a security boundary:</strong> neither. Use a virtual machine or Windows Sandbox, as Windows-MCP's
+<a href="https://github.com/CursorTouch/Windows-MCP/blob/v0.8.8/SECURITY.md">SECURITY.md</a> suggests. The seat runs as
+your user, with your files and network.</li>
+<li><strong>If you mean Windows-MCP's own background task</strong> (<code>windows-mcp install</code>, which its README
+offers to start it at every sign-in): that still runs in your own session, where the gate sees your input. This page is
+about running it where your input doesn't reach it.</li>
+</ul>
+
+<h2 id="why">Why Windows-MCP pauses when you touch your mouse</h2>
+<p>Windows-MCP 0.8.8 (10 October 2026) added a control gate
+(<a href="https://github.com/CursorTouch/Windows-MCP/pull/445">#445</a>). While the agent holds control, during each
+call and for 15 seconds after it, the gate holds back your physical keyboard and mouse input, and only moving the mouse
+substantially or pressing <code>Ctrl+Alt+Shift+Backspace</code> takes control back (except in the moment it hides its
+indicator to take a screenshot, when any physical input does). Once the agent has been idle for 15
+seconds, any physical key press, click or mouse movement on its desktop hands control to you. Either way, new tool
+calls are then refused with the <code>USER_CONTROL</code> code until your mouse and keyboard have been idle for 10
+seconds (<a href="https://github.com/CursorTouch/Windows-MCP/blob/v0.8.8/src/windows_mcp/desktop/control.py">control.py
+at v0.8.8</a>; the <code>ControlStatus</code> entry in its
+<a href="https://github.com/CursorTouch/Windows-MCP/blob/v0.8.8/README.md">README at v0.8.8</a>;
+<a href="https://github.com/CursorTouch/Windows-MCP/issues/457">#457</a>). In 0.8.8 the gate holds back every tool
+except <code>ControlStatus</code>, including ones that don't drive the desktop, such as <code>Clipboard</code>,
+<code>WaitFor</code> and <code>DisplayInventory</code>
+(<a href="https://github.com/CursorTouch/Windows-MCP/issues/456">#456</a>; the README on <code>main</code> describes its
+new <code>strict</code> policy as the previous behaviour). And it can't be turned off: as #475 reports, 0.8.8 has no
+<code>--no-control</code> option and silently ignores the <code>[control]</code> settings that the README on
+<code>main</code> documents. The reporter of #457 uses the same PC while the agent runs long jobs, and found the agent
+blocked most of the time after updating.</p>
+
+<h2 id="measured">What we measured</h2>
+<p>Windows-MCP 0.8.8 from PyPI on Python 3.14.7, telemetry off, served over streamable HTTP on 127.0.0.1:8765 and
+started inside the seat of Anode 0.11.3 (Windows 11 Pro, build 26200; seat 1280x720). A sampler on the PC's own desktop
+read the pointer position, the foreground window and the input idle time every 50 ms for 240 s, which covered both
+client runs.</p>
+<div class="wrap">
+<table>
+<thead><tr><th>Check</th><th>Result</th></tr></thead>
+<tbody>
+<tr><th>Session of the process listening on port 8765</th><td>The seat's (session 3), not the PC's own (session 1)</td></tr>
+<tr><th>Tool calls: script (fastmcp client)</th><td>7 of 7 returned without an error: ControlStatus, App (start the test window), Snapshot, Type, Screenshot, Snapshot, ControlStatus</td></tr>
+<tr><th>Tool calls: Claude Code 2.1.302 (Sonnet, <code>claude-sonnet-5-5</code>)</th><td>6 of 6 returned without an error: ControlStatus, App (switch), Snapshot, Type, Screenshot, ControlStatus. Five Windows-MCP tools were pre-approved (not Click), and it used Claude Code's ToolSearch once to load them. Its Type line landed in the middle of the existing text (see <a href="#limits">the limits</a>).</td></tr>
+<tr><th><code>USER_CONTROL</code> or <code>TAKEOVER_PENDING</code></th><td>In no tool result and not in the server log</td></tr>
+<tr><th><code>ControlStatus</code></th><td><code>ready</code> before, <code>ai</code> after: the agent held control at the end</td></tr>
+<tr><th>The PC's own pointer, 4,762 samples over 240 s</th><td>1 position: it never moved</td></tr>
+<tr><th>The PC's own foreground window</th><td>0 changes</td></tr>
+<tr><th>The PC's own input idle time</th><td>Over 9 hours throughout: nobody used the PC</td></tr>
+<tr><th>Anode's pointer guard</th><td>Its count stayed at 8 before and after: nothing to block</td></tr>
+<tr><th>Text typed by the script's <code>Type</code></th><td>Arrived in the test window inside the seat (screenshot below)</td></tr>
+<tr><th>Call times (script run)</th><td>ControlStatus 0.01–0.5 s, App 0.1 s, Type 1.4 s, Screenshot 0.4 s, Snapshot 16–26 s</td></tr>
+</tbody>
+</table>
+</div>
+<figure>
+<img src="data/test-pad-after-type.png" width="624" height="392" alt="A plain test window titled C-074 test pad, containing the line: Typed by Windows-MCP inside an Anode seat.">
+<figcaption>The throwaway test window inside the seat after the script's <code>Type</code> call, from the seat's own
+screen, cropped to the window.</figcaption>
+</figure>
+<p class="muted">Data: <a href="data/script-run-summary.json">script run</a>,
+<a href="data/agent-run-summary.json">Claude Code run</a>,
+<a href="data/parent-desktop-summary.json">the PC's own desktop</a> (the sampler kept window title lengths, not titles),
+<a href="data/run-notes.txt">session and pointer-guard checks</a>,
+<a href="data/typed.txt">the test window's text</a>,
+<a href="data/requirements.lock.txt">exact package versions</a>.</p>
+
+<h2 id="setup">Set it up</h2>
+<p>These are the steps from Anode's guide,
+<a href="https://github.com/skulitom/Anode/blob/main/docs/WINDOWS-MCP.md">Keep working while Windows-MCP clicks</a>,
+which is kept up to date. Our run used the same server command apart from the flags noted in step 2; the other
+differences are listed under <a href="#method">Method</a>. You need Anode <a href="https://github.com/skulitom/Anode/blob/main/docs/INSTALL.md">installed
+and set up</a> and <a href="https://docs.astral.sh/uv/">uv</a>. Windows-MCP 0.8.8 needs Python 3.14 or later (PyPI's
+requirement; its README still says 3.13+).</p>
+
+<h3>1. Install Windows-MCP in a folder of its own</h3>
+<pre><code>uv venv --python 3.14 C:\tools\windows-mcp
+uv pip install --python C:\tools\windows-mcp\Scripts\python.exe windows-mcp==0.8.8
+New-Item -ItemType File C:\tools\windows-mcp\config.toml   # an empty config of its own</code></pre>
+<p>If uv picks a free-threaded build (<code>3.14t</code>), pywin32 won't install. Name a regular build instead, for
+example <code>--python cpython-3.14.7-windows-x86_64-none</code>.</p>
+
+<h3>2. Save a start script</h3>
+<p>Save this as <code>C:\tools\windows-mcp\start-windows-mcp.cmd</code>. It listens on 127.0.0.1 only, turns off
+Windows-MCP's anonymous telemetry, enables the same six tools as our run (it called five of them; Click wasn't needed),
+and writes a log next to it.</p>
+<pre><code>@echo off
+set ANONYMIZED_TELEMETRY=false
+"%~dp0Scripts\windows-mcp.exe" serve --config "%~dp0config.toml" --transport streamable-http --host 127.0.0.1 --port 8765 --tools ControlStatus,App,Type,Click,Screenshot,Snapshot &gt;&gt; "%~dp0server.log" 2&gt;&amp;1</code></pre>
+<p><code>--config</code> points at the empty file from step 1, so a <code>~/.windows-mcp/config.toml</code> left from an
+earlier setup (an auth key or TLS) can't break the plain <code>http://</code> client config below. A
+<code>WINDOWS_MCP_AUTH_KEY</code> environment variable still would, and the seat has your user's environment. Our run's
+script had no <code>--config</code> and added <code>--debug</code> (<a href="data/run-windows-mcp.cmd">as run</a>);
+<code>--config</code> is documented in Windows-MCP's 0.8.8 README, not run by us. Any program on your PC can reach the
+port, and Windows-MCP's other tools include a PowerShell runner, so enable only the tools you need; its
+<code>--auth-key</code> adds a bearer-token check.</p>
+
+<h3>3. Start it in the seat</h3>
+<p><code>anode run</code> starts a program inside the seat. Like every desktop command, it needs the desktop lease, which
+you release straight after. If you sign in to Windows with a PIN or Windows Hello, a new seat may stop at sign-in:
+choose <strong>Sign in…</strong> from the Anode tray icon (<a href="https://github.com/skulitom/Anode/blob/main/docs/TROUBLESHOOTING.md#it-asks-for-a-password-every-time">troubleshooting</a>).</p>
+<pre><code>$env:ANODE_AGENT_ID = 'windows-mcp-start'
+$lease = anode lease acquire | Out-String | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0) { throw 'Desktop acquisition failed.' }
+$env:ANODE_LEASE_TOKEN = $lease.leaseToken
+anode run C:\tools\windows-mcp\start-windows-mcp.cmd | Out-Host
+anode lease release | Out-Host</code></pre>
+<p>Give it about 15 seconds to start listening (ours took 14), then check that the server runs in the seat's session,
+which <code>anode status</code> prints as <code>seat session</code>, not in yours:</p>
+<pre><code>Get-NetTCPConnection -LocalPort 8765 -State Listen |
+  ForEach-Object { Get-Process -Id $_.OwningProcess } | Select-Object Id, ProcessName, SessionId</code></pre>
+
+<h3>4. Point your MCP client at it</h3>
+<p>For Claude Code, add this to the project's <code>.mcp.json</code> (the <a href="data/mcp-config.json">config we
+used</a>), or run <code>claude mcp add --transport http windows-mcp http://127.0.0.1:8765/mcp</code>. Other clients that
+speak streamable HTTP use the same URL.</p>
+<pre><code>{
+  "mcpServers": {
+    "windows-mcp": { "type": "http", "url": "http://127.0.0.1:8765/mcp" }
+  }
+}</code></pre>
+
+<h3>5. Stop it when you're done</h3>
+<p>End the process that holds the port. This works across sessions:</p>
+<pre><code>Get-NetTCPConnection -LocalPort 8765 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess }</code></pre>
+<p>Don't run <code>windows-mcp install</code> for this: its sign-in task would also start Windows-MCP in your own
+session, where it competes for the port and your pointer.</p>
+
+<h2 id="limits">What this does and doesn't show</h2>
+<ul>
+<li><strong>Nobody used the PC during the run</strong> (no input for over 9 hours), so the gate had no physical input to
+react to anywhere, and this run doesn't show that your own input leaves the gate in the seat alone. We expect it to:
+the gate's low-level hooks see only their own desktop (Microsoft's docs), and the seat is a separate session with its
+own desktop and input queue
+(<a href="https://github.com/skulitom/Anode/blob/main/docs/ARCHITECTURE.md">Anode's architecture</a>), so your physical
+input shouldn't reach the gate's hooks or its raw-input listener either. We haven't measured it while someone
+works. The sampler flags pointer moves made while the PC's own input is idle; moves during
+your own input can't be told apart that way, so that run needs idle gaps or a second check.</li>
+<li><strong>The seat removes your input as a trigger, not every trigger.</strong> In 0.8.8 the gate can also report
+<code>USER_CONTROL</code>, or stay at <code>CONTROL_UNAVAILABLE</code>, when its on-screen indicator stalls for more
+than a second, with nobody touching anything
+(<a href="https://github.com/CursorTouch/Windows-MCP/issues/465">#465</a>, open;
+<a href="https://github.com/CursorTouch/Windows-MCP/issues/478">#478</a> is a related open report). That happens inside
+Windows-MCP, so it can happen in the seat too; restart the server if it sticks. Our run didn't hit it.</li>
+<li><strong>Taking control yourself:</strong> if you press <strong>Take control</strong> in Anode's viewer, your input
+does reach the seat, and the gate should then pause the agent as it would on your own desktop. Not tested.</li>
+<li><strong>Where your pointer was:</strong> away from Anode's hidden viewer. If it rests over the viewer's rectangle,
+Anode's pointer guard stops seat programs from moving it
+(<a href="https://github.com/skulitom/Anode/blob/main/docs/ARCHITECTURE.md#design-decisions-worth-defending">architecture</a>);
+in this run its count didn't change.</li>
+<li><strong>The seat is a desktop of your own account, not an empty sandbox.</strong> Programs that start when you sign
+in also open there; two of ours did, and we minimized them for the run and restored them after. Windows-MCP's
+Screenshot and Snapshot see the whole seat, so close or minimize what you don't want captured.</li>
+<li><strong>Your clipboard:</strong> Windows-MCP 0.8.8 types text of 20 or more characters by pasting it through the
+clipboard (<a href="https://github.com/CursorTouch/Windows-MCP/blob/v0.8.8/src/windows_mcp/desktop/service.py">service.py
+at v0.8.8</a>), as both of our lines were. Anode keeps the seat's clipboard separate by default; if you start the seat
+with <code>--clipboard</code>, the agent's typed text passes through your own clipboard
+(<a href="https://github.com/skulitom/Anode/blob/main/docs/SECURITY.md">Anode's SECURITY.md</a>). From the source and
+docs, not tested.</li>
+<li><strong>Snapshot took 16–26 s.</strong> The slower call included four failed attempts on one window that UI
+Automation could no longer read (<code>UIA_E_ELEMENTNOTAVAILABLE</code>). We didn't time it outside the seat; #475's reporter measured
+25–35 s on 0.8.8 and about 2 s on <code>main</code>, on their own busy desktop.</li>
+<li><strong>Claude Code's <code>clear: true</code> didn't empty the test window:</strong> its line went into the middle of
+the script's (<a href="data/typed.txt">the window's text</a>), and the agent said so in its own report. Windows-MCP's
+clear presses Ctrl+A, then Backspace (service.py at v0.8.8); the test window is a plain WinForms text box that ignores
+Ctrl+A, so Backspace removed only one character. That is about the test window, not the gate. We used it instead of
+Notepad because Windows 11 Notepad keeps its tabs per user, so a Notepad in the seat can open the tabs you left unsaved
+in your own session.</li>
+<li><strong>Windows-MCP doesn't take Anode's lease.</strong> If other agents use Anode's own tools at the same time, both
+act in the seat. Don't run both at once.</li>
+</ul>
+
+<h2 id="other-options">When to use something else</h2>
+
+<h3>Windows-MCP on your own desktop, gate on</h3>
+<p>When you want to see every click as it happens, take over with your mouse, or you're on Windows Home, this is the
+simpler setup: one tool, no second session, and the gate exists for exactly this.</p>
+
+<h3>Windows-MCP's main branch (unreleased)</h3>
+<p>Its <code>main</code> README, read at <code>0ffef41</code> on 22 October 2026, documents three gate policies. The
+default, <code>relaxed</code>, gates only direct input (Click, Type, Scroll, Move, Shortcut, MultiSelect, MultiEdit,
+and App switch and resize), so Snapshot, Screenshot, FileSystem, Registry and PowerShell can run while you use the
+computer. <code>--no-control</code> turns the gate off, and the README warns that the agent's desktop actions can then
+interfere with your own input. No release has these yet. You can try them now by installing <code>main</code> from
+GitHub, as #475's reporter did, at the cost of running unreleased code; they report that the opt-out works there
+(<code>ControlStatus</code> shows the gate disabled, on <code>main</code> as of 16 October). From its README and
+#475, not run by us. <strong>Choose it</strong>
+if your agent mostly runs commands, files and screenshots, as in #457: then the relaxed policy may be all you need.
+Clicks and typing still wait until you've been idle.</p>
+
+<h3>Windows-MCP 0.8.7</h3>
+<p>The reporter of #457 suggests pinning <code>windows-mcp==0.8.7</code> (30 September 2026), the release before the gate
+(<a href="https://github.com/CursorTouch/Windows-MCP/pull/445">#445</a> shipped in 0.8.8). The agent then runs while you
+work, on the same pointer and keyboard focus as you, and you give up 0.8.8's other changes: fixes for six input bugs
+reported against 0.8.7, among them clicks that could land at the current cursor position instead of the requested
+point (<a href="https://github.com/CursorTouch/Windows-MCP/issues/441">#441</a>) and Click or Type reporting success for a point off the screen
+(<a href="https://github.com/CursorTouch/Windows-MCP/issues/439">#439</a>), in
+<a href="https://github.com/CursorTouch/Windows-MCP/commit/1fea2e5a1f9516e31736c433af5cddf4e22652ab">commit 1fea2e5</a>, which the release notes don't list;
+its UI Automation threading fixes (<a href="https://github.com/CursorTouch/Windows-MCP/pull/449">#449</a>, <a href="https://github.com/CursorTouch/Windows-MCP/pull/451">#451</a>); and a way to keep
+processes out of Snapshot's UI Automation walk (<a href="https://github.com/CursorTouch/Windows-MCP/pull/450">#450</a>). 0.8.8's cursor-tracking and
+input-latency fixes (<a href="https://github.com/CursorTouch/Windows-MCP/pull/447">#447</a>, <a href="https://github.com/CursorTouch/Windows-MCP/pull/448">#448</a>) repaired code the gate added, so
+0.8.7 never had those bugs. From #457, the pull requests, commit 1fea2e5 and the
+<a href="https://github.com/CursorTouch/Windows-MCP/releases/tag/v0.8.8">0.8.8 release notes</a>, not run by us.</p>
+
+<h3>A virtual machine or Windows Sandbox</h3>
+<p>When the agent's work must not reach your files, accounts or network, run Windows-MCP in a virtual machine or
+Windows Sandbox, as its SECURITY.md suggests. Anode's seat is desktop isolation only: it runs as you
+(<a href="https://github.com/skulitom/Anode/blob/main/docs/SECURITY.md#what-the-seat-is-not-isolated-from">what the
+seat is not isolated from</a>).</p>
+
+<h3>Anode's own MCP server, without Windows-MCP</h3>
+<p>Anode's server does the same jobs in the seat (windows, accessible controls, screenshots, clicks and typing) with
+the lease built in, so you run one tool instead of two. Choose Windows-MCP in the seat when you already use its tools,
+prompts or clients, or want its PowerShell, Registry and FileSystem tools. Both are compared in
+<a href="../windows-desktop-automation-for-ai-agents/">Windows desktop automation for AI agents</a>.</p>
+
+<h3>WindowsPC-MCP</h3>
+<p><a href="https://github.com/ShikeChen01/WindowsPC-MCP">ShikeChen01/WindowsPC-MCP</a> came up in these searches. It is
+a different MCP server, not a way to run Windows-MCP: its README says it gives the agent its own virtual display
+through the Parsec Virtual Display Driver (installed on first run, with one administrator prompt), keeps the agent's
+clicks and typing to that display, and lists Windows 10 or 11 and Python 3.12 or later. MIT, 1 GitHub star, last
+commit 27 May 2026. From its README, not run by us.</p>
+
+<h2 id="anode-limits">Anode's limits</h2>
+<ul>
+<li>Windows 10/11 <strong>Pro, Enterprise or Education</strong>, or Windows Server, on x64. Not Home.</li>
+<li><code>anode setup</code> needs one administrator prompt; it turns on the Remote Desktop host (without a firewall
+rule) and child sessions
+(<a href="https://github.com/skulitom/Anode/blob/main/docs/SECURITY.md#what-anode-setup-changes">what it changes</a>).</li>
+<li>With a PIN or Windows Hello sign-in, each new seat needs your <strong>Sign in…</strong> from the tray.</li>
+<li>One seat per Windows session. Builds are unsigned, so SmartScreen may warn. Anode is young: 3 GitHub stars.</li>
+</ul>
+
+<h2 id="method">Method</h2>
+<ul>
+<li><strong>The searches this page answers</strong>, run on 22 October 2026: "Windows-MCP in the background",
+"Windows-MCP USER_CONTROL agent pauses when I move the mouse", "run Windows-MCP without taking over my mouse and
+keyboard", "Windows-MCP control gate disable 0.8.8" and "AI agent use Windows desktop in the background while I keep
+working MCP". Listings, mirrors and CVE pages ranked. None of the search summaries found the gate's issues or a
+Windows-MCP setting for it; one suggested a different server (WindowsPC-MCP) or a virtual machine. None of the results
+was ours (<a href="data/searches-2026-10-22.txt">results</a>).</li>
+<li><strong>The run</strong>, 22 October 2026, 09:13 to 09:22 London time: the seat was signed in, no other agent held
+it, no game ran in it, and the two startup apps open there were minimized for the run. Windows-MCP was started in the
+seat through Anode's MCP server (<code>seat_run</code>, the same path as <code>anode run</code>) with
+<a href="data/run-windows-mcp.cmd">this script</a>. On the PC's own desktop,
+<code>python -I parent_watch.py --seconds 240 --out parent.csv</code>
+(<a href="data/parent_watch.py">parent_watch.py</a>) sampled through both clients. Then
+<code>python spike_client.py http://127.0.0.1:8765/mcp</code> (<a href="data/spike_client.py">spike_client.py</a>) made
+its 7 calls, and Claude Code 2.1.302 ran <a href="data/agent-prompt.txt">this prompt</a> on Sonnet
+(<code>claude-sonnet-5-5</code>) with the equivalent of <code>Get-Content agent-prompt.txt -Raw | claude -p --model
+claude-sonnet-5-5 --max-turns 14 --mcp-config mcp-config.json --strict-mcp-config --allowedTools
+mcp__windows-mcp__ControlStatus,mcp__windows-mcp__App,mcp__windows-mcp__Snapshot,mcp__windows-mcp__Type,mcp__windows-mcp__Screenshot
+--output-format stream-json --verbose</code>. The test window is <a href="data/testpad.ps1">testpad.ps1</a>. Comments in
+the published scripts were edited to remove our internal names; the code is as run.</li>
+<li><strong>Not done:</strong> a run with someone using the PC; the setup steps exactly as printed (our run used a scratch
+folder instead of <code>C:\tools\windows-mcp</code>, had no <code>--config</code>, was started through Anode's MCP
+server rather than step 3's CLI lines, and was stopped with <code>Stop-Process</code> on a process id we looked up rather than step 5's port pipeline); and any run of Windows-MCP's unreleased
+<code>main</code> or of WindowsPC-MCP.</li>
+</ul>
+
+<h2 id="sources">Sources</h2>
+<p class="muted">Read on 22 October 2026.</p>
+<ul>
+<li>Windows-MCP 0.8.8 (<a href="https://pypi.org/project/windows-mcp/0.8.8/">PyPI</a>, Python 3.14 or later, MIT; 9,969
+GitHub stars): <a href="https://github.com/CursorTouch/Windows-MCP/blob/v0.8.8/README.md">README at v0.8.8</a>
+(ControlStatus, <code>--tools</code>, <code>--config</code>, <code>WINDOWS_MCP_AUTH_KEY</code>, telemetry, the background
+task), <a href="https://github.com/CursorTouch/Windows-MCP/blob/v0.8.8/SECURITY.md">SECURITY.md</a>,
+<a href="https://github.com/CursorTouch/Windows-MCP/blob/v0.8.8/src/windows_mcp/desktop/control.py">desktop/control.py</a>
+(when the gate hands control to the user, and the <code>USER_CONTROL</code> code),
+<a href="https://github.com/CursorTouch/Windows-MCP/blob/v0.8.8/src/windows_mcp/desktop/service.py">desktop/service.py</a>
+(Type's clear and clipboard paste),
+<a href="https://github.com/CursorTouch/Windows-MCP/releases/tag/v0.8.8">release notes</a>.</li>
+<li>Windows-MCP <code>main</code> at <code>0ffef41</code>:
+<a href="https://github.com/CursorTouch/Windows-MCP/blob/0ffef4165dc46435cd9cf2d55eb9a6761b79f363/README.md">README</a>
+(Desktop control, Desktop gate policies),
+<a href="https://github.com/CursorTouch/Windows-MCP/blob/0ffef4165dc46435cd9cf2d55eb9a6761b79f363/src/windows_mcp/tools/control_policy.py">tools/control_policy.py</a>
+(which tools each policy gates).</li>
+<li>Windows-MCP issues and pull requests:
+<a href="https://github.com/CursorTouch/Windows-MCP/issues/439">#439</a> and <a href="https://github.com/CursorTouch/Windows-MCP/issues/441">#441</a> (fixed in
+<a href="https://github.com/CursorTouch/Windows-MCP/commit/1fea2e5a1f9516e31736c433af5cddf4e22652ab">1fea2e5</a>),
+<a href="https://github.com/CursorTouch/Windows-MCP/pull/445">#445</a> (the gate, in 0.8.8),
+<a href="https://github.com/CursorTouch/Windows-MCP/pull/447">#447</a>, <a href="https://github.com/CursorTouch/Windows-MCP/pull/448">#448</a>, <a href="https://github.com/CursorTouch/Windows-MCP/pull/449">#449</a>,
+<a href="https://github.com/CursorTouch/Windows-MCP/pull/450">#450</a> and <a href="https://github.com/CursorTouch/Windows-MCP/pull/451">#451</a> (in 0.8.8),
+<a href="https://github.com/CursorTouch/Windows-MCP/issues/456">#456</a> (closed),
+<a href="https://github.com/CursorTouch/Windows-MCP/issues/457">#457</a> (closed),
+<a href="https://github.com/CursorTouch/Windows-MCP/pull/458">#458</a> (merged 12 October),
+<a href="https://github.com/CursorTouch/Windows-MCP/issues/464">#464</a> (closed, a duplicate of #465),
+<a href="https://github.com/CursorTouch/Windows-MCP/issues/465">#465</a> (open),
+<a href="https://github.com/CursorTouch/Windows-MCP/pull/466">#466</a> (merged 16 October),
+<a href="https://github.com/CursorTouch/Windows-MCP/issues/474">#474</a> (closed),
+<a href="https://github.com/CursorTouch/Windows-MCP/issues/475">#475</a> (open),
+<a href="https://github.com/CursorTouch/Windows-MCP/issues/478">#478</a> (open).</li>
+<li>Microsoft: <a href="https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowshookexw">SetWindowsHookExW</a>
+(global hooks and the caller's desktop).</li>
+<li>WindowsPC-MCP at <code>28ba4e0</code>:
+<a href="https://github.com/ShikeChen01/WindowsPC-MCP/blob/28ba4e087a887708ff5be171e20c24ba2b0d6d40/README.md">README</a>.</li>
+<li>Anode at <code>bcaa8e4</code>:
+<a href="https://github.com/skulitom/Anode/blob/bcaa8e4/docs/WINDOWS-MCP.md">WINDOWS-MCP.md</a> (the guide this page
+follows), <a href="https://github.com/skulitom/Anode/blob/bcaa8e4/docs/ARCHITECTURE.md">ARCHITECTURE.md</a>,
+<a href="https://github.com/skulitom/Anode/blob/bcaa8e4/docs/SECURITY.md">SECURITY.md</a>.</li>
+</ul>
+
+<footer class="muted">
+<p>Last checked 22 October 2026. A plain static page: no scripts, trackers or cookies.
+<a href="https://skulitom.github.io/Anode/">Anode</a> ·
+<a href="https://skulitom.github.io/Anode/compare/">All comparisons</a> ·
+<a href="https://github.com/skulitom/Anode">GitHub</a> ·
+<a href="https://github.com/skulitom/Anode/issues/new">Report a mistake</a></p>
+</footer>
+</main>
+</body>
+</html>
