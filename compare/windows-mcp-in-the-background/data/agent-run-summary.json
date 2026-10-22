@@ -1,5 +1,5 @@
 {
- "client": "Claude Code 2.1.302, claude -p --mcp-config mcp-config.json --strict-mcp-config, model claude-sonnet-5-5",
+ "client": "Claude Code 2.1.302: claude -p --model sonnet --max-turns 14 --mcp-config mcp-config.json --strict-mcp-config --allowedTools <the five allowed_tools below> --output-format stream-json --verbose, with agent-prompt.txt as the prompt; model claude-sonnet-5-5",
  "allowed_tools": [
   "mcp__windows-mcp__ControlStatus",
   "mcp__windows-mcp__App",
@@ -53,6 +53,7 @@
  "gate_words_seen": [],
  "duration_ms": 48306,
  "num_turns": 8,
- "result": "success",
- "note": "Extracted from the run's stream-json output (25 events); the raw stream holds local paths and session ids, so it is not published. The client also made one ToolSearch call to load the tools."
+ "result": "success (the CLI's run status)",
+ "note": "Extracted from the run's stream-json output (25 events); the raw stream holds local paths and session ids, so it is not published. The client also made one ToolSearch call to load the tools.",
+ "agent_verdict": "Every call returned without an error, but the agent reported that its Type text landed mid-line in the test window: clear did not empty it (the test window ignores Ctrl+A)."
 }
