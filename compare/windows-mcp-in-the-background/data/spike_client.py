@@ -1,4 +1,4 @@
-"""Spike client: drive Windows-MCP (running inside the Anode seat) through six tool calls over streamable HTTP.
+"""Spike client: drive Windows-MCP (running inside the Anode seat) through seven tool calls over streamable HTTP.
 
 ControlStatus -> App (launch_executable: the throwaway test pad) -> Snapshot -> Type -> Screenshot -> Snapshot ->
 ControlStatus. Saves every raw result under run/ and prints a JSON summary, including whether any result mentions

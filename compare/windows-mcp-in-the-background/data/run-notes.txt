@@ -1,0 +1,15 @@
+Run notes, 22 October 2026, 09:13 to 09:22 London time
+
+These two checks were read during the run and written down in its notes; no raw output file was kept for them.
+
+1. The process listening on 127.0.0.1:8765 was a python process in session 3, the seat. The PC's own session is 1
+   (the sampler's own session id is in parent-desktop-summary.json). The check:
+     Get-NetTCPConnection -LocalPort 8765 -State Listen |
+       ForEach-Object { Get-Process -Id $_.OwningProcess } | Select-Object Id, ProcessName, SessionId
+
+2. Anode's pointer guard: the "your pointer" line of `anode status` counted 8 blocked moves before the run and 8
+   after it, so the guard blocked nothing during the run. The PC's pointer rested away from the hidden viewer's
+   rectangle the whole time (one position in all 4,762 samples).
+
+Server start: the wrapper's log file was created at 09:15:39 and the server was listening by 09:15:53 (about 14 s).
+Sampler: 240 s from about 09:16, covering the script client's run and then Claude Code's (about 48 s).
