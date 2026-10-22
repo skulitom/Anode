@@ -31,6 +31,10 @@ sampler read the parent desktop every 50 ms through both client runs.
   its own injected input. Those hooks see only their own session, and nobody types in the seat. If you press
   **Take control** in Anode's viewer, your input does reach the seat, and the gate should then pause the agent as it
   would on your own desktop (not tested).
+- **The seat removes your input as a trigger, not every trigger.** In 0.8.8 the gate can also report `USER_CONTROL`,
+  or get stuck at `CONTROL_UNAVAILABLE`, when its on-screen indicator stalls for more than a second, with nobody
+  touching anything ([Windows-MCP #465](https://github.com/CursorTouch/Windows-MCP/issues/465), open). That happens
+  inside Windows-MCP, so it can happen in the seat too. Restart the server if it sticks. Our run didn't hit it.
 - **Nobody used the PC during the run.** The sampler separates your own moves from anything else. We haven't yet
   repeated the run with someone working at the same time.
 - **Where your pointer was:** it was away from the hidden viewer's rectangle. If it rests there, Anode's pointer
@@ -47,6 +51,7 @@ You need Anode [installed and set up](INSTALL.md) (Windows 10/11 Pro, Enterprise
 ```powershell
 uv venv --python 3.14 C:\tools\windows-mcp
 uv pip install --python C:\tools\windows-mcp\Scripts\python.exe windows-mcp==0.8.8
+New-Item -ItemType File C:\tools\windows-mcp\config.toml   # an empty config of its own
 ```
 
 If uv picks a free-threaded build (`3.14t`), pywin32 won't install. Name a regular build instead, for example
@@ -58,8 +63,11 @@ Windows-MCP's anonymous telemetry, enables the same six tools as our run, and wr
 ```bat
 @echo off
 set ANONYMIZED_TELEMETRY=false
-"%~dp0Scripts\windows-mcp.exe" serve --transport streamable-http --host 127.0.0.1 --port 8765 --tools ControlStatus,App,Type,Click,Screenshot,Snapshot >> "%~dp0server.log" 2>&1
+"%~dp0Scripts\windows-mcp.exe" serve --config "%~dp0config.toml" --transport streamable-http --host 127.0.0.1 --port 8765 --tools ControlStatus,App,Type,Click,Screenshot,Snapshot >> "%~dp0server.log" 2>&1
 ```
+
+`--config` points at the empty file from step 1. Without it, `serve` also reads `~/.windows-mcp/config.toml` from any
+earlier Windows-MCP setup, and an auth key or TLS setting there would break the plain `http://` client config below.
 
 Any program on your PC can reach that port, and Windows-MCP's other tools include a PowerShell runner. So add only
 the tools you need. Windows-MCP's `--auth-key` adds a bearer-token check; your client then sends the same token.
