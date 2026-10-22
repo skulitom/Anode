@@ -28,6 +28,10 @@ cut, and the nine clicks, which took 0.4 s, are shown four times slower.</sub>
 - **Compared with** Windows-MCP, Desktop Touch MCP, windows-computer-use-mcp and Terminator, on whether the agent moves
   your real pointer, with Anode's measured results: [Windows desktop automation for AI agents, compared](https://skulitom.github.io/Anode/compare/windows-desktop-automation-for-ai-agents/)
   (checked 16 October 2026).
+- **Using Windows-MCP?** Since 0.8.8, its control gate pauses the agent while you use your own mouse or keyboard. Run
+  it inside the seat, so your input stays in your own session: [Windows-MCP in the background](https://skulitom.github.io/Anode/compare/windows-mcp-in-the-background/)
+  (tested 22 October 2026 with nobody at the PC: 13 tool calls, no pause, the PC's pointer never moved; not yet
+  measured while someone works).
 
 ## Install in 3 commands
 
@@ -222,7 +226,7 @@ flowchart LR
 | Share the desktop between agents | [Multiple agents and leases](docs/MULTI-AGENT.md) |
 | Help an agent discover and choose Anode | [Agent guide](docs/FOR-AGENTS.md) |
 | Decide whether Anode fits, or another tool does | [When to use which](docs/COMPARISON.md): Windows-MCP, Cua Driver, Desktop Commander, Windows 365 for Agents |
-| Keep using your PC while Windows-MCP clicks | [Run Windows-MCP in the seat](docs/WINDOWS-MCP.md): its control gate sees only the seat's input, and your pointer stays yours (measured with nobody at the PC) |
+| Keep using your PC while Windows-MCP clicks | [Run Windows-MCP in the seat](docs/WINDOWS-MCP.md): the agent's clicks and typing stay in the seat, and the gate should stay quiet (measured with nobody at the PC) |
 | Follow a worked example | [Test a desktop app with Claude Code](docs/GUIDE-DESKTOP-APP.md), [fill in a web form](docs/GUIDE-WEB-FORM.md), [check an Android app](docs/GUIDE-ANDROID.md) |
 | Run apps, control the viewer or use a gamepad | [Usage guide](docs/USAGE.md) |
 | Look up a CLI command or option | [Command reference](docs/USAGE.md#command-reference) |
