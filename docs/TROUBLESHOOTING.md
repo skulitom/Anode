@@ -630,6 +630,24 @@ By design. Closing the window hides it to the tray so an agent's work survives y
 desktop. Use **Stop seat** or `anode kill` to actually end it, and `anode show` or the tray icon to
 watch it again.
 
+### Many `anode.exe mcp` processes are running
+
+Each MCP client starts its own `anode.exe mcp` and keeps it until it closes the server's input;
+then the server exits. Most clients keep one per open session. The Codex desktop app starts a new
+set of MCP servers for each thread and keeps them while the thread stays loaded, so a day of
+recurring Codex tasks can leave dozens of idle `anode.exe mcp` processes, a few tens of MB each,
+beside Codex's own servers. They use no CPU while idle, and any desktop lease one took lapses on its
+own (120 seconds after its last action by default). To see which apps started them:
+
+```powershell
+Get-CimInstance Win32_Process -Filter "Name='anode.exe'" | Where-Object CommandLine -Match ' mcp' |
+  ForEach-Object { (Get-Process -Id $_.ParentProcessId -ErrorAction SilentlyContinue).ProcessName } | Group-Object
+```
+
+To end them, close the Codex threads you no longer need, or quit and restart the Codex app. That
+leaves the seat and other agents' servers alone. Ending one with `Stop-Process -Id <pid>` is safe
+for Anode, but the thread that started it loses Anode's tools.
+
 ---
 
 ## Gamepad
