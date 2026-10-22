@@ -75,7 +75,8 @@ about 9,250 GitHub stars, installed with `uvx windows-mcp serve`. It has `Screen
 
 **Choose it** when you watch the agent work on your own desktop, are on Windows Home (where Anode
 can't run; Windows-MCP's README names Windows 10 and 11 but no editions), or want a mature project with many users. **Choose Anode** when you want to keep using
-your mouse and keyboard during the agent's work.
+your mouse and keyboard during the agent's work. **Or use both:** [run Windows-MCP inside Anode's seat](WINDOWS-MCP.md),
+where its control gate sees only the seat's input.
 
 ## Cua Driver
 
