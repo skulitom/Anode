@@ -1,14 +1,17 @@
 using System.Diagnostics;
+using System.Drawing.Imaging;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 using Anode.Core.Bridge;
+using Anode.Core.Capture;
 using Anode.Core.Input;
 using Anode.Mcp;
 
 namespace Anode.Cli;
 
-/// <summary>Typing's pace, limits and waits, with stand-ins for the keyboard. Nothing here injects input.</summary>
+/// <summary>Input's pace, limits and screen waits, with stand-ins. Nothing here injects input or captures the screen.</summary>
 internal static class InputChecks
 {
     private static void Require(bool condition, string detail) { if (!condition) throw new InvalidOperationException(detail); }
@@ -274,6 +277,194 @@ internal static class InputChecks
 
         GamepadChecks.TapCutShort();
         return $"holds of 0-{Tools.MaxHoldMs} ms only; a key press or gamepad tap stopped by its deadline lets go and answers timed_out in time";
+    }
+
+    private sealed class ScreenRecorder
+    {
+        public double Now, InputAt;
+        public int Inputs, Grabs, AfterGrabs;
+        public double Elapsed => Now - InputAt;
+
+        /// <summary>Time that passes between the clock read after a grab and the next one, as comparing two real frames takes.</summary>
+        public double CompareMs;
+        private int _readsSinceGrab;
+
+        private double Read()
+        {
+            if (++_readsSinceGrab == 2) Now += CompareMs;
+            return Now;
+        }
+
+        public JsonObject Run(Func<ScreenRecorder, byte[]?> grab, int timeoutMs = 60_000,
+            CancellationToken cancel = default, Action<ScreenRecorder, int>? wait = null, int inputMs = 0) =>
+            ScreenSettle.Around(() => { Inputs++; Now += inputMs; InputAt = Now; }, "Scrolled 5 notches down", new ScreenSettle.Watcher
+            {
+                Grab = () => { Grabs++; _readsSinceGrab = 0; if (Inputs > 0) AfterGrabs++; return grab(this); },
+                Wait = ms =>
+                {
+                    Require(ms > 0 && ms <= ScreenSettle.PollMs, $"screen wait outside the poll interval: {ms}");
+                    if (wait is null) Now += ms; else wait(this, ms);
+                },
+                Now = Read,
+                Cancel = cancel
+            }, timeoutMs);
+    }
+
+    public static string ScreenSettles()
+    {
+        void Expect(ScreenRecorder recorder, JsonObject result, string screen, int waited, string scenario)
+        {
+            Require(result.Str("screen") == screen && result.Int("screenWaitMs") == waited && recorder.Inputs == 1
+                && recorder.Elapsed == waited, $"{scenario}: expected {screen} after {waited} ms and input once, got {result.ToJsonString()}, inputs {recorder.Inputs}");
+            Require(result.Str("summary")?.StartsWith("Scrolled 5 notches down; ", StringComparison.Ordinal) == true,
+                scenario + ": summary lost the action");
+        }
+
+        var moving = new ScreenRecorder();
+        // Three changed frames at 40, 80 and 120 ms, then 200 ms of quiet; pre-input time is not in the result.
+        var settled = moving.Run(r => [r.Inputs == 0 ? (byte)0 : (byte)Math.Min(3, r.Elapsed / 40)]);
+        Expect(moving, settled, "settled", 320, "animated scroll");
+        Require(moving.InputAt == ScreenSettle.PollMs && settled.Str("summary") == "Scrolled 5 notches down; the screen settled 320 ms later.",
+            "settling did not take two frames before input, or reported the wrong summary");
+
+        var still = new ScreenRecorder();
+        var unchanged = still.Run(_ => [0]);
+        Expect(still, unchanged, "unchanged", ScreenSettle.StartMs, "page at its end");
+        Require(unchanged.Str("summary") == "Scrolled 5 notches down; the screen did not change within 500 ms.", "unchanged summary lost the wait");
+
+        var video = new ScreenRecorder();
+        var already = video.Run(r => [(byte)r.Grabs]);
+        Expect(video, already, "changing", 0, "video already playing");
+        Require(video.Grabs == 2 && video.AfterGrabs == 0 && already.Str("summary")!.Contains("fresh screenshot before clicking by coordinates", StringComparison.Ordinal),
+            "an already changing screen waited after input or omitted the coordinate advice");
+
+        foreach (int timeout in new[] { 60_000, 550, 601 })
+        {
+            var forever = new ScreenRecorder();
+            var capped = forever.Run(r => [r.Inputs == 0 ? (byte)0 : (byte)r.AfterGrabs], timeout);
+            Expect(forever, capped, "changing", Math.Min(ScreenSettle.CapMs, timeout / 2), $"continuous animation, timeout {timeout}");
+            Require(forever.Now < timeout && capped.Str("summary")!.Contains("still changing", StringComparison.Ordinal), "animation ran past the request or lost its warning");
+        }
+
+        foreach (bool throws in new[] { false, true })
+        {
+            foreach (int failedGrab in new[] { 1, 2, 5 })
+            {
+                var unavailable = new ScreenRecorder();
+                var unknown = unavailable.Run(r => r.Grabs == failedGrab
+                    ? throws ? throw new InvalidOperationException("stand-in capture failure") : null : [0]);
+                Expect(unavailable, unknown, "unknown", failedGrab <= 2 ? 0 : 120, $"capture failure {failedGrab}, throws {throws}");
+                Require(unknown.Str("summary")!.Contains("seat could not be captured", StringComparison.Ordinal), "capture failure summary lost its cause");
+            }
+        }
+
+        using (var cut = new CancellationTokenSource())
+        {
+            var cancelled = new ScreenRecorder();
+            var unknown = cancelled.Run(_ => [0], cancel: cut.Token, wait: (r, ms) =>
+            {
+                // Cancel in the middle of a poll, 100 ms after input, without another capture or poll.
+                r.Now += Math.Min(ms, 140 - r.Now);
+                if (r.Now == 140) cut.Cancel();
+            });
+            Expect(cancelled, unknown, "unknown", 100, "cancelled during a poll");
+            Require(cancelled.AfterGrabs == 2 && unknown.Str("summary")!.Contains("cancelled", StringComparison.Ordinal), "cancellation kept grabbing or lost its cause");
+        }
+
+        var resized = new ScreenRecorder();
+        Expect(resized, resized.Run(r => r.Inputs == 0 ? [0] : [0, 0]), "settled", 240, "resolution changed with identical pixels");
+
+        // A request cancelled before its input (its deadline, or a stopping seat) sends nothing, as a key press doesn't:
+        // the caller gets timed_out, so a scroll it gave up on must not happen afterwards.
+        foreach (bool duringWait in new[] { false, true })
+        {
+            using var cut = new CancellationTokenSource();
+            var recorder = new ScreenRecorder();
+            bool refused = false;
+            try
+            {
+                recorder.Run(r => { if (!duringWait && r.Grabs == 2) cut.Cancel(); return [(byte)r.Grabs]; }, cancel: cut.Token,
+                    wait: (r, ms) => { r.Now += ms; if (duringWait && r.Inputs == 0) cut.Cancel(); });
+            }
+            catch (OperationCanceledException) { refused = true; }
+            Require(refused && recorder.Inputs == 0 && recorder.AfterGrabs == 0,
+                $"a request cancelled {(duringWait ? "between the baseline frames" : "while grabbing the baseline")} still sent its input or watched the screen");
+        }
+        using (var expired = new CancellationTokenSource())
+        {
+            expired.Cancel();
+            var early = new ScreenRecorder();
+            bool refused = false;
+            try { early.Run(_ => [0], cancel: expired.Token); }
+            catch (OperationCanceledException) { refused = true; }
+            Require(refused && early.Inputs == 0 && early.Grabs == 0, "a request whose time had already run out still read the screen or sent its input");
+        }
+
+        // The real grab alternates buffers: the next capture must not overwrite the previous frame.
+        byte[][] buffers = [[0], [0]];
+        var reused = new ScreenRecorder();
+        Expect(reused, reused.Run(r =>
+        {
+            byte[] buffer = buffers[r.Grabs % 2];
+            buffer[0] = r.Inputs == 0 ? (byte)0 : (byte)Math.Min(3, r.Elapsed / 40);
+            return buffer;
+        }), "settled", 320, "reused frame buffers");
+
+        // Comparing frames takes time, so a quiet period can end between the last grab and the next turn of the loop.
+        // A wait computed then is negative: a real wait of -1 ms never ends, and one below that throws after the scroll.
+        var slowCompare = new ScreenRecorder { CompareMs = 25 };
+        Expect(slowCompare, slowCompare.Run(r => [r.Inputs == 0 ? (byte)0 : (byte)Math.Min(3, r.Elapsed / 40)]),
+            "settled", 350, "quiet period ended while frames were compared");
+        var slowStill = new ScreenRecorder { CompareMs = 30 };
+        Expect(slowStill, slowStill.Run(_ => [0]), "unchanged", 520, "start window ended while frames were compared");
+
+        var delayed = new ScreenRecorder();
+        Expect(delayed, delayed.Run(r => [r.Inputs == 0 || r.Elapsed < 480 ? (byte)0 : (byte)1]), "settled", 680, "late first frame");
+
+        var shortRequest = new ScreenRecorder();
+        Expect(shortRequest, shortRequest.Run(_ => [0], timeoutMs: 40), "unknown", 0, "too little time for the baseline");
+        var held = new ScreenRecorder();
+        var afterHold = held.Run(r => [r.Inputs == 0 ? (byte)0 : (byte)r.AfterGrabs], timeoutMs: 1000, inputMs: 800);
+        Expect(held, afterHold, "changing", 120, "key hold used most of the request");
+        Require(held.Now < 1000, "screen wait after a long key hold consumed the reply's time");
+
+        // The real grab compares fingerprints, not copies of frames. In-memory pictures, so nothing captures the screen.
+        using (var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256))
+        {
+            byte[] Print(Bitmap picture)
+            {
+                var bits = picture.LockBits(new Rectangle(Point.Empty, picture.Size), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+                try { return ScreenSettle.Fingerprint(bits, picture.Width, picture.Height, hash); }
+                finally { picture.UnlockBits(bits); }
+            }
+            using var picture = new Bitmap(64, 48, PixelFormat.Format32bppArgb);
+            using var turned = new Bitmap(48, 64, PixelFormat.Format32bppArgb); // the same bytes in another shape
+            byte[] first = Print(picture), again = Print(picture), other = Print(turned);
+            picture.SetPixel(63, 47, Color.FromArgb(255, 1, 2, 3));
+            byte[] changed = Print(picture);
+            Require(first.Length == 32 && first.AsSpan().SequenceEqual(again), "the same frame gave two fingerprints");
+            Require(!first.AsSpan().SequenceEqual(changed), "a changed last pixel kept the frame's fingerprint");
+            Require(!first.AsSpan().SequenceEqual(other), "a frame of another size with the same bytes kept the fingerprint");
+        }
+
+        foreach (string chord in new[] { "pagedown", "ctrl+end", "pgup", "home", "shift+pageup", "VK_NEXT", "ctrl+vk24" })
+            Require(ScreenSettle.IsScrollingKey(chord), $"scrolling chord '{chord}' does not settle");
+        foreach (string chord in new[] { "enter", "a", "space", "down", "ctrl+s" })
+            Require(!ScreenSettle.IsScrollingKey(chord), $"ordinary chord '{chord}' would capture or wait");
+
+        var failure = new InvalidOperationException("stand-in input failure");
+        int inputs = 0;
+        bool surfaced = false;
+        try
+        {
+            ScreenSettle.Around(() => { inputs++; throw failure; }, "Scrolled", new ScreenSettle.Watcher
+            {
+                Grab = () => null, Wait = _ => throw new InvalidOperationException("unexpected wait"), Now = () => 0
+            });
+        }
+        catch (Exception caught) when (ReferenceEquals(caught, failure)) { surfaced = true; }
+        Require(surfaced && inputs == 1, "input failure was swallowed or input was replayed");
+        return "animated scrolls settle; static screens, prior animation, caps, capture failures, cancellation, resizing and scrolling key aliases report correctly; input runs once";
     }
 
     private sealed class MessageWindow : NativeWindow

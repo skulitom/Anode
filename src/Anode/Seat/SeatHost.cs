@@ -226,7 +226,7 @@ internal static class SeatHost
         return reply;
     }
 
-    /// <param name="cancel">Ends a key press's or gamepad tap's hold at the request's deadline.</param>
+    /// <param name="cancel">Ends input holds and screen waits at the request's deadline.</param>
     private static JsonObject Dispatch(string op, JsonObject r, CancellationToken cancel = default)
     {
         switch (op)
@@ -317,16 +317,24 @@ internal static class SeatHost
                 return JsonLine.Ok();
 
             case "input.scroll":
-                InputInjector.Scroll(r.Int("amount") ?? -3, r.Bool("horizontal") ?? false);
-                return JsonLine.Ok();
+            {
+                int amount = r.Int("amount") ?? -3;
+                bool horizontal = r.Bool("horizontal") ?? false;
+                long notches = Math.Abs((long)amount);
+                string direction = horizontal ? (amount < 0 ? "left" : "right") : (amount < 0 ? "down" : "up");
+                return JsonLine.Ok(ScreenSettle.Real(() => InputInjector.Scroll(amount, horizontal),
+                    $"Scrolled {notches} {(notches == 1 ? "notch" : "notches")} {direction}", r.Int("timeoutMs") ?? 60_000, cancel));
+            }
 
             case "input.key":
-                InputInjector.Press(
-                    r.Str("keys") ?? throw new ArgumentException("key needs 'keys', for example \"ctrl+s\"."),
-                    r.Int("holdMs") ?? 40,
-                    r.Bool("scanCode") ?? true,
-                    cancel);
+            {
+                string keys = r.Str("keys") ?? throw new ArgumentException("key needs 'keys', for example \"ctrl+s\".");
+                void Press() => InputInjector.Press(keys, r.Int("holdMs") ?? 40, r.Bool("scanCode") ?? true, cancel);
+                if (ScreenSettle.IsScrollingKey(keys))
+                    return JsonLine.Ok(ScreenSettle.Real(Press, $"Pressed {keys}", r.Int("timeoutMs") ?? 60_000, cancel));
+                Press();
                 return JsonLine.Ok();
+            }
 
             case "input.keydown":
                 InputInjector.KeyDown(r.Str("key") ?? throw new ArgumentException("keydown needs 'key'."),

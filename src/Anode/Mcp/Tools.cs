@@ -320,14 +320,15 @@ internal static class Tools
                 ("button", "string", "left (default), right or middle.", false))),
 
         new("seat_scroll", "Anode: scroll the mouse wheel", "input.scroll", false, Effect.Action,
-            "Scroll the wheel in the seat. Negative scrolls down.",
+            "Scroll the wheel in the seat. Negative scrolls down. Returns once the screen settles (up to about 2.5 s), reporting screen.",
             Schema(
                 ("amount", "integer", "Wheel notches. Negative is down. Default -3.", false),
                 ("horizontal", "boolean", "Scroll sideways instead.", false))),
 
         new("seat_key", "Anode: press a key or shortcut", "input.key", false, Effect.Action,
             "Press a keyboard key or shortcut in the focused app on Anode's background Windows desktop (the seat), "
-            + "for example \"enter\", \"f5\" or \"ctrl+shift+esc\". Keys are sent as scan codes so games see them.",
+            + "for example \"enter\", \"f5\" or \"ctrl+shift+esc\". Keys are sent as scan codes so games see them. "
+            + "PageUp/PageDown/Home/End return once the screen settles (up to about 2.5 s), reporting screen.",
             Schema(
                 ("keys", "string", "A key name, or names joined with +. Punctuation goes by symbol or name (ctrl+` or ctrl+grave, ctrl+plus); Windows names such as VK_OEM_3 and vk<hex> codes work too.", true),
                 ("holdMs", "integer", "How long to hold the key down, 0-10000 ms. Default 40.", false))),

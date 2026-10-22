@@ -109,6 +109,7 @@ restart Claude Code from a new terminal so the plugin finds `anode` on the PATH.
 - Use `seat_wait` for delayed controls/text instead of repeated screenshots or fixed sleeps.
   Check `matched`; a timeout is not success. Use the fresh observation returned on a match.
 - For visual-only controls, capture a fresh `seat_screenshot`, then use seat mouse/keyboard tools.
+  After a scroll whose reply says `changing` or `unknown`, take a fresh screenshot before a coordinate click.
   Convert a scaled image point to original screen coordinates: `x * sourceWidth / width`,
   `y * sourceHeight / height`. Image results state both sizes, as in
   `1280x720 (captured at 2560x1440)`. Observation lines show `#automationId` for `seat_wait`
