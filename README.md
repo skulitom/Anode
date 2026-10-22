@@ -222,6 +222,7 @@ flowchart LR
 | Share the desktop between agents | [Multiple agents and leases](docs/MULTI-AGENT.md) |
 | Help an agent discover and choose Anode | [Agent guide](docs/FOR-AGENTS.md) |
 | Decide whether Anode fits, or another tool does | [When to use which](docs/COMPARISON.md): Windows-MCP, Cua Driver, Desktop Commander, Windows 365 for Agents |
+| Keep using your PC while Windows-MCP clicks | [Run Windows-MCP in the seat](docs/WINDOWS-MCP.md): its control gate stays quiet and your pointer stays yours (measured) |
 | Follow a worked example | [Test a desktop app with Claude Code](docs/GUIDE-DESKTOP-APP.md), [fill in a web form](docs/GUIDE-WEB-FORM.md), [check an Android app](docs/GUIDE-ANDROID.md) |
 | Run apps, control the viewer or use a gamepad | [Usage guide](docs/USAGE.md) |
 | Look up a CLI command or option | [Command reference](docs/USAGE.md#command-reference) |
