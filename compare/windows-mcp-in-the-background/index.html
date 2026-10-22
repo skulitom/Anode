@@ -102,7 +102,8 @@ about running it where your input doesn't reach it.</li>
 <p>Windows-MCP 0.8.8 (10 October 2026) added a control gate
 (<a href="https://github.com/CursorTouch/Windows-MCP/pull/445">#445</a>). While the agent holds control, during each
 call and for 15 seconds after it, the gate holds back your physical keyboard and mouse input, and only moving the mouse
-substantially or pressing <code>Ctrl+Alt+Shift+Backspace</code> takes control back. Once the agent has been idle for 15
+substantially or pressing <code>Ctrl+Alt+Shift+Backspace</code> takes control back (except in the moment it hides its
+indicator to take a screenshot, when any physical input does). Once the agent has been idle for 15
 seconds, any physical key press, click or mouse movement on its desktop hands control to you. Either way, new tool
 calls are then refused with the <code>USER_CONTROL</code> code until your mouse and keyboard have been idle for 10
 seconds (<a href="https://github.com/CursorTouch/Windows-MCP/blob/v0.8.8/src/windows_mcp/desktop/control.py">control.py
@@ -278,13 +279,16 @@ Clicks and typing still wait until you've been idle.</p>
 <h3>Windows-MCP 0.8.7</h3>
 <p>The reporter of #457 suggests pinning <code>windows-mcp==0.8.7</code> (30 September 2026), the release before the gate
 (<a href="https://github.com/CursorTouch/Windows-MCP/pull/445">#445</a> shipped in 0.8.8). The agent then runs while you
-work, on the same pointer and keyboard focus as you, and you give up 0.8.8's other changes, such as its UI Automation
-threading fixes (<a href="https://github.com/CursorTouch/Windows-MCP/pull/449">#449</a>,
-<a href="https://github.com/CursorTouch/Windows-MCP/pull/451">#451</a>) and a way to keep processes out of Snapshot's UI
-Automation walk (<a href="https://github.com/CursorTouch/Windows-MCP/pull/450">#450</a>). Its cursor-tracking and
-input-latency fixes (#447, #448) repaired code the gate added, so 0.8.7 never had those bugs. From #457, the pull
-requests and the <a href="https://github.com/CursorTouch/Windows-MCP/releases/tag/v0.8.8">0.8.8 release notes</a>, not
-run by us.</p>
+work, on the same pointer and keyboard focus as you, and you give up 0.8.8's other changes: fixes for six input bugs
+reported against 0.8.7, among them clicks that could land at the current cursor position instead of the requested
+point (<a href="https://github.com/CursorTouch/Windows-MCP/issues/441">#441</a>) and Click or Type reporting success for a point off the screen
+(<a href="https://github.com/CursorTouch/Windows-MCP/issues/439">#439</a>), in
+<a href="https://github.com/CursorTouch/Windows-MCP/commit/1fea2e5a1f9516e31736c433af5cddf4e22652ab">commit 1fea2e5</a>, which the release notes don't list;
+its UI Automation threading fixes (<a href="https://github.com/CursorTouch/Windows-MCP/pull/449">#449</a>, <a href="https://github.com/CursorTouch/Windows-MCP/pull/451">#451</a>); and a way to keep
+processes out of Snapshot's UI Automation walk (<a href="https://github.com/CursorTouch/Windows-MCP/pull/450">#450</a>). 0.8.8's cursor-tracking and
+input-latency fixes (<a href="https://github.com/CursorTouch/Windows-MCP/pull/447">#447</a>, <a href="https://github.com/CursorTouch/Windows-MCP/pull/448">#448</a>) repaired code the gate added, so
+0.8.7 never had those bugs. From #457, the pull requests, commit 1fea2e5 and the
+<a href="https://github.com/CursorTouch/Windows-MCP/releases/tag/v0.8.8">0.8.8 release notes</a>, not run by us.</p>
 
 <h3>A virtual machine or Windows Sandbox</h3>
 <p>When the agent's work must not reach your files, accounts or network, run Windows-MCP in a virtual machine or
@@ -332,7 +336,7 @@ seat through Anode's MCP server (<code>seat_run</code>, the same path as <code>a
 <code>python spike_client.py http://127.0.0.1:8765/mcp</code> (<a href="data/spike_client.py">spike_client.py</a>) made
 its 7 calls, and Claude Code 2.1.302 ran <a href="data/agent-prompt.txt">this prompt</a> on Sonnet
 (<code>claude-sonnet-5-5</code>) with the equivalent of <code>Get-Content agent-prompt.txt -Raw | claude -p --model
-sonnet --max-turns 14 --mcp-config mcp-config.json --strict-mcp-config --allowedTools
+claude-sonnet-5-5 --max-turns 14 --mcp-config mcp-config.json --strict-mcp-config --allowedTools
 mcp__windows-mcp__ControlStatus,mcp__windows-mcp__App,mcp__windows-mcp__Snapshot,mcp__windows-mcp__Type,mcp__windows-mcp__Screenshot
 --output-format stream-json --verbose</code>. The test window is <a href="data/testpad.ps1">testpad.ps1</a>. Comments in
 the published scripts were edited to remove our internal names; the code is as run.</li>
@@ -360,7 +364,11 @@ task), <a href="https://github.com/CursorTouch/Windows-MCP/blob/v0.8.8/SECURITY.
 <a href="https://github.com/CursorTouch/Windows-MCP/blob/0ffef4165dc46435cd9cf2d55eb9a6761b79f363/src/windows_mcp/tools/control_policy.py">tools/control_policy.py</a>
 (which tools each policy gates).</li>
 <li>Windows-MCP issues and pull requests:
+<a href="https://github.com/CursorTouch/Windows-MCP/issues/439">#439</a> and <a href="https://github.com/CursorTouch/Windows-MCP/issues/441">#441</a> (fixed in
+<a href="https://github.com/CursorTouch/Windows-MCP/commit/1fea2e5a1f9516e31736c433af5cddf4e22652ab">1fea2e5</a>),
 <a href="https://github.com/CursorTouch/Windows-MCP/pull/445">#445</a> (the gate, in 0.8.8),
+<a href="https://github.com/CursorTouch/Windows-MCP/pull/447">#447</a>, <a href="https://github.com/CursorTouch/Windows-MCP/pull/448">#448</a>, <a href="https://github.com/CursorTouch/Windows-MCP/pull/449">#449</a>,
+<a href="https://github.com/CursorTouch/Windows-MCP/pull/450">#450</a> and <a href="https://github.com/CursorTouch/Windows-MCP/pull/451">#451</a> (in 0.8.8),
 <a href="https://github.com/CursorTouch/Windows-MCP/issues/456">#456</a> (closed),
 <a href="https://github.com/CursorTouch/Windows-MCP/issues/457">#457</a> (closed),
 <a href="https://github.com/CursorTouch/Windows-MCP/pull/458">#458</a> (merged 12 October),
