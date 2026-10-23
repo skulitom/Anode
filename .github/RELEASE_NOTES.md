@@ -1,6 +1,6 @@
 ## What's new in 0.11.4
 
-This patch fixes bugs found after 0.11.3, the first of them reported by an outside user. No tools
+This patch fixes bugs found after 0.11.3, one of them reported by an outside user (#57). No tools
 or commands were added; there are still 41 tools.
 
 - **A long desktop action keeps its lease.** Each action extended its owner's lease from when it

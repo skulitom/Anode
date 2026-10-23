@@ -86,7 +86,8 @@ live check) in CI and on any PC.
 - docs: #83 and #85 (a guide to running CursorTouch's Windows-MCP inside the seat) and #86
   (TROUBLESHOOTING: the idle `anode.exe mcp` processes under the Codex app, B-028).
 
-#70 (the Scoop and winget manifests for 0.11.3) changed only package listings; #66 to #68 moved
+#70 (the Scoop and winget manifests for 0.11.3) changed only package listings, and #79 removed
+unused code from the sign-in browser with no change in behaviour; #66 to #68 moved
 the release and registry workflows to the same action versions as #76, so 0.11.4 is the first
 release run on them. The self-contained
 runtime stays .NET 10.0.13, still Microsoft's latest 10.0 patch (checked against
@@ -121,7 +122,8 @@ release does not include it.
   argument refusals with Anode stopped (#71), a daemon started without the Task Scheduler (#72;
   the check starts a stand-in program the same way), a log line waiting out another writer
   (#78; the check holds a log file for 300 ms and runs eight writers at once), a desktop action
-  longer than the lease (#81; a stand-in action outlasts a short lease), the missing agent ID with
+  longer than the lease (#81; a stand-in clock moves 175 s during an action under the default
+  120 s lease), the missing agent ID with
   Anode stopped (#82) and the scroll's screen settle (#87; in-memory frames, no capture).
 - #87 adds up to about 2.5 s to a scroll on a screen that keeps changing. Before the tag, one live
   look in the seat: `seat_browser` a long page, `seat_scroll -5`, then `seat_screenshot` at once;
