@@ -1,12 +1,7 @@
 # Changelog
 
-## Unreleased
+## 0.11.4 — 2026-10-23
 
-- **New guide: keep working while Windows-MCP clicks.** [docs/WINDOWS-MCP.md](docs/WINDOWS-MCP.md)
-  starts CursorTouch's Windows-MCP inside the seat with `anode run`, where its control gate (0.8.8)
-  should see only the seat's input, not yours. It has the setup steps, a Claude Code config and a
-  measured run with nobody at the PC: 13 tool calls over two clients, no gate trip, and in 240 s the
-  user's pointer never moved and their foreground window never changed. Docs only; no code changed.
 - **A desktop action longer than the lease's lifetime no longer ends with the lease gone.** Each
   action extended its owner's lease to a full lifetime from when it started, so one that ran
   longer, such as a `steam_launch` of up to 175 s under the default 120 s, finished with the lease
@@ -30,9 +25,6 @@
   settled, stayed unchanged, kept changing or could not be checked. An already moving screen
   skips the wait after input; if capture fails, the input still runs. A reply that says `changing`
   or `unknown` calls for a fresh screenshot before clicking by coordinates.
-
-## 0.11.4 — 2026-10-21
-
 - **`anode doctor` warns when Windows signs local accounts in as Guest.** With the "Guest only"
   sharing model (`HKLM\SYSTEM\CurrentControlSet\Control\Lsa` `ForceGuest = 1`, set by some
   security suites and hardened images), Windows turns every network sign-in of a local account
@@ -72,6 +64,11 @@
   A line now waits up to a second. Once a write has failed, later lines wait the old 100 ms until
   one succeeds, so a log another program keeps locked costs one long wait, then 100 ms a line as
   before, not a second a line.
+- **New guide: keep working while Windows-MCP clicks.** [docs/WINDOWS-MCP.md](docs/WINDOWS-MCP.md)
+  starts CursorTouch's Windows-MCP inside the seat with `anode run`, where its control gate (0.8.8)
+  should see only the seat's input, not yours. It has the setup steps, a Claude Code config and a
+  measured run with nobody at the PC: 13 tool calls over two clients, no gate trip, and in 240 s the
+  user's pointer never moved and their foreground window never changed. Docs only; no code changed.
 - **Skill, docs, packaging and dependencies.** The `anode-desktop` skill, which is also
   `anode_guide`'s text, shows the user the exact install commands and waits for their yes; it
   downloads `install.ps1` from a named release, not `latest`, checks its SHA-256 against that

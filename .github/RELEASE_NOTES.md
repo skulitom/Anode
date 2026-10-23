@@ -1,8 +1,20 @@
 ## What's new in 0.11.4
 
-This patch fixes bugs found after 0.11.3, the first of them reported by an outside user. No tools
+This patch fixes bugs found after 0.11.3, one of them reported by an outside user (#57). No tools
 or commands were added; there are still 41 tools.
 
+- **A long desktop action keeps its lease.** Each action extended its owner's lease from when it
+  started, so one that ran past the lease's lifetime, such as a `steam_launch` of up to 175 s under
+  the default 120 s, ended with the lease expired, and another agent could take the desktop. An
+  action now keeps the lease while it runs and leaves a full lifetime from when it ends.
+- **Desktop commands ask for a missing agent ID first.** With Anode stopped, `anode type hi` without
+  `ANODE_AGENT_ID` said "Anode is not running", then failed again for the ID once Anode was
+  started. Commands that need the desktop lease now name the missing agent ID or lease token before
+  they connect (exit 2).
+- **Scrolling waits for the screen to catch up.** A wheel scroll or PageDown answered before a
+  browser had drawn it, so the next screenshot could show the old page. Scrolls and PageUp,
+  PageDown, Home and End now wait for the screen to settle, up to about 2.5 seconds, and say
+  whether it settled; a reply of `changing` or `unknown` calls for a fresh screenshot.
 - **`anode doctor` warns when Windows signs local accounts in as Guest.** With Windows' "Guest
   only" sharing model (`ForceGuest = 1` under `HKLM\SYSTEM\CurrentControlSet\Control\Lsa`, set by
   some security suites and hardened images), the seat could never sign in, even with the password
@@ -27,6 +39,10 @@ or commands were added; there are still 41 tools.
 - **A log line waits longer for other writers before it is dropped.** When several Anode processes
   wrote to `anode.log` at once, a line waited only about 100 ms for the others; it now waits up to a
   second.
+- **New guide: keep working while Windows-MCP clicks.**
+  [docs/WINDOWS-MCP.md](https://github.com/skulitom/Anode/blob/main/docs/WINDOWS-MCP.md) runs
+  CursorTouch's Windows-MCP inside the seat with `anode run`, so its clicks and typing stay off your
+  desktop. Docs only.
 - **The skill asks before it installs anything.** The `anode-desktop` skill and `anode_guide` show
   the user the exact install commands and wait for their yes. They download the installer from a
   named release, not `latest`, and check its SHA-256 before running it.
@@ -45,7 +61,7 @@ forms, real input, File Explorer and display changes on Windows 11), runs on the
 before it is tagged; its summary and coverage limits are in the
 [validation record](https://github.com/skulitom/Anode/blob/main/docs/RELEASE-READINESS.md#0114-release-validation).
 Release builds include .NET 10.0.13, Microsoft's October security update.
-See the [changelog](https://github.com/skulitom/Anode/blob/v0.11.4/CHANGELOG.md#0114--2026-10-21) for every
+See the [changelog](https://github.com/skulitom/Anode/blob/v0.11.4/CHANGELOG.md#0114--2026-10-23) for every
 change.
 
 ## Install or upgrade
