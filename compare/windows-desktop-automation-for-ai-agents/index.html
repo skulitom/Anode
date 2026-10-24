@@ -88,11 +88,12 @@ when you use the mouse or keyboard (details below); to run it where your input d
 through window messages and UI Automation, with real input off unless you turn it on in its settings;
 lowlevel-computer-use-mcp and computer-use-plus work in the background on a hidden desktop. Desktop Touch MCP's
 <code>click_element</code> and Terminator's <code>invoke_element</code> act through UI Automation without moving the
-pointer, though Terminator brings the target window to the front by default; their mouse tools, Desktop Touch's
-<code>browser_click</code>, and <code>desktop_act</code>'s DevTools and mouse routes move it. Some apps ignore
+pointer, though Terminator brings the target window to the front by default; their mouse tools, Terminator's
+<code>click_element</code> (which puts the pointer back), Desktop Touch's <code>browser_click</code>, and Desktop
+Touch's <code>desktop_act</code> DevTools and mouse routes move it. Some apps ignore
 message input.</li>
 <li><strong>You are on Windows Home, or can't run an administrator step:</strong> not Anode, and probably not BgDesk.
-Both use child sessions, which Anode's install guide says Windows Home can't host (BgDesk's README names no editions
+Both use child sessions, which <a href="https://github.com/skulitom/Anode/blob/0836c78/docs/INSTALL.md">Anode's install guide</a> says Windows Home can't host (BgDesk's README names no editions
 and says editions other than the one it was developed on are untested), and both need an administrator step once.
 Windows-MCP and the tools that act in your session name no edition limit.</li>
 <li><strong>You need a security boundary for untrusted work:</strong> none of these. Use a virtual machine or
@@ -101,8 +102,8 @@ Windows Sandbox.</li>
 
 <h2>Side by side</h2>
 <p class="muted">Anode's column is measured or taken from its own release record. The other columns are from each
-project's README, docs and source at the commit named under <a href="#sources">Sources</a>, read on 24 October 2026
-(three of them on 16 October, with no newer commits since; see Sources), not run by us.</p>
+project's README, docs and source at the commit named under <a href="#sources">Sources</a>, read on 24 October 2026,
+not run by us.</p>
 <div class="wrap">
 <table>
 <thead>
@@ -292,7 +293,7 @@ server built on pywinauto, with 20 tools (22 with two opt-in ones), plus a local
 tool and coordinate clicks move the real pointer in either dispatch mode; element clicks go through pywinauto, and an
 opt-in "background" mode tries UI Automation Invoke first but falls back to a real click. Its mouse and keyboard
 tools are refused until <code>approve_automation</code> is called, which opens a 5-minute window by default (an
-environment variable bypasses it). The project calls this human-in-the-loop, but the agent can call that tool itself,
+environment variable bypasses it, and also turns off the corner abort below). The project calls this human-in-the-loop, but the agent can call that tool itself,
 so a person checks it only if your MCP client asks you to approve the call; element clicks and text entry aren't
 gated. Moving the pointer to the top-left corner aborts pointer actions. Its safety doc calls desktop automation
 "host-powerful", says the server doesn't start Windows Sandbox, and suggests a separate virtualisation server for
@@ -302,7 +303,7 @@ or pywinauto's control coverage. <strong>Choose Anode</strong> when nobody shoul
 
 <h3 id="terminator">Terminator</h3>
 <p><a href="https://github.com/mediar-ai/terminator">mediar-ai/terminator</a> is a Rust automation library with an MCP
-server (<code>terminator-mcp-agent</code>, 35 tools), from Mediar. Its README lists "Doesn't take over your cursor or keyboard" among its features. Its source, read on 16 October 2026, shows that the <code>click_element</code> tool moves the real pointer
+server (<code>terminator-mcp-agent</code>, 35 tools), from Mediar. Its README lists "Doesn't take over your cursor or keyboard" among its features. Its source at <code>73a381c</code> shows that the <code>click_element</code> tool moves the real pointer
 with <code>SendInput</code> to click and then puts it back by default (<code>restore_cursor</code>), and that its
 action tools bring the target window to the front by default; most restore your keyboard focus afterwards, but
 <code>click_element</code> and <code>invoke_element</code> don't unless asked. <code>mouse_drag</code> moves the pointer too, and its typing tools click the target, without putting the pointer back, when focusing fails. <code>invoke_element</code> (UI Automation Invoke) is the route that doesn't move the pointer. A
@@ -317,8 +318,8 @@ extension in your own signed-in browser, or Mediar's workflow builder and manage
 (BgDesk, "Background Computer Use for Windows") is a C# MCP server, at release 2.0.0 since 17 October 2026, that uses
 the same Windows feature as Anode: a child session, a loopback Remote Desktop session under your own logon, turned on
 with <code>WTSEnableChildSessions</code> and hosted, off-screen, in Microsoft's Remote Desktop control. Its tagline says
-"hidden desktop"; its "How it works" section explains that this is a child session, not a hidden Win32 desktop like the
-tools under <a href="#other-routes">Hidden desktops and other routes</a>. An agent process inside that session sends
+"hidden desktop"; its "How it works" section explains that this is a child session: a separate Windows session, not a
+hidden Win32 desktop like those of the tools under <a href="#other-routes">Hidden desktops and other routes</a>. An agent process inside that session sends
 real mouse and keyboard input there, or window messages for app types it has tested (Chromium, Electron, Explorer,
 consoles and classic dialogs). The session's one large screen is divided into up to 12 areas of 1440x900, one per
 agent, so several agents can work at once. A local web page (<code>bgdesk workplace</code>, on 127.0.0.1 behind a
@@ -332,8 +333,8 @@ input that some controls ignore, which it checks for afterwards and can repeat a
 <p><strong>Choose it</strong> when several agents should work side by side, you want to watch and take over each
 one from a browser page, or you want later starts to sign in silently (it stores the password). <strong>Choose
 Anode</strong> when you need its wider tool set (UI Automation reads and waits, command jobs, display changes, audio,
-gamepads and Android emulators), a published record of live checks for each release with their scripts in its
-repository, or would rather type your Windows password when Windows asks than have it stored.</p>
+gamepads and Android emulators), a published record of live checks for each release since 0.9, with their scripts in
+its repository, or would rather type your Windows password when Windows asks than have it stored.</p>
 
 <h2>Anode's limits</h2>
 <ul>
@@ -356,18 +357,20 @@ awkward.</li>
 <p class="muted">In our discovery test of 22 October, AI agents asked to find a Windows MCP server that works in the
 background picked lowlevel-computer-use-mcp and computer-use-plus, and named Ghost and WindowsPC-MCP as alternatives
 (they also named BgDesk, in the table above). umbriel came up in a directory listing during our searches. All read
-from their README and source at the commits under <a href="#sources">Sources</a>, not run by us.</p>
+from their README and source (umbriel from its README only) at the commits under <a href="#sources">Sources</a>, not
+run by us.</p>
 <ul>
 <li><a href="https://github.com/NORTHTEKDevs/ghost">Ghost</a> (Northtek; MIT, 28 stars, 0.23.4 of 6 September 2026,
 54 tools on Windows) drives the windows on your desktop with window messages and UI Automation, and starts the apps it
-launches on a hidden desktop in your session. Real mouse and keyboard input is off by default and no tool call can
-turn it on; only you can, in the server's settings (<code>GHOST_FOCUS_POLICY</code>, or <code>GHOST_FOCUS_LOCK=off</code>
+launches on a hidden desktop in your session. Real mouse and keyboard input is off by default, and by default no
+tool call can turn it on; only you can, in the server's settings (<code>GHOST_FOCUS_POLICY</code>, or <code>GHOST_FOCUS_LOCK=off</code>
 to let the agent switch it), so by default it doesn't move your pointer. Chromium can still take the foreground
 for a moment, and Ghost hands it back: across six runs of about 490 keystrokes with a person typing, its README counts
 one keystroke that reached the wrong window. Ctrl+Alt+G stops every acting call. Its README says real input doesn't
 work on its hidden desktop, so apps that need real input need its foreground policy, on your own desktop.</li>
 <li><a href="https://github.com/Ding-Ding-Projects/lowlevel-computer-use-mcp">lowlevel-computer-use-mcp</a> (4 stars;
-MIT in its README, no licence file; 59 tools) starts apps on hidden Win32 desktops and clicks and types there with
+MIT in its README, no licence file; automated GitHub releases, the latest of 14 October 2026 at the commit read; 59
+tools) starts apps on hidden Win32 desktops and clicks and types there with
 posted window messages, without moving your pointer; its tools that do move it run only when the agent passes
 <code>confirm_focus_disruption=true</code>. Its README says some apps ignore message input and that its install and release process "remain
 unverified", and its GUI installer turns on auto-approval of all its tools in Claude Code by default.</li>
@@ -408,12 +411,15 @@ from GitHub on 24 October 2026.</li>
 <li><strong>What changed on 24 October:</strong> BgDesk joined the table and the "other routes" section is new; Desktop
 Touch MCP's pointer row now includes <code>browser_click</code> and <code>desktop_act</code>'s DevTools route, which
 the first version missed; Windows-MCP's columns now follow the 0.8.8 release rather than its main branch, with its
-control gate described; Anode's numbers come from the 0.11.3 release.</li>
+control gate described; windows-computer-use-mcp's approval gate is corrected (its mouse and keyboard tools refuse
+calls until <code>approve_automation</code>, which the agent can call itself; they don't wait); Terminator's rows no
+longer name a <code>hover_element</code> tool, which doesn't exist, and now include <code>mouse_drag</code> and its
+typing tools' click fallback; Anode's numbers come from the 0.11.3 release.</li>
 </ul>
 
 <h2 id="sources">Sources</h2>
 <p class="muted">Read on 24 October 2026 at the commit shown. windows-computer-use-mcp, Terminator and umbriel
-were read on 16 October 2026; their repositories had no newer commits on 24 October.</p>
+were first read on 16 October 2026 and re-checked at the same commits on 24 October.</p>
 <ul>
 <li>Windows-MCP 0.8.8 (tag at <code>b74c507</code>):
 <a href="https://github.com/CursorTouch/Windows-MCP/blob/b74c507d9e709223a0904cf08019edf55f2a75bb/README.md">README</a> (ControlStatus, Supported Operating Systems, Telemetry),
@@ -440,7 +446,8 @@ were read on 16 October 2026; their repositories had no newer commits on 24 Octo
 <a href="https://github.com/enwong93-sketch/background-computer-use/blob/c25e1bcb0e2b54a0dbe5d881528a50017daaa65f/src/bgdeskw/HostForm.cs">bgdeskw/HostForm.cs</a> (<code>ConnectToChildSession</code>),
 <a href="https://github.com/enwong93-sketch/background-computer-use/blob/c25e1bcb0e2b54a0dbe5d881528a50017daaa65f/src/bgdeskw/Input.cs">Input.cs</a> and <a href="https://github.com/enwong93-sketch/background-computer-use/blob/c25e1bcb0e2b54a0dbe5d881528a50017daaa65f/src/bgdeskw/Virtual.cs">Virtual.cs</a> (input routes),
 <a href="https://github.com/enwong93-sketch/background-computer-use/blob/c25e1bcb0e2b54a0dbe5d881528a50017daaa65f/src/bgdesk/Mcp.cs">bgdesk/Mcp.cs</a> (tools),
-<a href="https://github.com/enwong93-sketch/background-computer-use/blob/c25e1bcb0e2b54a0dbe5d881528a50017daaa65f/src/bgdeskw/Cred.cs">Cred.cs</a> (credentials).</li>
+<a href="https://github.com/enwong93-sketch/background-computer-use/blob/c25e1bcb0e2b54a0dbe5d881528a50017daaa65f/src/bgdeskw/Cred.cs">Cred.cs</a> (credentials),
+<a href="https://github.com/enwong93-sketch/background-computer-use/blob/c25e1bcb0e2b54a0dbe5d881528a50017daaa65f/src/bgdeskw/Layers.cs">Layers.cs</a> (launch: your default browser, per-area browser data folders).</li>
 <li>windows-computer-use-mcp at <code>1ace9e5</code>:
 <a href="https://github.com/sandraschi/windows-computer-use-mcp/blob/1ace9e51356b36fa45497530579f16f31fe9c71d/README.md">README</a>,
 <a href="https://github.com/sandraschi/windows-computer-use-mcp/blob/1ace9e51356b36fa45497530579f16f31fe9c71d/docs/SAFETY.md">docs/SAFETY.md</a>,
@@ -448,18 +455,21 @@ were read on 16 October 2026; their repositories had no newer commits on 24 Octo
 (default mode),
 <a href="https://github.com/sandraschi/windows-computer-use-mcp/blob/1ace9e51356b36fa45497530579f16f31fe9c71d/src/windows_computer_use_mcp/tools/__init__.py">tools/__init__.py</a>,
 <a href="https://github.com/sandraschi/windows-computer-use-mcp/blob/1ace9e51356b36fa45497530579f16f31fe9c71d/src/windows_computer_use_mcp/app.py">app.py</a> (<code>approve_automation</code>),
+<a href="https://github.com/sandraschi/windows-computer-use-mcp/blob/1ace9e51356b36fa45497530579f16f31fe9c71d/src/windows_computer_use_mcp/tools/portmanteau_mouse.py">tools/portmanteau_mouse.py</a> and
+<a href="https://github.com/sandraschi/windows-computer-use-mcp/blob/1ace9e51356b36fa45497530579f16f31fe9c71d/src/windows_computer_use_mcp/tools/portmanteau_keyboard.py">portmanteau_keyboard.py</a> (the approval gate, typing),
+<a href="https://github.com/sandraschi/windows-computer-use-mcp/blob/1ace9e51356b36fa45497530579f16f31fe9c71d/src/windows_computer_use_mcp/tools/portmanteau_elements.py">portmanteau_elements.py</a> (element clicks and text entry),
 <a href="https://github.com/sandraschi/windows-computer-use-mcp/blob/1ace9e51356b36fa45497530579f16f31fe9c71d/pyproject.toml">pyproject.toml</a> (Windows 10 and 11).</li>
 <li>Terminator at <code>73a381c</code>:
 <a href="https://github.com/mediar-ai/terminator/blob/73a381c0c1c33eda55f2c0ecb1d918bf5ec7561a/README.md">README</a>,
 <a href="https://github.com/mediar-ai/terminator/blob/73a381c0c1c33eda55f2c0ecb1d918bf5ec7561a/crates/terminator/src/platforms/windows/element.rs">element.rs</a>
-(<code>click</code>, <code>invoke</code>, window activation),
+(<code>click</code>, <code>invoke</code>, typing's focus-then-click fallback, window activation),
 <a href="https://github.com/mediar-ai/terminator/blob/73a381c0c1c33eda55f2c0ecb1d918bf5ec7561a/crates/terminator/src/platforms/windows/input.rs">input.rs</a>
 (<code>send_mouse_click</code>),
 <a href="https://github.com/mediar-ai/terminator/blob/73a381c0c1c33eda55f2c0ecb1d918bf5ec7561a/crates/terminator-mcp-agent/README.md">MCP agent README</a>,
 <a href="https://github.com/mediar-ai/terminator/blob/73a381c0c1c33eda55f2c0ecb1d918bf5ec7561a/crates/terminator-mcp-agent/src/server.rs">server.rs</a> (<code>click_element</code>,
-<code>stop_execution</code>, window-management defaults),
+<code>mouse_drag</code>, <code>stop_execution</code>, window-management defaults),
 <a href="https://github.com/mediar-ai/terminator/blob/73a381c0c1c33eda55f2c0ecb1d918bf5ec7561a/crates/terminator-mcp-agent/src/utils.rs">utils.rs</a> (<code>restore_cursor</code>,
-window-management options),
+<code>try_click_before</code>, window-management options),
 <a href="https://github.com/mediar-ai/terminator/blob/73a381c0c1c33eda55f2c0ecb1d918bf5ec7561a/crates/terminator-mcp-agent/Cargo.toml">Cargo.toml</a> (default features),
 <a href="https://github.com/mediar-ai/terminator/blob/73a381c0c1c33eda55f2c0ecb1d918bf5ec7561a/crates/terminator-mcp-agent/src/posthog.rs">posthog.rs</a>,
 <a href="https://github.com/mediar-ai/terminator/blob/73a381c0c1c33eda55f2c0ecb1d918bf5ec7561a/crates/terminator-mcp-agent/src/sentry.rs">sentry.rs</a>.</li>
@@ -491,7 +501,9 @@ window-management options),
 <a href="https://github.com/skulitom/Anode/blob/1ad6eae/docs/RELEASE-READINESS.md">RELEASE-READINESS.md</a> on
 <code>main</code> at <code>1ad6eae</code> (the 0.11.3 live check is recorded there, after the tag),
 <a href="https://github.com/skulitom/Anode/blob/0836c78/docs/ARCHITECTURE.md">ARCHITECTURE.md</a> (how the seat
-works), and this page's data: <a href="data/anode-quick-checks-2026-10-24.txt">quick checks</a>,
+works), <a href="https://github.com/skulitom/Anode/blob/0836c78/docs/USAGE.md">USAGE.md</a> (the viewer's Take control),
+<a href="https://github.com/skulitom/Anode/blob/0836c78/docs/SECURITY.md">SECURITY.md</a> (what setup changes; the seat runs unelevated),
+<a href="https://github.com/skulitom/Anode/blob/0836c78/docs/INSTALL.md">INSTALL.md</a> (Windows Home), and this page's data: <a href="data/anode-quick-checks-2026-10-24.txt">quick checks</a>,
 <a href="data/anode-tools-list-v0.11.3.json">tool list</a> and <a href="data/searches-2026-10-24.txt">the
 searches</a>.</li>
 </ul>
