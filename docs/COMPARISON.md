@@ -10,15 +10,16 @@ Facts about the other tools come from their own pages and repositories, **read o
 They change often, so follow the links before you decide. Corrections are welcome as an
 [issue](https://github.com/skulitom/Anode/issues/new?template=bug_report.yml).
 
-For Windows-MCP, Desktop Touch MCP, windows-computer-use-mcp and Terminator side by side, including
-which of their tools move your real pointer, see
+For BgDesk, Windows-MCP, Desktop Touch MCP, windows-computer-use-mcp and Terminator side by side (checked
+24 October 2026), including which of them use a separate Windows session and which of their tools move your real
+pointer, see
 [Windows desktop automation for AI agents, compared](https://skulitom.github.io/Anode/compare/windows-desktop-automation-for-ai-agents/).
 
 ## The short answer
 
 | You want… | Use |
 | --- | --- |
-| An agent that drives Windows apps and headed browsers while you keep working on the same PC, with nothing moving under your mouse | **Anode** |
+| An agent that drives Windows apps and headed browsers while you keep working on the same PC, with nothing moving under your mouse | **Anode**, or BgDesk (the same child-session approach, with several agents at once; see [the comparison page](https://skulitom.github.io/Anode/compare/windows-desktop-automation-for-ai-agents/#bgdesk)) |
 | The same without a second session, on macOS or Linux as well, and you can accept that some targets refuse background input | [Cua Driver](#cua-driver) |
 | An agent that drives your own desktop while you watch, on Windows 10 or 11, Home too (its README names no edition limit) | [Windows-MCP](#windows-mcp) |
 | Files, terminal commands and processes, with no GUI at all | [Desktop Commander](#desktop-commander) |
