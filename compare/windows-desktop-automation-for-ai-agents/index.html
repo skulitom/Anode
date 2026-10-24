@@ -318,7 +318,8 @@ extension in your own signed-in browser, or Mediar's workflow builder and manage
 (BgDesk, "Background Computer Use for Windows") is a C# MCP server, at release 2.0.0 since 17 October 2026, that uses
 the same Windows feature as Anode: a child session, a loopback Remote Desktop session under your own logon, turned on
 with <code>WTSEnableChildSessions</code> and hosted, off-screen, in Microsoft's Remote Desktop control. Its tagline says
-"hidden desktop"; its "How it works" section explains that this is a child session: a separate Windows session, not a
+"hidden desktop"; its "How it works" section explains that this is a child session, a second desktop with its own input
+queue where <code>SendInput</code> works as it does for a person. That makes it a separate Windows session, not a
 hidden Win32 desktop like those of the tools under <a href="#other-routes">Hidden desktops and other routes</a>. An agent process inside that session sends
 real mouse and keyboard input there, or window messages for app types it has tested (Chromium, Electron, Explorer,
 consoles and classic dialogs). The session's one large screen is divided into up to 12 areas of 1440x900, one per
@@ -362,9 +363,9 @@ run by us.</p>
 <ul>
 <li><a href="https://github.com/NORTHTEKDevs/ghost">Ghost</a> (Northtek; MIT, 28 stars, 0.23.4 of 6 September 2026,
 54 tools on Windows) drives the windows on your desktop with window messages and UI Automation, and starts the apps it
-launches on a hidden desktop in your session. Real mouse and keyboard input is off by default, and by default no
-tool call can turn it on; only you can, in the server's settings (<code>GHOST_FOCUS_POLICY</code>, or <code>GHOST_FOCUS_LOCK=off</code>
-to let the agent switch it), so by default it doesn't move your pointer. Chromium can still take the foreground
+launches on a hidden desktop in your session. Real mouse and keyboard input is off by default, and only you can turn
+it on, in the server's settings: <code>GHOST_FOCUS_POLICY</code> sets it, and <code>GHOST_FOCUS_LOCK=off</code> lets the
+agent switch it with a tool call. So by default it doesn't move your pointer. Chromium can still take the foreground
 for a moment, and Ghost hands it back: across six runs of about 490 keystrokes with a person typing, its README counts
 one keystroke that reached the wrong window. Ctrl+Alt+G stops every acting call. Its README says real input doesn't
 work on its hidden desktop, so apps that need real input need its foreground policy, on your own desktop.</li>
@@ -413,7 +414,8 @@ Touch MCP's pointer row now includes <code>browser_click</code> and <code>deskto
 the first version missed; Windows-MCP's columns now follow the 0.8.8 release rather than its main branch, with its
 control gate described; windows-computer-use-mcp's approval gate is corrected (its mouse and keyboard tools refuse
 calls until <code>approve_automation</code>, which the agent can call itself; they don't wait); Terminator's rows no
-longer name a <code>hover_element</code> tool, which doesn't exist, and now include <code>mouse_drag</code> and its
+longer name a <code>hover_element</code> tool (the name appears in two focus-exemption lists in its
+<code>server.rs</code>, but it isn't one of the 35 tools), and now include <code>mouse_drag</code> and its
 typing tools' click fallback; Anode's numbers come from the 0.11.3 release.</li>
 </ul>
 
