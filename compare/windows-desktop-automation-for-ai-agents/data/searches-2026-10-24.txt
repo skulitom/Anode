@@ -1,0 +1,39 @@
+The searches this page answers, re-run for the refresh
+Run on 24 October 2026, about 14:59 to 15:01 (London), in Claude Code's web search tool (standard mode, US results).
+Queries 1 to 3 are the page's own searches from 16 October. Queries 4 and 5 are two of the searches that AI agents
+themselves ran in our discovery test of 22 October, when asked to find a Windows MCP server that works in the
+background. For each: the results in the order returned, and what the tool's own summary said.
+Anode appeared in none of them, and none of the results was a head-to-head comparison.
+
+1. "Windows desktop automation for AI agents MCP server"
+   Results: glama.ai (three server listings), ai.g2.com (windows-computer-use-mcp, Windows-MCP), glama.ai
+   (mcp-windows-desktop-automation), dev.co (Windows-MCP overview), lobehub.com (uiautomation-mcp), playbooks.com
+   (Windows-MCP), glama.ai (one more listing).
+   Summary: Windows-MCP is the most widely listed; also windows-computer-use-mcp, windows-gui-mcp, UIAutomation MCP,
+   an AutoIt-based server, windows2-mcp and WinRemote MCP. It said star counts came from directories it hadn't
+   checked.
+
+2. "best MCP server for Windows desktop GUI automation"
+   Results: enterprisedna.co (desktop-touch-mcp, terminator-mcp-agent), glama.ai (mcp-windows-desktop-automation and
+   three listings), claude.com/connectors/windows-mcp, github.com/locomorange/uiautomation-mcp, dev.co (Windows-MCP),
+   lobehub.com (uiautomation-mcp).
+   Summary: "No single best option stands out"; it listed Windows-MCP, Terminator, UIAutomation MCP, windows-gui-mcp,
+   windows2-mcp, the AutoIt server, WinRemote MCP and Desktop Touch MCP, from directory listings.
+
+3. "MCP server automate Windows apps without taking over mouse and keyboard background"
+   Results: glama.ai (one listing), x-cmd.com (Windows-MCP install page), glama.ai (a Windows-MCP fork's examples),
+   claude.com/connectors/windows-mcp, docsearch.algolia.com (Windows-MCP docs), mcpservers.org (MCPComputerUse, in
+   three languages), ai.g2.com (Windows-MCP), github.com/RandyNorthrup/win32-mcp-server.
+   Summary: it found no server that clearly works in the background without moving the mouse and keyboard; most
+   results describe simulated input.
+
+4. "MCP server Windows desktop automation UI Automation hidden background desktop screenshots click type"
+   Results: github.com/felenko/WindowsOSMCP, glama.ai (win32-mcp-server README), mcpservers.org (MCPComputerUse, in
+   six languages), github.com/RandyNorthrup/win32-mcp-server, glama.ai (mcp-test-utils).
+   Summary: "None of the results describe a hidden or background desktop mode."
+
+5. "Windows MCP server separate virtual desktop isolated session AI agent computer use UIA"
+   Results: enterprisedna.co (desktop-touch-mcp), glama.ai (five listings, among them WindowsPC-MCP and
+   windows-gui-mcp), playbooks.com (Windows Desktop Control), nuget.org (UIInspect.MCP.Server 0.2.0).
+   Summary: the closest match was WindowsPC-MCP, which gives the agent its own virtual display; none of the results
+   described a separate Windows session or Windows Sandbox for an MCP server.
