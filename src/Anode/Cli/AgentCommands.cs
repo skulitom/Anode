@@ -34,7 +34,7 @@ internal static partial class Cli
     }
 
     /// <summary>Reject missing ownership before discovering the daemon, using the envelope RequestAsync sends.</summary>
-    private static Task<JsonPipeClient?> Connect(string op, JsonObject? arguments = null)
+    private static Task<JsonPipeClient?> Connect(string op, JsonObject? arguments)
     {
         if (AgentAccess.RequiresLease(op) || op == "exec.read")
         {
