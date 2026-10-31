@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Dependencies.** Seat audio uses NAudio.Wasapi 3.3.0 (was 3.2.0), and `anode setup`'s
+  Remote Desktop service handling uses System.ServiceProcess.ServiceController 10.0.14 (was
+  10.0.13). No change in behaviour.
+
 ## 0.11.4 — 2026-10-23
 
 - **A desktop action longer than the lease's lifetime no longer ends with the lease gone.** Each
