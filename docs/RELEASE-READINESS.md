@@ -100,6 +100,34 @@ Recorded here on `main` after the owner's `scripts\release-check.ps1` run on the
 (its `summary.txt`). The tag stays on the tested commit, so the copy of this file inside the
 release does not include it.
 
+The owner's check was run on 31 October 2026 by compass-advisor, with Artem's seat sign-in, on
+`1ad6eae`, the tagged commit. The package built from `1ad6eae` for this record (zip SHA-256
+`7a7313963963788215cb43ce6060bce024858222b5c9bec0b2dc039455f95fd2`) was installed over 0.11.3
+(SHA-256 verified by the installer) and checked on the main channel. Windows refused automatic seat
+sign-in (disconnect reason 2055), so Artem signed the seat in with **Sign in…** from the tray icon;
+the check then ran in seat session 4, with the viewer visible.
+
+```text
+Anode release check: PASSED
+Commit 1ad6eae42c023654fd8de463a9d7a6e9ff787e1a (the commit that set 0.11.4: no, that is 3a4d0dd)
+Anode 0.11.4, C:\Users\artem\AppData\Local\Programs\Anode\anode.exe, channel main, Windows 10.0.26200, seat session 4
+2026-10-31 14:06:28Z to 14:07:41Z
+desktop       passed   26 s   15 checks
+chrome-form   passed   16 s   Chrome 156.0.8078.48, no warnings
+development   passed   14 s   input delivery confirmed
+explorer      passed    9 s   106 controls
+display       passed    7 s   4 displays, reset to 1280x720 at 100%
+Note: HEAD is not the commit that set 0.11.4 (3a4d0dd); a tag here releases the commits after it too.
+Tag: git tag v0.11.4 1ad6eae42c023654fd8de463a9d7a6e9ff787e1a  then  git push origin v0.11.4
+```
+
+#87's scroll look, in the same seat after the check and before the tag (about 14:08Z): in the seat's
+browser, after a click on a long
+page (gnu.org's GPL v3 text), `anode scroll -5` answered `settled` after 275 ms and again after
+288 ms, and a screenshot taken straight after the first showed the page already scrolled past its
+header. On a short page (a 429 error page), the first call answered `settled` after 286 ms and a
+second `unchanged` after 530 ms.
+
 ### Build and package validation
 
 - `scripts\build.ps1 -QuickTest` on the candidate: **120 quick self-tests** passed (112 at 0.11.3's
