@@ -111,8 +111,8 @@ release does not include it.
   ServiceController 10.0.14 runs only in `anode setup`'s Remote Desktop service steps, which need
   administrator rights and are not part of the live check.
 - The skill inside 0.11.5 (`anode_guide`, and the copy `anode configure` installs) names the
-  installer the repository's skill pins when the candidate is built: 0.11.4 once storefront's
-  manifest PR (#96) has landed, 0.11.3 before it. Its install steps matter only on a PC without
+  installer the repository's skill pins when the candidate is built: 0.11.4 once the Scoop, winget
+  and skill pin PR (#96) has landed, 0.11.3 before it. Its install steps matter only on a PC without
   Anode. The repository's skill moves to 0.11.5 after the release
   ([release process](../CONTRIBUTING.md#release-process), step 7).
 - The environment self-test ran on CI's hosted runner, not inside a seat. Audio, the virtual

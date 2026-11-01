@@ -2,9 +2,9 @@
 
 ## 0.11.5 — 2026-11-01
 
-- **.NET 10.0.14.** Release builds include Microsoft's October 25 security update of the .NET 10
-  runtime (10.0.14, from 10.0.13), which fixes CVE-2026-111497, CVE-2026-70197, CVE-2026-102870
-  and CVE-2026-114148. No change in Anode's behaviour.
+- **.NET 10.0.14.** Release builds include Microsoft's 25 October security update of the .NET 10
+  runtime (10.0.14, from 10.0.13; CVE-2026-111497, CVE-2026-70197, CVE-2026-102870 and
+  CVE-2026-114148). No change in Anode's behaviour.
 - **Dependencies.** Seat audio uses NAudio.Wasapi 3.3.0 (was 3.2.0), and `anode setup`'s
   Remote Desktop service handling uses System.ServiceProcess.ServiceController 10.0.14 (was
   10.0.13). No change in behaviour.
