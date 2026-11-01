@@ -63,6 +63,65 @@ and the .NET 10 SDK, Node.js and Chrome installed. It takes the desktop lease, c
 `scripts\test-release-check.ps1` tests the script's dry run (`-DryRun`, which starts no Anode and no
 live check) in CI and on any PC.
 
+## 0.11.5 release validation
+
+**Scope:** everything merged since 0.11.4:
+- the self-contained runtime, from .NET 10.0.13 to **10.0.14**, Microsoft's security update of
+  25 October 2026 (CVE-2026-111497, CVE-2026-70197, CVE-2026-102870 and CVE-2026-114148), still
+  Microsoft's latest 10.0 patch (checked against
+  [Microsoft's release metadata](https://builds.dotnet.microsoft.com/dotnet/release-metadata/10.0/releases.json)
+  on 1 November 2026), set in this record's commit;
+- dependencies: #95 (NAudio.Wasapi 3.2.0 to **3.3.0** for seat audio, and
+  System.ServiceProcess.ServiceController 10.0.13 to **10.0.14** for `anode setup`'s Remote
+  Desktop service handling);
+- code cleanup: #93 (an unused default parameter on the CLI's validating `Connect` overload; no
+  change in behaviour);
+- docs: #89 (the README, `llms.txt` and `docs/COMPARISON.md`: the refreshed Windows desktop
+  automation comparison) and #94 (0.11.4's live validation record).
+
+No tools or commands were added; the tool count stays 41. No fixes or features: 0.11.5 exists to
+ship the runtime's security update.
+
+### Live validation
+
+Recorded here on `main` after the owner's `scripts\release-check.ps1` run on the release commit
+(its `summary.txt`). The tag stays on the tested commit, so the copy of this file inside the
+release does not include it.
+
+### Build and package validation
+
+- `scripts\build.ps1 -QuickTest` on the candidate: **120 quick self-tests** passed (as at 0.11.4;
+  nothing since adds or changes a check), and the documentation check passed (42 documents against
+  41 tools). `anode version` reports 0.11.5, and the published `anode.exe` carries the 10.0.14
+  runtime.
+- `scripts\release-check.ps1 -DryRun` and `scripts\test-release-check.ps1` passed (no Anode or
+  seat started).
+- The release workflow's own package steps (`build.ps1 -QuickTest -Package -Mcpb`,
+  `registry-entry.ps1`, `test-distribution.ps1 -Release`) passed.
+- Windows CI on the candidate repeats the build, packaging, quick suite, installation,
+  distribution and documentation checks, and runs the environment self-test on a GitHub-hosted
+  Windows runner.
+
+### Coverage limits and known issues
+
+- The runtime update and the two dependency bumps change no Anode code. The quick checks and the
+  environment self-test run on the 10.0.14 runtime; the live check repeats the seat paths on it.
+- NAudio 3.3.0 is covered by the quick checks' WAV clips and the audio protocol with an injected
+  renderer. Real seat audio (`seat_audio_listen`, `seat_audio_play`) is not part of the live check.
+  ServiceController 10.0.14 runs only in `anode setup`'s Remote Desktop service steps, which need
+  administrator rights and are not part of the live check.
+- The skill inside 0.11.5 (`anode_guide`, and the copy `anode configure` installs) names the
+  installer the repository's skill pins when the candidate is built: 0.11.4 once the Scoop, winget
+  and skill pin PR (#96) has landed, 0.11.3 before it. Its install steps matter only on a PC without
+  Anode. The repository's skill moves to 0.11.5 after the release
+  ([release process](../CONTRIBUTING.md#release-process), step 7).
+- The environment self-test ran on CI's hosted runner, not inside a seat. Audio, the virtual
+  gamepad, Android, the foreground pointer phases and the Claude Desktop bundle test are not part
+  of the live check.
+- Known issues: a Chrome window's first observation can omit the page (observe again with
+  `maxDepth` 16); `invoke` on Windows' Open File security dialog reports success without running
+  anything; `anode type` has no pace option; `anode.log` is not rotated.
+
 ## 0.11.4 release validation
 
 **Scope:** everything merged since 0.11.3:

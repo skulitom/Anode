@@ -1,51 +1,13 @@
-## What's new in 0.11.4
+## What's new in 0.11.5
 
-This patch fixes bugs found after 0.11.3, one of them reported by an outside user (#57). No tools
-or commands were added; there are still 41 tools.
+This patch updates the .NET runtime that release builds include. Anode's behaviour, tools and
+commands are unchanged; there are still 41 tools.
 
-- **A long desktop action keeps its lease.** Each action extended its owner's lease from when it
-  started, so one that ran past the lease's lifetime, such as a `steam_launch` of up to 175 s under
-  the default 120 s, ended with the lease expired, and another agent could take the desktop. An
-  action now keeps the lease while it runs and leaves a full lifetime from when it ends.
-- **Desktop commands ask for a missing agent ID first.** With Anode stopped, `anode type hi` without
-  `ANODE_AGENT_ID` said "Anode is not running", then failed again for the ID once Anode was
-  started. Commands that need the desktop lease now name the missing agent ID or lease token before
-  they connect (exit 2).
-- **Scrolling waits for the screen to catch up.** A wheel scroll or PageDown answered before a
-  browser had drawn it, so the next screenshot could show the old page. Scrolls and PageUp,
-  PageDown, Home and End now wait for the screen to settle, up to about 2.5 seconds, and say
-  whether it settled; a reply of `changing` or `unknown` calls for a fresh screenshot.
-- **`anode doctor` warns when Windows signs local accounts in as Guest.** With Windows' "Guest
-  only" sharing model (`ForceGuest = 1` under `HKLM\SYSTEM\CurrentControlSet\Control\Lsa`, set by
-  some security suites and hardened images), the seat could never sign in, even with the password
-  the lock screen accepts, while every doctor row read `[ok]` and the seat's error was only
-  "extended reason 0". Doctor now has a **Local account sign-in** row that warns while it is set, a
-  failed seat sign-in names it, and
-  [TROUBLESHOOTING](https://github.com/skulitom/Anode/blob/main/docs/TROUBLESHOOTING.md#windows-refuses-the-right-password-for-a-local-account)
-  explains how to check it. Anode never changes the setting.
-  ([#57](https://github.com/skulitom/Anode/issues/57))
-- **`anode display` says why it can't read the seat's status.** With nothing to change, it exited 1
-  and printed nothing when its status request failed. It now prints the reason on stderr.
-- **`anode type`, `anode steam` and `anode gamepad` refuse bad arguments before connecting.** With
-  Anode stopped, text too long for one call, a bad `--exe`, a gamepad `--ms` out of range or an
-  unknown button answered "Anode is not running" (exit 1) instead of the real error (exit 2). An
-  unknown gamepad button, axis or trigger is now refused at once, with the names that work, on the
-  CLI and over MCP, where `gamepad_tap` and `gamepad_set` used to take the desktop lease first.
-- **A piped command no longer waits for Anode to exit.** When Anode couldn't be started through the
-  Task Scheduler, the daemon it started instead inherited the caller's handles, so a command such
-  as `anode lease acquire | Out-String` waited until Anode itself exited, and
-  `anode browser --sign-in | Out-Host` until the browser was closed. Both now start with no
-  inherited or standard handles.
-- **A log line waits longer for other writers before it is dropped.** When several Anode processes
-  wrote to `anode.log` at once, a line waited only about 100 ms for the others; it now waits up to a
-  second.
-- **New guide: keep working while Windows-MCP clicks.**
-  [docs/WINDOWS-MCP.md](https://github.com/skulitom/Anode/blob/main/docs/WINDOWS-MCP.md) runs
-  CursorTouch's Windows-MCP inside the seat with `anode run`, so its clicks and typing stay off your
-  desktop. Docs only.
-- **The skill asks before it installs anything.** The `anode-desktop` skill and `anode_guide` show
-  the user the exact install commands and wait for their yes. They download the installer from a
-  named release, not `latest`, and check its SHA-256 before running it.
+- **.NET 10.0.14.** Release builds include .NET 10.0.14, Microsoft's security update of
+  25 October 2026 (CVE-2026-111497, CVE-2026-70197, CVE-2026-102870 and CVE-2026-114148). 0.11.4
+  included 10.0.13. Upgrade to stay on a patched runtime; nothing else in Anode changes.
+- **Dependencies.** Seat audio uses NAudio.Wasapi 3.3.0 (was 3.2.0), and `anode setup`'s Remote
+  Desktop service handling uses System.ServiceProcess.ServiceController 10.0.14 (was 10.0.13).
 
 **Known issues.** A Chrome window's first observation can come back without the page, and the
 page's controls sit deeper than the default `maxDepth` of 8: observe again with `maxDepth` 16. On
@@ -59,15 +21,14 @@ installation, distribution, and the environment self-test on a GitHub-hosted Win
 on the release commit. The owner's live check, `scripts\release-check.ps1` (native controls, Chrome
 forms, real input, File Explorer and display changes on Windows 11), runs on the release commit
 before it is tagged; its summary and coverage limits are in the
-[validation record](https://github.com/skulitom/Anode/blob/main/docs/RELEASE-READINESS.md#0114-release-validation).
-Release builds include .NET 10.0.13, Microsoft's October security update.
-See the [changelog](https://github.com/skulitom/Anode/blob/v0.11.4/CHANGELOG.md#0114--2026-10-23) for every
+[validation record](https://github.com/skulitom/Anode/blob/main/docs/RELEASE-READINESS.md#0115-release-validation).
+See the [changelog](https://github.com/skulitom/Anode/blob/v0.11.5/CHANGELOG.md#0115--2026-11-01) for every
 change.
 
 ## Install or upgrade
 
 Download **anode-windows-x64.zip** for the portable executable, agent connector and docs. Release
-builds include .NET 10.0.13; no SDK or runtime installation is needed.
+builds include .NET 10.0.14; no SDK or runtime installation is needed.
 
 For a per-user installation, download **install.ps1** and run it in PowerShell:
 
@@ -90,7 +51,7 @@ anode capabilities | Out-Host
 agent afterward. Other MCP clients can launch `anode.exe` with the argument `mcp`.
 
 **Upgrading:** save seat work, run `anode quit` (which closes every program in the seat), and close
-agent sessions using Anode. Install 0.11.4, start Anode again and restart those agent sessions.
+agent sessions using Anode. Install 0.11.5, start Anode again and restart those agent sessions.
 Run `anode configure` to refresh the installed skill.
 
 Requires 64-bit Windows 10/11 Pro, Enterprise or Education, or Windows Server with a Remote Desktop

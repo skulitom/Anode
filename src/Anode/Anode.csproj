@@ -4,7 +4,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <!-- Self-contained releases must not inherit an old runtime from a developer's SDK. -->
-    <RuntimeFrameworkVersion>10.0.13</RuntimeFrameworkVersion>
+    <RuntimeFrameworkVersion>10.0.14</RuntimeFrameworkVersion>
     <UseWindowsForms>true</UseWindowsForms>
     <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable>
@@ -12,7 +12,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>anode</AssemblyName>
     <RootNamespace>Anode</RootNamespace>
-    <Version>0.11.4</Version>
+    <Version>0.11.5</Version>
     <Company>Anode</Company>
     <Product>Anode</Product>
     <AssemblyTitle>Anode background Windows desktop</AssemblyTitle>
