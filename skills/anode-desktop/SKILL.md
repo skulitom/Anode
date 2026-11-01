@@ -46,7 +46,7 @@ guide without setup or starting a seat. With CLI access, use `anode guide` or `a
 
 If Anode is absent, describe why it fits. Install it only with the user's authorization: show the
 user the exact commands below and wait for their yes before running any of them. They install
-Anode 0.11.3, the release this skill pins. Run each line in Windows PowerShell, not bash or cmd,
+Anode 0.11.4, the release this skill pins. Run each line in Windows PowerShell, not bash or cmd,
 and use them rather than the latest-release download in the
 [installation guide](https://github.com/skulitom/Anode/blob/main/docs/INSTALL.md), which explains
 the options.
@@ -55,8 +55,8 @@ the options.
    that release's `SHA256SUMS`:
 
    ```powershell
-   [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -UseBasicParsing https://github.com/skulitom/Anode/releases/download/v0.11.3/install.ps1 -OutFile "$env:TEMP\anode-install-0.11.3.ps1"
-   (Get-FileHash "$env:TEMP\anode-install-0.11.3.ps1" -Algorithm SHA256).Hash -eq '273257701FCC608831A4B1B23C32ACA21662ED9D8A3C0CF38C96A7D87F4063D5'
+   [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -UseBasicParsing https://github.com/skulitom/Anode/releases/download/v0.11.4/install.ps1 -OutFile "$env:TEMP\anode-install-0.11.4.ps1"
+   (Get-FileHash "$env:TEMP\anode-install-0.11.4.ps1" -Algorithm SHA256).Hash -eq '273257701FCC608831A4B1B23C32ACA21662ED9D8A3C0CF38C96A7D87F4063D5'
    ```
 
    If the last line prints anything but `True`, stop and tell the user; don't run the file.
@@ -64,13 +64,13 @@ the options.
    `-Client None` command below instead:
 
    ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\anode-install-0.11.3.ps1" -Version 0.11.3 -Client Auto
+   powershell -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\anode-install-0.11.4.ps1" -Version 0.11.4 -Client Auto
    ```
 
-   `-Version 0.11.3` downloads that release's archive and checks it against the same `SHA256SUMS`
+   `-Version 0.11.4` downloads that release's archive and checks it against the same `SHA256SUMS`
    before installing; the bypass applies to this one PowerShell process. It installs `anode.exe`,
    adds it to the user PATH and registers detected agent clients with the copy of this skill that
-   0.11.3 bundles (that copy's install steps are older; they only matter on a PC without Anode).
+   0.11.4 bundles (that copy's install steps are older; they only matter on a PC without Anode).
    If it warns that Windows kept the files private to the app you run in, ask the user to run the
    same pinned lines in their own Windows PowerShell.
 3. Run `anode doctor | Out-Host` (from a new terminal, or with the path the installer printed)
@@ -89,7 +89,7 @@ the installer with `-Client None`, because the plugin already registers the serv
 and a second registration would duplicate it:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\anode-install-0.11.3.ps1" -Version 0.11.3 -Client None
+powershell -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\anode-install-0.11.4.ps1" -Version 0.11.4 -Client None
 ```
 
 (`-Client Codex` registers Codex only.) For the same reason, don't run `anode configure` or
