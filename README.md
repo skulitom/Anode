@@ -32,9 +32,10 @@ cut, and the nine clicks, which took 0.4 s, are shown four times slower.</sub>
   it inside the seat, so your input stays in your own session: [Windows-MCP in the background](https://skulitom.github.io/Anode/compare/windows-mcp-in-the-background/)
   (tested 22 October 2026 with nobody at the PC: 13 tool calls, no pause, the PC's pointer never moved; not yet
   measured while someone works).
-- **Using computer use from Codex, Claude, GitHub Copilot or agent-desktop?** By their own docs, Codex takes over your
-  pointer and foreground on Windows, Claude hides your other windows while it works, and Copilot's app and agent-desktop
-  work in the background where they can, in your own session. How that compares with Anode's seat: [AI computer use on Windows in the background](https://skulitom.github.io/Anode/compare/windows-computer-use-in-the-background/)
+- **Using computer use from Codex, Claude, GitHub Copilot, agent-desktop or Cua Driver?** By their own docs, Codex
+  takes over your pointer and foreground on Windows, Claude hides your other windows while it works there (its
+  background mode is macOS-only), and Copilot's app, agent-desktop and Cua Driver work in the background where they
+  can, in your own session. How that compares with Anode's seat: [AI computer use on Windows in the background](https://skulitom.github.io/Anode/compare/windows-computer-use-in-the-background/)
   (checked 6 November 2026; the others read from their docs, not run by us).
 
 ## Install in 3 commands
