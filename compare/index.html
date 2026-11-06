@@ -26,7 +26,7 @@ footer { border-top: 1px solid var(--rule); margin-top: 3rem; padding-top: 1rem;
   "description": "Anode's comparison pages: which Windows desktop automation MCP servers act in your own session and move your real pointer, and when to use Anode or something else.",
   "url": "https://skulitom.github.io/Anode/compare/",
   "inLanguage": "en",
-  "dateModified": "2026-10-24",
+  "dateModified": "2026-11-06",
   "isPartOf": {
     "@type": "WebSite",
     "name": "Anode",
@@ -55,6 +55,12 @@ footer { border-top: 1px solid var(--rule); margin-top: 3rem; padding-top: 1rem;
       {
         "@type": "ListItem",
         "position": 3,
+        "url": "https://skulitom.github.io/Anode/compare/windows-computer-use-in-the-background/",
+        "name": "AI computer use on Windows in the background: Codex, Claude, Copilot, agent-desktop, Cua Driver and Anode compared"
+      },
+      {
+        "@type": "ListItem",
+        "position": 4,
         "url": "https://github.com/skulitom/Anode/blob/main/docs/COMPARISON.md",
         "name": "When to use Anode, and when to use something else"
       }
@@ -71,6 +77,8 @@ footer { border-top: 1px solid var(--rule); margin-top: 3rem; padding-top: 1rem;
 <p>Checked 24 October 2026 (first published 16 October). Anode and BgDesk run the agent in a separate Windows session (a child session) with its own pointer and keyboard focus. Windows-MCP, Desktop Touch MCP, windows-computer-use-mcp and Terminator act in your own session, and each of the four has click paths that move your real pointer. Ghost, lowlevel-computer-use-mcp and computer-use-plus drive apps with window messages instead, and start them on a hidden desktop in your session. The other tools were read from their docs and source code, not run by us. In Anode&#x27;s live validation of version 0.11.1, with your real pointer over Anode&#x27;s hidden viewer, Windows&#x27; Remote Desktop control tried 7 times to copy the agent&#x27;s pointer moves to your pointer, and Anode blocked all 7. The page also compares tools, sign-in, setup and telemetry.</p>
 <h2><a href="windows-mcp-in-the-background/">Windows-MCP in the background: run it in Anode&#x27;s hidden Windows session</a></h2>
 <p>Tested 22 October 2026. Windows-MCP 0.8.8, started inside Anode&#x27;s seat, made 13 tool calls (7 from a script, 6 from Claude Code) that returned without an error and with no <code>USER_CONTROL</code> pause from its control gate, while the pointer on the PC&#x27;s own desktop never moved and its foreground window never changed. Nobody used the PC during the run, so how the gate behaves while someone works is not yet measured. The page gives the setup steps, the limits, and when to use Windows-MCP&#x27;s unreleased main branch, a virtual machine or Anode&#x27;s own server instead.</p>
+<h2><a href="windows-computer-use-in-the-background/">AI computer use on Windows in the background: Codex, Claude, Copilot, agent-desktop, Cua Driver and Anode compared</a></h2>
+<p>Checked 6 November 2026. By their own docs, the computer use built into Codex, Claude and GitHub Copilot&#x27;s app works on your own Windows desktop: Codex runs on the active desktop and takes over the pointer and foreground, Claude hides your other windows while it works (its background mode is macOS-only), and Copilot&#x27;s app works in the background where possible, bringing the target app into focus only when needed. agent-desktop and Cua Driver leave your pointer alone by default through UI Automation and window messages in your session. None of them was run by us. Anode runs the agent&#x27;s apps in a second Windows session; in our 22 October run, 13 Windows-MCP tool calls there left the PC&#x27;s own pointer and foreground window unchanged, with nobody using the PC. The page lists users&#x27; dated reports, Anode&#x27;s limits, and when to use each option instead.</p>
 <h2><a href="https://github.com/skulitom/Anode/blob/main/docs/COMPARISON.md">When to use Anode, and when to use something else</a></h2>
 <p>A document in Anode&#x27;s repository on GitHub; facts read on 8 October 2026 (Windows-MCP&#x27;s stars and supported Windows versions re-read on 16 October 2026). How Anode differs from Windows-MCP, Cua Driver, Desktop Commander and Windows 365 for Agents, and which to pick for which job.</p>
 <h2>Comparisons for our other tools</h2>
