@@ -1,0 +1,36 @@
+Searches for the page "AI computer use on Windows in the background", run 2026-11-06 at about 15:27 London time
+with Claude Code's web search (standard mode). Ranked results in order, then the search summary in brief.
+None of the results was ours.
+
+1. "agent-desktop Windows computer use without stealing focus background"
+   Ranked: glama.ai (vhzqrt86ls, hcu78gk1x6), mcpservers.org northtekdevs/ghost (4 languages), tessl.io hermes-agent
+   computer-use skill, mcpmarket ghost-11, community.cisco.com (unrelated "Agent Desktop"), cua.ai docs "the no
+   foreground contract", flaviocopes.com "A deep dive into agent-desktop" (.md and html), mcpmarket computer-use skill,
+   dev.to gentic_news "Cua Driver brings background computer use to Windows", github hyprcat/mac-cua, bridge.surf
+   blog, gentic.news.
+   Summary: no official doc on agent-desktop's Windows focus handling; named lowlevel-computer-use-mcp
+   (CreateDesktop/SwitchDesktop), Ghost (posted window messages), Cua Driver (Windows background, 2026-03-21).
+2. "AI agent computer use on Windows in the background while I keep using my PC"
+   Ranked: dev.to Cua Driver, guru3d (Microsoft background agent), kocpc, windowslatest (Windows 11 AI agent),
+   Yahoo, themenonlab Windows-MCP, eloutput, quantrimang, discuss.pytorch.kr, dev.to davekurian (Codex on Windows
+   11), privacyguides, learn.microsoft.com Copilot Studio "Configure where computer use runs", kingy.ai, a reddit
+   snapshot, gentic.news.
+   Summary: "Cua Driver is the only option here that claims to support your exact use case"; Codex on Windows runs
+   on the active desktop; Copilot Studio advises a dedicated machine.
+3. "Codex computer use Windows takes over mouse focus hidden desktop"
+   Ranked: community.openai.com (2 threads), nuget CP.CodexComputerRun.Mcp.Server (3 versions), zhbchao, the tech
+   outlook, kingy.ai, vibecodehq, all-ai.de, besthub.dev (3), codex.danielvaughan.com ("Foreground Desktop
+   Automation"), ai-prompt-packs-site, a GitHub mirror of ChrisPulman/CodexComputerRunMCPServer, pulse.bot, longform.
+   Summary: no hidden or separate desktop mode for Codex on Windows; "foreground-only"; OpenAI advises a dedicated
+   machine or VM; cites the invisible-cursor report.
+4. "Claude computer use Windows minimizes my windows separate session"
+   Ranked: github anthropics/claude-code #60879, claudeissues.com 69286, 90241, 91794, 96825, thehansindia, digit.in.
+   Summary: user bug reports (minimized non-allowlisted windows, restore pass steals focus, docked side panel), "no
+   official Anthropic fix or documentation" found.
+5. "run computer use agent in a hidden Windows session MCP"
+   Ranked: socket.dev agentfenster-mcp, socket.dev (2 unrelated), glama.ai (kj6eaykhv0, knnjsr82ih, vhzqrt86ls),
+   learn.microsoft.com "MCP containment", enterprisedna munim-computer-use, a Windows 365 agent session page mirror,
+   pkgstats windows-computer-use-mcp, themenonlab, everydev opencomputeruse, skillselion Windows-MCP,
+   automationswitch, g2 windows-computer-use-mcp, a reddit snapshot.
+   Summary: agentfenster-mcp (hidden second desktop in your own session, 0.1.0), lowlevel-computer-use-mcp,
+   Microsoft MCP containment ("its own Windows session under a separate agent account"), Windows-MCP.

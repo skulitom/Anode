@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI computer use on Windows in the background: Codex, Claude, Copilot, agent-desktop, Cua Driver and Anode compared</title>
+<meta name="description" content="Checked 6 Nov 2026 from their docs: Codex and Claude computer use work on your Windows desktop; Copilot's app works in the background where possible. In Anode's second session, measured with nobody at the PC, your pointer and foreground stayed unchanged.">
+<link rel="canonical" href="https://skulitom.github.io/Anode/compare/windows-computer-use-in-the-background/">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "AI computer use on Windows in the background: Codex, Claude, Copilot, agent-desktop, Cua Driver and Anode compared",
+  "description": "What the Windows computer use in Codex, Claude, GitHub Copilot's app, agent-desktop and Cua Driver does to your own desktop, from their docs and public issues (read 6 November 2026, none run by us), and Anode's hidden second Windows session with our own measurements, its limits, and when to use each.",
+  "datePublished": "2026-11-06",
+  "dateModified": "2026-11-06",
+  "inLanguage": "en",
+  "url": "https://skulitom.github.io/Anode/compare/windows-computer-use-in-the-background/",
+  "author": {"@type": "Organization", "name": "Anode maintainers", "url": "https://github.com/skulitom/Anode"},
+  "about": [
+    {"@type": "SoftwareApplication", "name": "Anode", "url": "https://github.com/skulitom/Anode", "operatingSystem": "Windows", "softwareVersion": "0.11.4"},
+    {"@type": "SoftwareApplication", "name": "agent-desktop", "url": "https://github.com/vercel-labs/agent-desktop", "softwareVersion": "1.2.0"},
+    {"@type": "SoftwareApplication", "name": "Cua Driver", "url": "https://github.com/trycua/cua", "softwareVersion": "0.40.1"},
+    {"@type": "SoftwareApplication", "name": "Codex computer use (ChatGPT desktop app)", "url": "https://learn.chatgpt.com/docs/computer-use"},
+    {"@type": "SoftwareApplication", "name": "Claude computer use (Claude Desktop)", "url": "https://code.claude.com/docs/en/desktop", "softwareVersion": "4.23118.0"},
+    {"@type": "SoftwareApplication", "name": "GitHub Copilot app computer use", "url": "https://docs.github.com/en/copilot/how-tos/github-copilot-app/computer-use", "softwareVersion": "1.1.35"}
+  ]
+}
+</script>
+<style>
+:root { --bg: #ffffff; --fg: #1d1d1f; --muted: #5b5b66; --link: #0b57d0; --rule: #d9d9e0; --head: #f3f3f6; --note: #fff8e1; }
+@media (prefers-color-scheme: dark) { :root { --bg: #16171a; --fg: #e8e8ec; --muted: #a2a2ad; --link: #8ab4f8; --rule: #33343a; --head: #202126; --note: #2a2618; } }
+body { background: var(--bg); color: var(--fg); font: 17px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; }
+main { max-width: 52rem; margin: 0 auto; padding: 2rem 16px 4rem; }
+a { color: var(--link); }
+h1 { font-size: 1.65rem; line-height: 1.25; margin: 0 0 1rem; }
+h2 { font-size: 1.25rem; margin: 2.2rem 0 0.6rem; }
+h3 { font-size: 1.05rem; margin: 1.6rem 0 0.4rem; }
+.lead { font-size: 1.08rem; }
+.meta, .muted { color: var(--muted); font-size: 0.92rem; }
+.note { background: var(--note); border: 1px solid var(--rule); border-radius: 6px; padding: 0.6rem 0.9rem; }
+.wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 1rem 0; }
+table { border-collapse: collapse; font-size: 0.92rem; }
+th, td { border: 1px solid var(--rule); padding: 0.45rem 0.55rem; text-align: left; vertical-align: top; }
+thead th { background: var(--head); }
+tbody th { background: var(--head); font-weight: 600; }
+code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 0.88em; overflow-wrap: anywhere; }
+li { margin: 0.25rem 0; }
+footer { border-top: 1px solid var(--rule); margin-top: 3rem; padding-top: 1rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>AI computer use on Windows in the background: Codex, Claude, Copilot, agent-desktop, Cua Driver and Anode compared</h1>
+
+<p class="lead"><strong>As of 6 November 2026, by their own docs, Codex's Windows computer use "runs on the active
+desktop" and takes over the pointer and foreground, Claude's hides your other windows while it works (its background
+mode is macOS-only), and GitHub Copilot's app works "in the background where possible", bringing the target app into
+focus "only when needed" on Windows. Anode instead runs the agent's apps in a second Windows session with its own
+screen, pointer and keyboard focus: in our run on 22 October 2026 (Anode 0.11.3, Windows 11 Pro), 13 Windows-MCP tool
+calls inside that session left the PC's own pointer in one place and its foreground window unchanged across 4,762
+samples over 240 seconds, with nobody using the PC.</strong> agent-desktop 1.2.0 and Cua Driver 0.40.1 also leave your pointer alone by
+default, using UI Automation and window messages inside your own session; an open report against agent-desktop 1.1.0
+(<a href="https://github.com/vercel-labs/agent-desktop/issues/567">#567</a>, 5 November) says its actions still bring
+the target window to the front, and Cua Driver needs the app to accept background input. Anode needs Windows 10 or 11
+Pro, Enterprise or Education on x64. Method, sources and data are below.</p>
+
+<p class="note"><strong>We make Anode.</strong> We ran none of the other tools for this page: everything about them comes
+from their own documentation, release notes, source and public issues, read on 6 November 2026 and linked below. The
+user reports we cite are dated and name the reporter's version, and any of them may since be fixed. Our own numbers come
+from recorded Anode runs whose data is public. If we got something wrong,
+<a href="https://github.com/skulitom/Anode/issues/new">open an issue</a> and we will correct it.</p>
+
+<p class="meta">Last checked: 6 November 2026 · Codex computer use in the ChatGPT desktop app (Windows support since app
+26.527, 29 May 2026) · Claude Desktop 4.23118.0 (5 November) · GitHub Copilot app 1.1.35 (4 November; computer use in
+public preview) · agent-desktop 1.2.0 (5 November) · Cua Driver 0.40.1 (6 November) · Anode 0.11.4 (31 October) · Next
+check by 6 December 2026, or sooner when one of them changes how it handles your desktop.</p>
+
+<h2 id="short-answer">The short answer</h2>
+<ul>
+<li><strong>To keep using the PC while an agent clicks and types in Windows apps</strong> (Windows Pro, Enterprise or
+Education on x64): have the agent use Anode's tools, which start and drive apps in Anode's seat, a second Windows session
+for your account. Claude Code, Codex and other local MCP clients can call them
+(<a href="https://github.com/skulitom/Anode/blob/v0.11.4/README.md">Anode's README</a>). By design the seat never takes
+your pointer, focus or windows. We have measured it with nobody at the PC (a third-party tool's 13 calls inside the
+seat on 22 October, and Anode's pointer guard on 2 October), not yet with someone typing at the same time
+(<a href="#measured">what we measured</a>).</li>
+<li><strong>If you use Codex's own computer use on Windows:</strong> OpenAI's docs say it "can't operate in the background
+while you keep using the same Windows session", and suggest running the ChatGPT desktop app in a Windows virtual
+machine, or a second device.</li>
+<li><strong>If you use Claude's computer use on Windows:</strong> expect it to hide your other windows while it works and
+restore them when it finishes (a setting). Working in the background while you keep using the computer is documented for
+macOS only.</li>
+<li><strong>If you use GitHub Copilot's app:</strong> its docs say it works in the background where possible and, on
+Windows, brings the target app into focus only when needed, then restores your previous window. It is a public
+preview.</li>
+<li><strong>If you are on Windows Home or ARM64:</strong> Anode doesn't support Home and isn't validated on ARM64.
+agent-desktop (Windows 10 1809 or
+later, x64 or ARM64) and Cua Driver (x64 and ARM64 builds) work in your own session without moving your pointer by
+default, for apps that accept UI Automation or window-message input, as their docs describe.</li>
+<li><strong>If the agent must work in windows or signed-in apps you already have open:</strong> use a tool that
+works in your own session, such as agent-desktop or Cua Driver. Anode's seat can't reach your open windows.</li>
+<li><strong>If you need a security boundary:</strong> none of these is one. Use a virtual machine or Windows Sandbox.
+Anode's seat runs as you, with your files, saved sign-ins and network
+(<a href="https://github.com/skulitom/Anode/blob/v0.11.4/docs/SECURITY.md#what-the-seat-is-not-isolated-from">what the
+seat is not isolated from</a>).</li>
+</ul>
+
+<h2 id="side-by-side">Side by side</h2>
+<p class="muted">From each tool's own docs, read 6 November 2026, except the Anode row's measured results. "Not stated"
+means its docs don't say.</p>
+<div class="wrap">
+<table>
+<thead><tr><th>Option</th><th>Where the agent acts</th><th>Your pointer and keyboard focus</th><th>Your windows</th><th>Limits and advice in its own docs</th></tr></thead>
+<tbody>
+<tr><th>Codex computer use (ChatGPT desktop app)</th>
+<td>"On Windows, Computer Use runs on the active desktop."</td>
+<td>"expect ChatGPT to move the pointer, type, and take over the foreground while the task runs."</td>
+<td>"keep the target app visible on the active desktop while the task runs."</td>
+<td>Can't run in the background while you use the same session; keep the device unlocked for unattended tasks; run the
+app in a Windows virtual machine, or use "a secondary device, a VM, or stop the task before using that desktop
+yourself." Background and locked use are for macOS.</td></tr>
+<tr><th>Claude computer use (Claude Desktop 4.23118.0)</th>
+<td>"computer use runs on your actual desktop with access to whatever you approve."</td>
+<td>It can "control your screen, and work directly on your machine the way you would" (macOS and Windows alike).
+The mode where Claude "doesn't take over your pointer or keyboard" is documented for macOS 15 or later only.</td>
+<td>"Claude hides your other windows while it works" unless running in the background (macOS only); "hidden windows are
+restored unless you turn this setting off."</td>
+<td>Research preview (the help centre says beta) on Pro, Max and Ultra plans, not Team or Enterprise. Per-app approval
+with view-only, click-only and full-control tiers.</td></tr>
+<tr><th>GitHub Copilot app 1.1.35 (public preview)</th>
+<td>Your apps, "in the background where possible", through the accessibility tree or screenshots.</td>
+<td>"On Windows, it brings the target application into focus only when needed, then restores the previously active
+window."</td>
+<td>Not stated.</td>
+<td>"Changes in timing or window state can produce different results."</td></tr>
+<tr><th>agent-desktop 1.2.0 (Apache-2.0)</th>
+<td>"The interactive desktop session of the signed-in user", through UI Automation.</td>
+<td>"Headless by default. Ref actions use the accessibility API without moving the pointer or taking focus." Typing
+"needs --headed" (keystrokes into the foreground window); use <code>set-value</code> headless. Open report #567
+(1.1.0): headless actions brought the target window to the front.</td>
+<td>A window behind another is drivable; "A minimized one is not".</td>
+<td>"a locked desktop, and another user's session are not supported." Its Windows page says the behaviour "was not run
+for these docs."</td></tr>
+<tr><th>Cua Driver 0.40.1 (MIT)</th>
+<td>Your interactive session ("not Session 0"), through UI Automation and "Window messages to the target HWND".</td>
+<td>"does not raise the window, move the real pointer, or switch the frontmost app." An optional foreground fallback
+brings the window forward briefly (its notes measured about 40 ms on Calculator).</td>
+<td>Returns <code>background_unavailable</code> when the target is covered at the point or the app drops that kind of
+event (for example Chromium page mouse events and key combinations).</td>
+<td>Its agent sessions "still share one screen, keyboard, and focus, and native input is admitted one action at a
+time."</td></tr>
+<tr><th>Anode 0.11.4 (MIT; we make it)</th>
+<td>A second Windows session (a child session) for your account, the seat.</td>
+<td>The seat has its own. <strong>Measured</strong> (0.11.3, nobody at the PC): your pointer never moved and your
+foreground window never changed during 13 Windows-MCP tool calls in the seat.</td>
+<td>The seat's windows never appear on your monitors, and yours aren't in the seat. It only drives apps started in the
+seat.</td>
+<td>Windows 10/11 Pro, Enterprise or Education on x64; not Home. Not a sandbox. One seat per machine. A new seat may
+need your Windows password (PIN or Windows Hello sign-ins).</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="reports">What people have reported on Windows</h2>
+<p>Public issues read on 6 November 2026, all open unless marked. They are users' reports, not the vendors' statements,
+and each names the reporter's version.</p>
+<ul>
+<li><strong>Claude:</strong> computer use "minimizes all non-allowlisted windows before screenshots and never restores
+them", breaking the emoji and clipboard panel and the lock screen
+(<a href="https://github.com/anthropics/claude-code/issues/102334">#102334</a>, 15 October, Windows 11 Home, Desktop
+2.26454.2.0; Anthropic's docs say hidden windows are restored when Claude finishes). The taskbar stops responding after
+a session releases screen control (<a href="https://github.com/anthropics/claude-code/issues/92066">#92066</a>,
+4 September, Windows 11 Pro, Desktop 1.34493.1.0). The computer-use side panel stays docked and other windows stay hidden until the whole
+turn ends (<a href="https://github.com/anthropics/claude-code/issues/96825">#96825</a>, 24 September, Windows 11 Home,
+Desktop 2.7032.0.0, filed as a feature request). Computer use breaks the Microsoft Pinyin input method's candidate window
+(<a href="https://github.com/anthropics/claude-code/issues/97444">#97444</a>, 26 September, Windows 11,
+Desktop 2.7032.0.0).</li>
+<li><strong>Codex:</strong> the system cursor stays invisible after a computer-use task
+(<a href="https://github.com/openai/codex/issues/57714">#57714</a>, 28 October, app 26.1021, Windows 11 25H2), or when a
+Steam or game window gets focus (<a href="https://github.com/openai/codex/issues/49175">#49175</a>, 29 September,
+app 26.924.22138, Windows build 26100).</li>
+<li><strong>agent-desktop:</strong> on 1.1.0, click, set-value and check "activated the target window", which "interrupts
+simultaneous use of the PC" (<a href="https://github.com/vercel-labs/agent-desktop/issues/567">#567</a>, 5 November,
+Windows 11 Pro). The reporter traces it to UI Automation's AutoSetFocus default and includes a patch in the issue; we
+found no pull request for it, and the 1.2.0 release notes list no Windows focus change.</li>
+<li><strong>Tools that type with SendInput in your session</strong> share your focus by nature. One new one,
+dsh-computer-use-windows, says so plainly: its tools "inject input into whatever window currently has focus", and it
+advises running "when the desktop is idle" or checking focus just before typing
+(<a href="https://github.com/pdong15dth/dsh-computer-use-windows">README</a>, v1.0.0, 3 November).</li>
+</ul>
+<p>Several of these reporters are on Windows 11 Home, which Anode doesn't support. For apps an agent starts in the
+seat, while the viewer stays hidden or view-only, Anode doesn't hide, minimize or cover your windows, move your
+pointer, take your focus or type into your windows. That is its design; none of these cases was re-run on Anode.</p>
+
+<h2 id="why">Why a second session, not a hidden window</h2>
+<p>A Windows session has one input queue, one foreground window, one keyboard focus and one cursor, however many
+monitors it has (<a href="https://github.com/skulitom/Anode/blob/v0.11.4/docs/ARCHITECTURE.md">Anode's
+architecture</a>). Cua Driver's own docs say the same of its agent sessions: they "still share one screen,
+keyboard, and focus". Tools that work inside your session, such as agent-desktop and Cua Driver, avoid your pointer app by app,
+by sending UI Automation calls or window messages that the app has to accept. Anode moves the agent's apps into a child
+session, a loopback Remote Desktop session tied to yours
+(<a href="https://learn.microsoft.com/en-us/windows/win32/termserv/child-sessions">documented by Microsoft</a>), where
+its input and screen capture run and the agent's programs start, so it doesn't depend on each app accepting background
+input. The exceptions on your desktop are Anode's viewer when you take control; Steam, which Anode starts minimized on
+your desktop when a game in the seat needs it; and, without HidHide, the virtual gamepad, which a game on your desktop
+can read. The cost is that the agent works only in apps it starts there, not in
+the windows you already have open.</p>
+
+<h2 id="measured">What we measured on Anode</h2>
+<div class="wrap">
+<table>
+<thead><tr><th>Run</th><th>Setup</th><th>Result</th></tr></thead>
+<tbody>
+<tr><th>22 October 2026, Anode 0.11.3</th>
+<td>Windows 11 Pro, build 26200. Windows-MCP 0.8.8 started inside the seat and driven by a script (7 calls) and by
+Claude Code (6 calls). A sampler on the PC's own desktop read the pointer and the foreground window every 50 ms for
+240 s. Nobody used the PC (no input for over 9 hours).</td>
+<td>All 13 calls returned without an error, and the typed text arrived in the test window inside the seat. The PC's own
+pointer had 1 position in 4,762 samples and its foreground window changed 0 times
+(<a href="../windows-mcp-in-the-background/data/parent-desktop-summary.json">data</a>,
+<a href="../windows-mcp-in-the-background/#measured">the full run</a>).</td></tr>
+<tr><th>2 October 2026, the 0.11.1 candidate</th>
+<td>Windows 11 Pro, build 26200, the viewer hidden, with the real pointer resting inside the viewer's rectangle, where
+Windows' Remote Desktop control would otherwise copy the seat's pointer moves onto yours.</td>
+<td>Anode's pointer guard suppressed all 7 attempted pointer updates and forwarded none; the watcher saw no matching
+jumps of the real pointer
+(<a href="https://github.com/skulitom/Anode/blob/v0.11.4/docs/RELEASE-READINESS.md#live-validation--2-october-2026">release
+record</a>).</td></tr>
+</tbody>
+</table>
+</div>
+<p>Neither run used 0.11.4, the current release. Between 0.11.3 and 0.11.4 the source fixed sign-in messages, lease
+timing and a few command errors, and made scrolls and page keys wait for the screen to settle (the
+<a href="https://github.com/skulitom/Anode/blob/v0.11.4/docs/RELEASE-READINESS.md#0114-release-validation">0.11.4
+release record</a>); the code that decides where input, capture and program starts run, and the pointer guard, did not
+change (<a href="https://github.com/skulitom/Anode/compare/v0.11.3...v0.11.4">the diff</a>). Both runs were on Windows
+11; we have no recorded run on Windows 10.</p>
+
+<h2 id="not-shown">What this page doesn't show</h2>
+<ul>
+<li><strong>Someone working at the PC during a seat task.</strong> Our run had nobody at the PC. Your typing should stay
+in your session, because the seat has its own input queue, but we haven't measured it.</li>
+<li><strong>Windows 10, Windows Home, or a locked PC.</strong> Not tested, and Home isn't supported.</li>
+<li><strong>Codex's screenshot timeouts.</strong> Many Windows users, most of them on Windows 10, report Codex
+computer-use screenshots failing with "FrameArrived timed out" (for example
+<a href="https://github.com/openai/codex/issues/49383">#49383</a>, 29 September). Anode captures
+the seat's screen another way, but it has its own capture failures
+(<a href="https://github.com/skulitom/Anode/blob/v0.11.4/docs/TROUBLESHOOTING.md#capture-and-input">troubleshooting</a>),
+and we haven't tried it on the affected machines. We make no claim about it.</li>
+<li><strong>Running agent-desktop, or another computer-use tool, inside the seat.</strong> Not tried. A tool runs in
+whichever session starts it, and an agent's own shell runs in yours.</li>
+<li><strong>Other callers.</strong> GitHub Copilot's app hasn't been tried with Anode. The Codex desktop app, now part
+of the ChatGPT desktop app, runs Anode's MCP server (Anode's
+<a href="https://github.com/skulitom/Anode/blob/v0.11.4/docs/TROUBLESHOOTING.md#many-anodeexe-mcp-processes-are-running">troubleshooting</a>
+mentions it), but neither measured run used it.</li>
+</ul>
+
+<h2 id="anode-limits">Where Anode doesn't help</h2>
+<ul>
+<li><strong>Windows Home, ARM64, macOS and Linux.</strong> The release targets x64 Pro, Enterprise and Education, or
+Windows Server with a Remote Desktop host; ARM64 is not validated.</li>
+<li><strong>Your open windows.</strong> The agent can't use the windows or signed-in apps you already have open, and apps
+that run once per user, such as Office, won't open in the seat while they are open on your desktop.</li>
+<li><strong>Your documents can still reach the seat.</strong> Apps that restore their last session (Windows 11 Notepad,
+browsers on your usual profile, many editors) reopen your documents and unsaved tabs in the seat, where the agent can
+read them.</li>
+<li><strong>Not a sandbox.</strong> The seat signs in as you: an agent there can read and delete anything you can.</li>
+<li><strong>Elevated apps and UAC.</strong> The seat runs unelevated, and input an elevated window refuses may be
+dropped without an error.</li>
+<li><strong>Sign-in.</strong> With a PIN or Windows Hello sign-in, a new seat may need your Windows password, through
+<strong>Sign in…</strong> in the viewer header or the tray menu; a seat that signed in that way asks again when you
+press <strong>Reconnect</strong> in the viewer after a detach. An agent can't do either.</li>
+<li><strong>The viewer.</strong> If you open Anode's viewer and press <strong>Take control</strong>, your input goes to
+the seat and the seat's pointer moves yours; that is the point of the button.</li>
+<li><strong>One seat per machine,</strong> shared by agents in turn. Startup programs run a second time in the seat.</li>
+<li><strong>Setup and managed PCs.</strong> Setup needs one administrator prompt, turns on the Remote Desktop host and
+can restart Remote Desktop Services, which disconnects any Remote Desktop session to this PC; a policy that keeps Remote Desktop
+off or blocks unsigned programs stops it.</li>
+<li><strong>Known issues in 0.11.4:</strong> a Chrome window's first observation can omit the page; invoking Windows'
+Open File security dialog reports success without running anything; the <code>anode type</code> command has no pace option.</li>
+</ul>
+<p class="muted">Sources: Anode 0.11.4's <a href="https://github.com/skulitom/Anode/blob/v0.11.4/README.md">README</a>,
+<a href="https://github.com/skulitom/Anode/blob/v0.11.4/docs/SECURITY.md">SECURITY.md</a>,
+<a href="https://github.com/skulitom/Anode/blob/v0.11.4/docs/USAGE.md#limits-honestly">USAGE.md (limits)</a>,
+<a href="https://github.com/skulitom/Anode/blob/v0.11.4/docs/TROUBLESHOOTING.md">TROUBLESHOOTING.md</a> and the
+<a href="https://github.com/skulitom/Anode/blob/v0.11.4/docs/RELEASE-READINESS.md#0114-release-validation">0.11.4
+release record</a>.</p>
+
+<h2 id="other-options">When to use something else</h2>
+
+<h3>Codex's computer use in a virtual machine</h3>
+<p>When you want Codex's own computer use and a real boundary, run the ChatGPT desktop app inside a Windows virtual
+machine, as OpenAI's docs suggest, so it "takes over the VM instead of your main desktop". Its docs ask you to keep the
+target app visible and the device unlocked while a task runs.</p>
+
+<h3>Claude on macOS, or Claude on Windows while you watch</h3>
+<p>On macOS 15 or later, Claude's computer use can work in background windows while you keep using the computer. On
+Windows, it is a simple choice if you already use Claude Desktop on a Pro, Max or Ultra plan and want to watch a short
+task: computer use is a setting there, and its per-app approvals decide what it may touch.</p>
+
+<h3>GitHub Copilot's app</h3>
+<p>If you already work in Copilot's app and an occasional focus switch is acceptable, its background-first design may be
+enough. It is a public preview, and its docs warn that changes in timing or window state can change results.</p>
+
+<h3>agent-desktop</h3>
+<p>Choose it on Windows Home or ARM64; on any edition when the agent has to work in windows or signed-in apps you
+already have open; or when you want one CLI across macOS, Windows and Linux (about 17,800 GitHub stars on 6
+November). On Windows it stays off your pointer for apps whose controls UI Automation can reach, with
+<code>set-value</code> instead of typing; keystrokes need <code>--headed</code>. Watch
+<a href="https://github.com/vercel-labs/agent-desktop/issues/567">#567</a> for the focus fix.</p>
+
+<h3>Cua Driver</h3>
+<p>Choose it on Home or ARM64, or on any edition when the agent has to work in windows you already have open, as
+long as the apps accept background window messages; or when you already use Cua's agent stack. It says when an action can't be done in the background (<code>background_unavailable</code>) rather than taking
+your focus, unless the agent opts into its brief foreground fallback, which its docs say is needed for games, canvas
+apps such as Blender and apps that poll focus.</p>
+
+<h3>A virtual machine or Windows Sandbox</h3>
+<p>When the agent's work must not reach your files, accounts or network. Anode's seat isolates your attention, not your
+data.</p>
+
+<h3>Also seen</h3>
+<ul>
+<li><strong>Windows' own agent workspace</strong> runs agents "in a separate Windows session" with their own desktop,
+under a separate agent account; Microsoft's page (its editor's note, 5 December 2025) calls it a private preview for Windows
+Insiders, used by Copilot Actions. Its
+<a href="https://learn.microsoft.com/en-us/windows/ai/mcp/servers/mcp-containment">MCP containment</a> runs MCP
+servers in that separate session and account; the page doesn't say whether they get a screen or input. A second session
+for agents is not unique to Anode.</li>
+<li><strong>Microsoft Copilot Studio's computer use</strong>, for agents built in Copilot Studio, runs on a Windows
+machine set up for it: a Microsoft-hosted browser or a Cloud PC pool (both previews, powered by Windows 365 for
+Agents), or a machine you register, for which Microsoft's docs say to "dedicate a machine to computer use to avoid
+interruptions" (<a href="https://learn.microsoft.com/en-us/microsoft-copilot-studio/configure-where-computer-use-runs">Configure
+where computer use runs</a>).</li>
+<li><strong>BgDesk</strong> also runs an agent in a child session; it is compared with Anode, Windows-MCP and others in
+<a href="../windows-desktop-automation-for-ai-agents/">Windows desktop automation for AI agents</a>, which also covers
+hidden-desktop tools such as Ghost and lowlevel-computer-use-mcp.</li>
+<li><strong>agentfenster</strong> works on a hidden second Win32 desktop inside your session, per its
+<a href="https://pypi.org/project/agentfenster-mcp/">PyPI page</a>. Its PyPI package 0.1.0 holds no product code: the
+server ships in a closed-source, paid Windows program that its site calls "currently in development".</li>
+<li><strong>Windows-MCP</strong> users can run it inside Anode's seat: <a href="../windows-mcp-in-the-background/">Windows-MCP
+in the background</a>.</li>
+</ul>
+
+<h2 id="method">Method</h2>
+<ul>
+<li><strong>The searches this page answers</strong>, run on 6 November 2026: "AI agent computer use on Windows in the
+background while I keep using my PC", "agent-desktop Windows computer use without stealing focus background", "Codex
+computer use Windows takes over mouse focus hidden desktop", "Claude computer use Windows minimizes my windows separate
+session" and "run computer use agent in a hidden Windows session MCP". Directories, news write-ups and issue mirrors
+ranked; the search summaries named Cua Driver as the background option and said Codex's Windows computer use runs on the
+active desktop. None of the results was ours (<a href="data/searches-2026-11-06.txt">results</a>).</li>
+<li><strong>The other tools:</strong> read on 6 November 2026 from their docs, release pages, manifests (licences) and
+source, and their issues through GitHub's API. Nothing was installed or run.</li>
+<li><strong>Anode:</strong> the two runs above, from their published data and Anode's release record; nothing was re-run
+for this page. The 0.11.3 to 0.11.4 source diff was read on 6 November 2026.</li>
+</ul>
+
+<h2 id="sources">Sources</h2>
+<p class="muted">Read on 6 November 2026.</p>
+<ul>
+<li>Codex: <a href="https://learn.chatgpt.com/docs/computer-use">Computer Use</a> (moved from
+<code>developers.openai.com/codex/app/computer-use</code>; "Windows foreground use"),
+<a href="https://learn.chatgpt.com/docs/changelog">changelog</a> (26.527, 29 May 2026: Windows computer use); issues
+<a href="https://github.com/openai/codex/issues/49175">#49175</a>, <a href="https://github.com/openai/codex/issues/57714">#57714</a>,
+<a href="https://github.com/openai/codex/issues/49383">#49383</a>.</li>
+<li>Claude: <a href="https://code.claude.com/docs/en/desktop">Claude Code desktop docs</a> ("Let Claude use your
+computer"), <a href="https://support.claude.com/en/articles/14128542-let-claude-use-your-computer-in-cowork">help centre
+article</a>, <a href="https://claude.com/docs/cowork/changelog">desktop changelog</a> (4.23118.0, 5
+November); issues <a href="https://github.com/anthropics/claude-code/issues/92066">#92066</a>,
+<a href="https://github.com/anthropics/claude-code/issues/96825">#96825</a>,
+<a href="https://github.com/anthropics/claude-code/issues/97444">#97444</a>,
+<a href="https://github.com/anthropics/claude-code/issues/102334">#102334</a>.</li>
+<li>GitHub Copilot app: <a href="https://docs.github.com/en/copilot/how-tos/github-copilot-app/computer-use">how-to</a>,
+<a href="https://docs.github.com/en/copilot/concepts/agent-capabilities/agent-powered-workflows-and-operations/computer-use">concept
+page</a>, <a href="https://github.blog/changelog/2026-10-01-github-copilot-can-now-interact-with-desktop-apps/">changelog
+(1 October)</a>; <a href="https://github.com/github/app/releases/tag/v1.1.35">release 1.1.35</a> (4
+November).</li>
+<li>agent-desktop: <a href="https://github.com/vercel-labs/agent-desktop">README</a> and
+<a href="https://github.com/vercel-labs/agent-desktop/releases/tag/v1.2.0">release 1.2.0</a> (5 November; Apache-2.0 in
+Cargo.toml), <a href="https://agent-browser.dev/desktop/platforms/windows">Windows platform page</a> (updated 3
+November); issue <a href="https://github.com/vercel-labs/agent-desktop/issues/567">#567</a>.</li>
+<li>Cua Driver: <a href="https://cua.ai/docs/cua-driver/concepts/how-cua-driver-works">how Cua Driver works</a> (the
+no-foreground contract and platform table),
+<a href="https://github.com/trycua/cua/blob/main/libs/cua-driver/rust/Skills/cua-driver/WINDOWS.md">WINDOWS.md</a>;
+<a href="https://github.com/trycua/cua/releases/tag/cua-driver-rs-v0.40.1">release cua-driver-rs-v0.40.1</a> (6
+November, marked pre-release by the repository's own convention; MIT in Cargo.toml).</li>
+<li>Microsoft: <a href="https://support.microsoft.com/en-us/windows/ai/ai-features/experimental-agentic-features">experimental
+agentic features</a> (agent workspace), <a href="https://learn.microsoft.com/en-us/windows/ai/mcp/servers/mcp-containment">MCP
+containment</a>, <a href="https://learn.microsoft.com/en-us/windows/win32/termserv/child-sessions">child
+sessions</a>, <a href="https://learn.microsoft.com/en-us/microsoft-copilot-studio/configure-where-computer-use-runs">Copilot
+Studio computer use</a>.</li>
+<li>Others: <a href="https://pypi.org/project/agentfenster-mcp/">agentfenster-mcp on PyPI</a> (0.1.0) and
+<a href="https://agentfenster.com/mcp">agentfenster.com/mcp</a>;
+<a href="https://github.com/pdong15dth/dsh-computer-use-windows">dsh-computer-use-windows</a> (v1.0.0).</li>
+<li>Anode <a href="https://github.com/skulitom/Anode/releases/tag/v0.11.4">0.11.4</a> (31 October):
+<a href="https://github.com/skulitom/Anode/blob/v0.11.4/README.md">README</a>,
+<a href="https://github.com/skulitom/Anode/blob/v0.11.4/docs/ARCHITECTURE.md">ARCHITECTURE.md</a>,
+<a href="https://github.com/skulitom/Anode/blob/v0.11.4/docs/SECURITY.md">SECURITY.md</a>,
+<a href="https://github.com/skulitom/Anode/blob/v0.11.4/docs/USAGE.md">USAGE.md</a>,
+<a href="https://github.com/skulitom/Anode/blob/v0.11.4/docs/TROUBLESHOOTING.md">TROUBLESHOOTING.md</a>,
+<a href="https://github.com/skulitom/Anode/blob/v0.11.4/docs/RELEASE-READINESS.md">RELEASE-READINESS.md</a>.</li>
+</ul>
+
+<footer class="muted">
+<p>Last checked 6 November 2026. A plain static page: no scripts, trackers or cookies.
+<a href="https://skulitom.github.io/Anode/">Anode</a> ·
+<a href="https://skulitom.github.io/Anode/compare/">All comparisons</a> ·
+<a href="https://github.com/skulitom/Anode">GitHub</a> ·
+<a href="https://github.com/skulitom/Anode/issues/new">Report a mistake</a></p>
+</footer>
+</main>
+</body>
+</html>
