@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI computer use on Windows in the background: Codex, Claude, Copilot, agent-desktop, Cua Driver and Anode compared</title>
-<meta name="description" content="Checked 6 Nov 2026 from their docs: Codex and Claude computer use work on your own Windows desktop; Copilot's in the background where possible. Anode uses a second session; measured with nobody at the PC.">
+<meta name="description" content="Checked 6 Nov 2026 from their docs: Codex and Claude computer use work on your Windows desktop; Copilot's app works in the background where possible. In Anode's second session, measured with nobody at the PC, your pointer and foreground stayed unchanged.">
 <link rel="canonical" href="https://skulitom.github.io/Anode/compare/windows-computer-use-in-the-background/">
 <script type="application/ld+json">
 {
@@ -202,8 +202,9 @@ by sending UI Automation calls or window messages that the app has to accept. An
 session, a loopback Remote Desktop session tied to yours
 (<a href="https://learn.microsoft.com/en-us/windows/win32/termserv/child-sessions">documented by Microsoft</a>), where
 its input and screen capture run and the agent's programs start, so it doesn't depend on each app accepting background
-input. The exceptions on your desktop are Anode's viewer when you take control, and Steam, which Anode starts minimized
-on your desktop when a game in the seat needs it. The cost is that the agent works only in apps it starts there, not in
+input. The exceptions on your desktop are Anode's viewer when you take control; Steam, which Anode starts minimized on
+your desktop when a game in the seat needs it; and, without HidHide, the virtual gamepad, which a game on your desktop
+can read. The cost is that the agent works only in apps it starts there, not in
 the windows you already have open.</p>
 
 <h2 id="measured">What we measured on Anode</h2>
@@ -267,14 +268,14 @@ read them.</li>
 <li><strong>Not a sandbox.</strong> The seat signs in as you: an agent there can read and delete anything you can.</li>
 <li><strong>Elevated apps and UAC.</strong> The seat runs unelevated, and input an elevated window refuses may be
 dropped without an error.</li>
-<li><strong>Sign-in.</strong> With a PIN or Windows Hello sign-in, a new seat may need your Windows password, and so
-may a seat reconnecting after a detach. You enter it through <strong>Sign in…</strong> in the tray menu, which an agent
-can't do.</li>
+<li><strong>Sign-in.</strong> With a PIN or Windows Hello sign-in, a new seat may need your Windows password, through
+<strong>Sign in…</strong> in the viewer header or the tray menu; a seat that signed in that way asks again when you
+press <strong>Reconnect</strong> in the viewer after a detach. An agent can't do either.</li>
 <li><strong>The viewer.</strong> If you open Anode's viewer and press <strong>Take control</strong>, your input goes to
 the seat and the seat's pointer moves yours; that is the point of the button.</li>
 <li><strong>One seat per machine,</strong> shared by agents in turn. Startup programs run a second time in the seat.</li>
 <li><strong>Setup and managed PCs.</strong> Setup needs one administrator prompt, turns on the Remote Desktop host and
-can restart Remote Desktop Services, which disconnects any Remote Desktop session; a policy that keeps Remote Desktop
+can restart Remote Desktop Services, which disconnects any Remote Desktop session to this PC; a policy that keeps Remote Desktop
 off or blocks unsigned programs stops it.</li>
 <li><strong>Known issues in 0.11.4:</strong> a Chrome window's first observation can omit the page; invoking Windows'
 Open File security dialog reports success without running anything; the <code>anode type</code> command has no pace option.</li>
