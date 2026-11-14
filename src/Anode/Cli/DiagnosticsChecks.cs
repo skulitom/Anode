@@ -44,6 +44,52 @@ internal static class DiagnosticsChecks
         return "direct Steam clients and URLs are refused before process launch when Steam runs outside the seat; no Steam process started";
     }
 
+    /// <summary>B-059: a start held by a Windows prompt answers as pending instead of holding the seat host.</summary>
+    public static string PendingLaunch()
+    {
+        using var answered = new ManualResetEventSlim();
+        int launches = 0;
+        var request = new JsonObject { ["path"] = @"C:\anode-selftest\downloaded.cmd", ["agentId"] = "selftest" };
+        var clock = Stopwatch.StartNew();
+        var reply = Seat.SeatHost.RunProgram(request, 5, _ =>
+        {
+            // Stands in for ShellExecuteEx showing "Open File - Security Warning" until someone answers it.
+            answered.Wait(TimeSpan.FromSeconds(30));
+            Interlocked.Increment(ref launches);
+            return null;
+        }, () => Array.Empty<int>(), wait: TimeSpan.FromMilliseconds(200));
+        var result = reply.Obj("result");
+        Require(clock.Elapsed < TimeSpan.FromSeconds(5), $"run held its caller for {clock.Elapsed.TotalSeconds:0.0} s behind a prompt");
+        Require(reply.Bool("ok") == true && result?.Bool("pending") == true && result["pid"] is null
+            && result.Int("session") == 5 && result.Str("agentId") == "selftest"
+            && result.Str("summary") is { } summary && summary.Contains("prompt") && summary.Contains("Don't run it again"),
+            "a start held by a prompt was not reported as pending: " + reply.ToJsonString());
+        answered.Set();
+        Require(SpinWait.SpinUntil(() => Volatile.Read(ref launches) == 1, TimeSpan.FromSeconds(5)),
+            "the pending start did not finish once its prompt was answered");
+
+        using var cancel = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+        using var held = new ManualResetEventSlim();
+        clock.Restart();
+        var deadline = Seat.SeatHost.RunProgram(request, 5, _ => { held.Wait(TimeSpan.FromSeconds(30)); return null; },
+            () => Array.Empty<int>(), cancel: cancel.Token);
+        held.Set();
+        Require(clock.Elapsed < TimeSpan.FromSeconds(5) && deadline.Obj("result")?.Bool("pending") == true,
+            "run outlived its request's deadline behind a prompt");
+
+        var quick = Seat.SeatHost.RunProgram(request, 5, _ => null, () => Array.Empty<int>());
+        Require(quick.Bool("ok") == true && quick.Obj("result") is { } started && started["pending"] is null && started["summary"] is null,
+            "a start that finished at once was reported as pending");
+        try
+        {
+            Seat.SeatHost.RunProgram(request, 5, _ => throw new Win32Exception(2), () => Array.Empty<int>());
+            throw new InvalidOperationException("a failed start was reported as started");
+        }
+        catch (Win32Exception ex) when (ex.NativeErrorCode == 2) { }
+        return "a start held by a Windows prompt answers as pending within its wait or the request's deadline and finishes once answered; "
+            + "ordinary starts and start failures answer as before";
+    }
+
     private static void Require(bool condition, string detail)
     {
         if (!condition) throw new InvalidOperationException(detail);

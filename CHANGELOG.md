@@ -2,6 +2,14 @@
 
 ## 0.11.5 — 2026-11-01
 
+- **`seat_run` no longer freezes the seat behind a Windows prompt.** Starting a file Windows marks
+  as downloaded, such as a script or a shortcut to one, shows "Open File - Security Warning" on the
+  thread that asked to start it, and the seat host waited there: the call timed out, and every
+  later desktop tool queued behind it until the seat host was ended. The start now runs on a thread
+  of its own. If Windows hasn't started the program after 10 seconds (or at the request's
+  deadline), `seat_run` and `anode run` answer with `"pending": true` and a summary that says to
+  look at the seat and answer the prompt; the program starts once it is answered. Ordinary starts
+  and failed starts answer as before.
 - **.NET 10.0.14.** Release builds include Microsoft's 25 October security update of the .NET 10
   runtime (10.0.14, from 10.0.13; CVE-2026-111497, CVE-2026-70197, CVE-2026-102870 and
   CVE-2026-114148). No change in Anode's behaviour.

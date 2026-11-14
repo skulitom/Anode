@@ -77,10 +77,14 @@ live check) in CI and on any PC.
 - code cleanup: #93 (an unused default parameter on the CLI's validating `Connect` overload; no
   change in behaviour);
 - docs: #89 (the README, `llms.txt` and `docs/COMPARISON.md`: the refreshed Windows desktop
-  automation comparison) and #94 (0.11.4's live validation record).
+  automation comparison) and #94 (0.11.4's live validation record);
+- one fix: `seat_run` starts programs on a thread of its own and answers `"pending": true` after
+  10 seconds (or at the request's deadline) when Windows hasn't started the program, for example
+  behind "Open File - Security Warning" for a downloaded file, instead of holding the seat host and
+  every later desktop tool until the host was ended (Compass B-059, seen 2026-11-14).
 
-No tools or commands were added; the tool count stays 41. No fixes or features: 0.11.5 exists to
-ship the runtime's security update.
+No tools or commands were added; the tool count stays 41. No features: 0.11.5 ships the runtime's
+security update and the `seat_run` fix.
 
 ### Live validation
 
@@ -90,8 +94,9 @@ release does not include it.
 
 ### Build and package validation
 
-- `scripts\build.ps1 -QuickTest` on the candidate: **120 quick self-tests** passed (as at 0.11.4;
-  nothing since adds or changes a check), and the documentation check passed (42 documents against
+- `scripts\build.ps1 -QuickTest` on the candidate: **121 quick self-tests** passed (120 at 0.11.4;
+  the new "run behind a Windows prompt" check holds a start with an injected launcher, as a prompt
+  would, and fails on 0.11.4's code), and the documentation check passed (42 documents against
   41 tools). `anode version` reports 0.11.5, and the published `anode.exe` carries the 10.0.14
   runtime.
 - `scripts\release-check.ps1 -DryRun` and `scripts\test-release-check.ps1` passed (no Anode or
@@ -106,6 +111,9 @@ release does not include it.
 
 - The runtime update and the two dependency bumps change no Anode code. The quick checks and the
   environment self-test run on the 10.0.14 runtime; the live check repeats the seat paths on it.
+- The `seat_run` fix is covered by a quick check with an injected launcher that blocks, as Windows'
+  prompt does. The live check doesn't start a file marked as downloaded, so the real prompt, and a
+  pending start finishing after it is answered in the seat, are not part of it.
 - NAudio 3.3.0 is covered by the quick checks' WAV clips and the audio protocol with an injected
   renderer. Real seat audio (`seat_audio_listen`, `seat_audio_play`) is not part of the live check.
   ServiceController 10.0.14 runs only in `anode setup`'s Remote Desktop service steps, which need

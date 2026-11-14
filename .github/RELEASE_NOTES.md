@@ -1,8 +1,14 @@
 ## What's new in 0.11.5
 
-This patch updates the .NET runtime that release builds include. Anode's behaviour, tools and
-commands are unchanged; there are still 41 tools.
+This patch updates the .NET runtime that release builds include and fixes one bug. Anode's
+tools and commands are unchanged; there are still 41 tools.
 
+- **`seat_run` no longer freezes the seat behind a Windows prompt.** Starting a file Windows marks
+  as downloaded (a script, or a shortcut to one) showed "Open File - Security Warning" inside the
+  seat host, which waited there: every later desktop tool timed out until the host was ended. If
+  Windows hasn't started the program after 10 seconds, `seat_run` now answers `"pending": true`
+  with a summary that says to look at the seat and answer the prompt; the program starts once it
+  is answered.
 - **.NET 10.0.14.** Release builds include .NET 10.0.14, Microsoft's security update of
   25 October 2026 (CVE-2026-111497, CVE-2026-70197, CVE-2026-102870 and CVE-2026-114148). 0.11.4
   included 10.0.13. Upgrade to stay on a patched runtime; nothing else in Anode changes.
