@@ -137,6 +137,7 @@ internal static class SelfTest
         });
         Check(results, "launch arguments", TransportChecks.LaunchArguments);
         Check(results, "Steam launch guard", DiagnosticsChecks.SteamLaunchGuard);
+        Check(results, "run behind a Windows prompt", DiagnosticsChecks.PendingLaunch);
         Check(results, "Steam launch configuration", SteamChecks.LaunchConfiguration);
         Check(results, "Steam launch placement", SteamChecks.Launch);
         Check(results, "Steam namespace links", SteamChecks.Links);

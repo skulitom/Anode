@@ -337,6 +337,12 @@ not inspect shortcuts or wrapper scripts. Other applications may also reuse an e
 session; a `run` response confirms where the launch originated, not where every resulting window
 will appear.
 
+The start runs on a thread of its own. When Windows hasn't started the program after 10 seconds,
+or by the request's deadline, `run` answers `{pid: null, path, session, pending: true, summary}`
+and the start carries on: Windows may be showing a prompt in the seat, such as "Open File - Security
+Warning" for a downloaded file, which the input tools can answer. Don't send `run` again; the
+program starts once the prompt is answered.
+
 ### Android and browsers
 
 | `op` | Arguments | Result |

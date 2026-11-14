@@ -347,7 +347,7 @@ internal static class SeatHost
                 return JsonLine.Ok();
 
             case "run":
-                return RunProgram(r, ChildSession.CurrentSessionId());
+                return RunProgram(r, ChildSession.CurrentSessionId(), cancel: cancel);
 
             case "android.studio":
                 return SeatStudio.Open(AgentAccess.Arguments(r), System.Environment.GetEnvironmentVariable, Process.Start);
@@ -434,9 +434,15 @@ internal static class SeatHost
         }
     }
 
+    /// <summary>How long <c>run</c> waits for Windows to start a program before it answers that the start is pending.</summary>
+    internal static readonly TimeSpan LaunchWait = TimeSpan.FromSeconds(10);
+
+    /// <param name="wait">How long to wait for the start; <see cref="LaunchWait"/> unless a check passes less.</param>
+    /// <param name="cancel">The request's deadline; the reply then says the start is still pending.</param>
     internal static JsonObject RunProgram(JsonObject request, uint session,
         Func<ProcessStartInfo, Process?>? launch = null, Func<int[]>? steamSessions = null,
-        Func<string, int[]>? browserSessions = null, Func<string?>? defaultBrowser = null)
+        Func<string, int[]>? browserSessions = null, Func<string?>? defaultBrowser = null,
+        TimeSpan? wait = null, CancellationToken cancel = default)
     {
         string path = request.Str("path") ?? throw new ArgumentException("run needs 'path'.");
         if (Core.Steam.Steam.DirectLaunchFailure(path, session, steamSessions) is { } error)
@@ -457,9 +463,58 @@ internal static class SeatHost
             foreach (var argument in args)
                 if (argument is not null) info.ArgumentList.Add(argument.ToString());
 
-        using var started = (launch ?? Process.Start)(info);
-        Log.Info($"seat launched: {path}");
-        return JsonLine.Ok(new JsonObject { ["pid"] = started?.Id, ["path"] = path, ["session"] = session, ["agentId"] = request.Str("agentId") });
+        var waited = Stopwatch.StartNew();
+        var start = StartOffThread(launch ?? Process.Start, info);
+        bool finished;
+        try { finished = start.Wait(wait ?? LaunchWait, cancel); }
+        catch (OperationCanceledException) { finished = false; }
+        catch (AggregateException) { finished = true; }
+        if (finished)
+        {
+            // A failed start reaches the caller as its own exception, as it did when the start ran on this thread.
+            int? pid = start.GetAwaiter().GetResult();
+            Log.Info($"seat launched: {path}");
+            return JsonLine.Ok(new JsonObject { ["pid"] = pid, ["path"] = path, ["session"] = session, ["agentId"] = request.Str("agentId") });
+        }
+
+        _ = start.ContinueWith(done => Log.Info(done.IsFaulted
+            ? $"seat launch of {path} failed after it was answered: {done.Exception!.InnerException!.Message}"
+            : $"seat launched after a wait: {path} (pid {done.Result?.ToString() ?? "none"})"), TaskScheduler.Default);
+        Log.Info($"seat launch pending: {path}");
+        return JsonLine.Ok(new JsonObject
+        {
+            ["pid"] = null, ["path"] = path, ["session"] = session, ["agentId"] = request.Str("agentId"), ["pending"] = true,
+            ["summary"] = $"Windows has not finished starting {path} after {Math.Max(1, (int)Math.Round(waited.Elapsed.TotalSeconds))} s. It may be waiting "
+                + "on a prompt in the seat, such as \"Open File - Security Warning\" for a downloaded file. The seat stays usable: look with "
+                + "seat_screenshot or seat_windows and answer the prompt with seat_click or seat_key; the program starts once it is answered. "
+                + "Don't run it again, or a second copy starts after the first."
+        });
+    }
+
+    /// <summary>
+    /// Starts a program on a thread of its own. Windows shows a prompt such as "Open File - Security Warning" for a
+    /// downloaded file on the thread that asks it to open the file, and waits there until someone answers. On the
+    /// host's request thread that froze every later desktop request until the host was killed (B-059).
+    /// </summary>
+    private static Task<int?> StartOffThread(Func<ProcessStartInfo, Process?> launch, ProcessStartInfo info)
+    {
+        var done = new TaskCompletionSource<int?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                using var started = launch(info);
+                done.TrySetResult(started?.Id);
+            }
+            catch (Exception ex)
+            {
+                done.TrySetException(ex);
+            }
+        }) { IsBackground = true, Name = "seat launch" };
+        // The shell's own start path runs in a single-threaded apartment.
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        return done.Task;
     }
 
     private static string SafeWorkingDirectory(string path)
