@@ -77,18 +77,19 @@ live check) in CI and on any PC.
 - code cleanup: #93 (an unused default parameter on the CLI's validating `Connect` overload; no
   change in behaviour);
 - docs: #89 (the README, `llms.txt` and `docs/COMPARISON.md`: the refreshed Windows desktop
-  automation comparison), #94 (0.11.4's live validation record) and the listing text (the one-line
-  description in the server's `serverInfo`, `server.json`, the plugin, the MCPB manifest, Scoop and
-  winget now reads "Background computer use on Windows for AI agents: GUI automation, screenshots
-  and app testing."; the README's top, `llms.txt`, the skill's description and a paragraph on
-  headless Claude Code runs in `docs/CONNECTING-AGENTS.md` say the same; no change in behaviour);
+  automation comparison), #94 (0.11.4's live validation record) and #103, the listing text (the
+  one-line description in the server's `serverInfo`, `server.json`, the plugin, the MCPB manifest,
+  Scoop and winget now reads "Background computer use on Windows for AI agents: GUI automation,
+  screenshots and app testing."; the README's top, `llms.txt` and the skill's description use the
+  same words, and `docs/CONNECTING-AGENTS.md` gains a paragraph on headless Claude Code runs; no
+  change in behaviour);
 - one fix: `seat_run` starts programs on a thread of its own and answers `"pending": true` after
   10 seconds (or at the request's deadline) when Windows hasn't started the program, for example
   behind "Open File - Security Warning" for a downloaded file, instead of holding the seat host and
   every later desktop tool until the host was ended (Compass B-059, seen 2026-11-14).
 
 No tools or commands were added; the tool count stays 41. No features: 0.11.5 ships the runtime's
-security update and the `seat_run` fix.
+security update, the `seat_run` fix and the new listing text.
 
 ### Live validation
 

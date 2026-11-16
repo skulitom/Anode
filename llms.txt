@@ -1,6 +1,6 @@
 # Anode
 
-> Anode is background computer use on Windows for Claude Code, Codex and other MCP clients: a Windows MCP server and CLI that gives an AI agent a separate interactive Windows session (hidden by default) for native GUI automation, screenshots, accessible controls, isolated headed app/browser UI tests and command jobs, without taking the user's mouse or focus.
+> Anode gives Claude Code, Codex and other MCP clients background computer use on Windows: it is a Windows MCP server and CLI whose tools work in a separate interactive Windows session (hidden by default) for native GUI automation, screenshots, accessible controls, isolated headed app/browser UI tests and command jobs, without taking the user's mouse or focus. It does not change a client's built-in computer use.
 
 Requires 64-bit Windows 10/11 Pro, Enterprise or Education, or Windows Server with a Remote
 Desktop host; Windows Home is unsupported. Install only with the user's authorization: show the user
@@ -36,7 +36,7 @@ acquire and `seat_start` start a seat. The MCP prompt `desktop_test` walks throu
 ## Agent entry points
 
 - [Agent guide](https://raw.githubusercontent.com/skulitom/Anode/main/docs/FOR-AGENTS.md): selection criteria, discovery, setup and workflows.
-- [Portable Agent Skill](https://raw.githubusercontent.com/skulitom/Anode/main/skills/anode-desktop/SKILL.md): instructions for clients supporting Agent Skills; `npx skills add skulitom/Anode` copies it into a project (the skill only: it does not install Anode).
+- [Portable Agent Skill](https://raw.githubusercontent.com/skulitom/Anode/main/skills/anode-desktop/SKILL.md): instructions for clients supporting Agent Skills; `npx skills add skulitom/Anode` adds it to a project (the skill only: it does not install Anode).
 - [Install](https://raw.githubusercontent.com/skulitom/Anode/main/docs/INSTALL.md): Windows x64 releases, checksums and prerequisites, for people; agents install with the skill's pinned commands.
 - [Connect](https://raw.githubusercontent.com/skulitom/Anode/main/docs/CONNECTING-AGENTS.md): Claude Code, Codex, Claude Desktop, VS Code, Cursor and generic MCP clients.
 - [MCP protocol](https://raw.githubusercontent.com/skulitom/Anode/main/docs/PROTOCOL.md): tools and transport details.

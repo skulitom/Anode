@@ -6,14 +6,15 @@
 Anode is a Windows MCP server and CLI for background computer use, isolated GUI testing and UI automation. Claude Code,
 Codex or another local (stdio) MCP client gets a separate interactive Windows session with its own screen, pointer and
 keyboard focus, hidden by default and called the *seat*. The agent drives native apps and headed browsers there with
-Anode's own tools and takes screenshots while you keep working in yours.
+Anode's own tools and takes screenshots while you keep working in yours. Anode does not change Claude's or Codex's
+built-in computer use: the agent works through Anode's MCP tools instead.
 
-**Limits, up front:** 64-bit Windows 10/11 Pro, Enterprise or Education, or Windows Server with a Remote Desktop host;
+**Limits, up front:** Windows 10/11 Pro, Enterprise or Education on x64, or Windows Server with a Remote Desktop host;
 not Windows Home, macOS or Linux. The seat is a second Windows session signed in as you, with your files, account and
-network, so it is not a sandbox. There is one seat per Windows session, and agents take turns in it. If you sign in to
+network, so it is not a sandbox. There is one seat per PC at a time, and agents take turns in it. If you sign in to
 Windows only with a PIN or Windows Hello, the seat needs your Windows password: you type it yourself in a Windows
-dialog, which an agent cannot do, and Windows may ask again when you create another seat
-([sign-in](docs/TROUBLESHOOTING.md#it-asks-for-a-password-every-time)).
+dialog, which an agent cannot do, and Windows asks for it again at every Reconnect and may ask when you create another
+seat ([sign-in](docs/TROUBLESHOOTING.md#it-asks-for-a-password-every-time)).
 
 ![An agent clicking through Calculator and ticking off a task in a sample web app, inside Anode's background seat](assets/demo.gif)
 
@@ -146,10 +147,12 @@ Claude Code.
   `/plugin marketplace add skulitom/Anode`, then `/plugin install anode@anode` inside Claude Code.
   It registers the MCP server and the `anode-desktop` skill but does not install `anode.exe`.
   Use it or `anode configure claude`, not both; see [Claude Code](docs/CONNECTING-AGENTS.md#1-claude-code).
-- **The skill alone, for any agent that reads Agent Skills:** `npx skills add skulitom/Anode` copies the
-  `anode-desktop` skill into your project (checked 16 November 2026 with skills 1.8.1 and Claude Code as the target:
-  it wrote `.claude/skills/anode-desktop`). The skill tells the agent when Anode fits and how to install it with
-  pinned, hash-checked commands after your yes. It does not install `anode.exe` or register the MCP server.
+- **The skill alone, for any agent that reads Agent Skills:** `npx skills add skulitom/Anode` adds the
+  `anode-desktop` skill to a project. Checked 16 November 2026 with skills 1.8.1, as
+  `npx skills add skulitom/Anode --skill anode-desktop --agent claude-code -y`: it wrote
+  `.claude/skills/anode-desktop` and a `skills-lock.json` in the project folder. The skill tells the agent when
+  Anode fits and how to install it with pinned, hash-checked commands after your yes. It does not install
+  `anode.exe` or register the MCP server.
   `anode configure` already installs the same skill for Claude Code and Codex, so this line is for other agents
   and for a copy kept inside one project.
 

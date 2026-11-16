@@ -19,7 +19,8 @@
 - **Says what it is for.** The one-line description that the server, the MCP Registry entry, the
   Claude Code plugin, the MCPB bundle, Scoop and winget show now reads "Background computer use on
   Windows for AI agents: GUI automation, screenshots and app testing.", and the skill's description
-  starts with the same words. No change in behaviour.
+  opens with "Background computer use on Windows". The MCPB bundle's long description also says
+  that a PIN or Windows Hello sign-in needs your Windows password. No change in behaviour.
 
 ## 0.11.4 — 2026-10-23
 
