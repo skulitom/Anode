@@ -45,6 +45,12 @@ cut, and the nine clicks, which took 0.4 s, are shown four times slower.</sub>
   background mode is macOS-only), and Copilot's app, agent-desktop and Cua Driver work in the background where they
   can, in your own session. How that compares with Anode's seat: [AI computer use on Windows in the background](https://skulitom.github.io/Anode/compare/windows-computer-use-in-the-background/)
   (checked 6 November 2026; the others read from their docs, not run by us).
+- **Using Claude Code?** By its docs, the CLI's own computer use isn't available on Windows. With Anode's MCP server,
+  headless Claude Code built a Windows Forms app, started it in the seat, found a wrong total there, fixed the source,
+  rebuilt and re-checked it in 5 of 6 runs, and the app never had a window or the foreground on the PC's own desktop:
+  [Background computer use on Windows for Claude Code](https://skulitom.github.io/Anode/compare/claude-code-background-computer-use-windows/)
+  (tested 15 November 2026 with Claude Code 2.1.325 and Anode 0.11.4; the run that stopped was refused a tool by our
+  own permission list; one small app, six runs).
 
 ## Install in 3 commands
 
