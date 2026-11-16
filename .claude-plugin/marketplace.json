@@ -9,9 +9,9 @@
     {
       "name": "anode",
       "source": "./",
-      "description": "Background Windows desktop for AI agents: native GUI automation, screenshots and app testing.",
+      "description": "Background computer use on Windows for AI agents: GUI automation, screenshots and app testing.",
       "category": "development",
-      "tags": ["windows", "desktop-automation", "ui-automation", "gui-testing"]
+      "tags": ["windows", "computer-use", "desktop-automation", "ui-automation", "gui-testing"]
     }
   ]
 }

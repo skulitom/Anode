@@ -8,7 +8,7 @@ Manual GitHub steps require `gh` signed in as skulitom (`gh auth status`); stop 
 
 Use this one-line description wherever a directory asks for it:
 
-> Background Windows desktop for AI agents: native GUI automation, screenshots and app testing.
+> Background computer use on Windows for AI agents: GUI automation, screenshots and app testing.
 
 ## 1. MCP Registry (automatic)
 

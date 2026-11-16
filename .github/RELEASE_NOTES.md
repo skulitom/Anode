@@ -1,7 +1,8 @@
 ## What's new in 0.11.5
 
-This patch updates the .NET runtime that release builds include and fixes one bug. Anode's
-tools and commands are unchanged; there are still 41 tools.
+This patch updates the .NET runtime that release builds include and fixes one bug, and its
+listings now say what Anode is for. Anode's tools and commands are unchanged; there are still
+41 tools.
 
 - **`seat_run` no longer freezes the seat behind a Windows prompt.** Starting a file Windows marks
   as downloaded (a script, or a shortcut to one) showed "Open File - Security Warning" inside the
@@ -14,6 +15,10 @@ tools and commands are unchanged; there are still 41 tools.
   included 10.0.13. Upgrade to stay on a patched runtime; nothing else in Anode changes.
 - **Dependencies.** Seat audio uses NAudio.Wasapi 3.3.0 (was 3.2.0), and `anode setup`'s Remote
   Desktop service handling uses System.ServiceProcess.ServiceController 10.0.14 (was 10.0.13).
+- **Says what it is for.** The one-line description in the server and its listings now reads
+  "Background computer use on Windows for AI agents: GUI automation, screenshots and app testing.",
+  and the skill's description opens with "Background computer use on Windows". Anode works as
+  before.
 
 **Known issues.** A Chrome window's first observation can come back without the page, and the
 page's controls sit deeper than the default `maxDepth` of 8: observe again with `maxDepth` 16. On

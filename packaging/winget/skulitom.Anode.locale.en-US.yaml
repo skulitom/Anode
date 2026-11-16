@@ -12,7 +12,7 @@ PackageUrl: https://github.com/skulitom/Anode
 License: MIT
 LicenseUrl: https://github.com/skulitom/Anode/blob/main/LICENSE
 Copyright: Copyright (c) 2026 skulitom
-ShortDescription: 'Background Windows desktop for AI agents: native GUI automation, screenshots and app testing.'
+ShortDescription: 'Background computer use on Windows for AI agents: GUI automation, screenshots and app testing.'
 Description: |-
   Runs apps in a Windows child session with its own screen, pointer and keyboard focus, so an agent can automate native UI, take screenshots and run headed app/browser tests while you keep working. Requires 64-bit Windows 10/11 Pro, Enterprise or Education (or Windows Server with an RDP host) and a one-time 'anode setup' as administrator. Shares your files, account and network; it is not a security sandbox.
 Moniker: anode

@@ -16,7 +16,7 @@
     <Company>Anode</Company>
     <Product>Anode</Product>
     <AssemblyTitle>Anode background Windows desktop</AssemblyTitle>
-    <Description>Background Windows desktop for AI agents: native GUI automation, screenshots and app testing.</Description>
+    <Description>Background computer use on Windows for AI agents: GUI automation, screenshots and app testing.</Description>
     <Copyright>Copyright (c) 2026 skulitom. MIT License.</Copyright>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>..\..\assets\anode.ico</ApplicationIcon>

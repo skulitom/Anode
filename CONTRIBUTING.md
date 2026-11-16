@@ -87,7 +87,7 @@ release, update to the current supported patch, and rebuild and test the package
    release notes in line with the code.
 4. Set the new version in `server.json`, `.claude-plugin/plugin.json` and
    `packaging/mcpb/manifest.json`. Where a listing repeats the one-line description, keep it
-   identical: "Background Windows desktop for AI agents: native GUI automation, screenshots and
+   identical: "Background computer use on Windows for AI agents: GUI automation, screenshots and
    app testing."
 5. Run the checks above plus `scripts\test-distribution.ps1` and `scripts\check-docs.ps1`, push the
    changes and confirm Windows CI passes. Then install the candidate and run the live check,

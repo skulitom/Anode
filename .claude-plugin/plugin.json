@@ -3,7 +3,7 @@
   "name": "anode",
   "displayName": "Anode background Windows desktop",
   "version": "0.11.5",
-  "description": "Background Windows desktop for AI agents: native GUI automation, screenshots and app testing.",
+  "description": "Background computer use on Windows for AI agents: GUI automation, screenshots and app testing.",
   "author": {
     "name": "skulitom",
     "url": "https://github.com/skulitom"
@@ -18,6 +18,8 @@
     "ui-automation",
     "gui-testing",
     "screenshots",
+    "computer-use",
+    "background-computer-use",
     "background-desktop",
     "mcp"
   ],

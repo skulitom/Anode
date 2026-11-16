@@ -16,6 +16,12 @@
 - **Dependencies.** Seat audio uses NAudio.Wasapi 3.3.0 (was 3.2.0), and `anode setup`'s
   Remote Desktop service handling uses System.ServiceProcess.ServiceController 10.0.14 (was
   10.0.13). No change in behaviour.
+- **Says what it is for.** The one-line description that the server, the MCP Registry entry, the
+  Claude Code plugin, the MCPB bundle, Scoop and winget show now reads "Background computer use on
+  Windows for AI agents: GUI automation, screenshots and app testing.", and the skill's description
+  opens with "Background computer use on Windows". The MCPB bundle's long description also says
+  that the seat needs your Windows password, again at every Reconnect, if you sign in to Windows
+  only with a PIN or Windows Hello. No change in behaviour.
 
 ## 0.11.4 — 2026-10-23
 

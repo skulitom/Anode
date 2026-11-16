@@ -1,12 +1,20 @@
-# <img src="assets/anode.svg" width="36" height="36" alt=""> Anode — a background Windows desktop for AI agents
+# <img src="assets/anode.svg" width="36" height="36" alt=""> Anode — background computer use on Windows for Claude Code and Codex
 
 <!-- mcp-name: io.github.skulitom/anode -->
 
 **Computer-use agents that drive your Windows desktop take over your mouse and keyboard; Anode gives them their own desktop instead.**
-Anode is a Windows MCP server and CLI for computer use, GUI automation and UI testing. Claude Code,
-Codex or another local (stdio) MCP client gets a hidden Windows session with its own screen, pointer and keyboard focus,
-called the *seat*. The agent drives native apps and headed browsers and takes screenshots while you
-keep working in yours.
+Anode is a Windows MCP server and CLI for background computer use, isolated GUI testing and UI automation. Claude Code,
+Codex or another local (stdio) MCP client gets a separate interactive Windows session with its own screen, pointer and
+keyboard focus, hidden by default and called the *seat*. The agent drives native apps and headed browsers there with
+Anode's own tools and takes screenshots while you keep working in yours. Anode does not change Claude's or Codex's
+built-in computer use: the agent works through Anode's MCP tools instead.
+
+**Limits, up front:** Windows 10/11 Pro, Enterprise or Education, or Windows Server with a Remote Desktop host, on
+x64; not Windows Home, macOS or Linux. The seat is a second Windows session signed in as you, with your files, account and
+network, so it is not a sandbox. There is one seat per PC at a time, and agents take turns in it. If you sign in to
+Windows only with a PIN or Windows Hello, the seat needs your Windows password: you type it yourself in a Windows
+dialog, which an agent cannot do, and Windows asks for it again at every Reconnect and may ask when you create another
+seat ([sign-in](docs/TROUBLESHOOTING.md#it-asks-for-a-password-every-time)).
 
 ![An agent clicking through Calculator and ticking off a task in a sample web app, inside Anode's background seat](assets/demo.gif)
 
@@ -129,7 +137,7 @@ Builds are currently unsigned; Windows may show a SmartScreen warning.
 
 ### Other ways to install
 
-Both still need the one-time `anode setup` below; plugin users skip `anode configure` for
+All three still need the one-time `anode setup` below; plugin users skip `anode configure` for
 Claude Code.
 
 - **Scoop:** `scoop bucket add anode https://github.com/skulitom/Anode`, then
@@ -139,6 +147,14 @@ Claude Code.
   `/plugin marketplace add skulitom/Anode`, then `/plugin install anode@anode` inside Claude Code.
   It registers the MCP server and the `anode-desktop` skill but does not install `anode.exe`.
   Use it or `anode configure claude`, not both; see [Claude Code](docs/CONNECTING-AGENTS.md#1-claude-code).
+- **The skill alone, for any agent that reads Agent Skills:** `npx skills add skulitom/Anode` adds the
+  `anode-desktop` skill to a project. Checked 16 November 2026 with skills 1.8.1, as
+  `npx skills add skulitom/Anode --skill anode-desktop --agent claude-code -y`: it wrote
+  `.claude/skills/anode-desktop` and a `skills-lock.json` in the project folder. The skill tells the agent when
+  Anode fits and how to install it with pinned, hash-checked commands after your yes. It does not install
+  `anode.exe` or register the MCP server.
+  `anode configure` already installs the same skill for Claude Code and Codex, so this line is for other agents
+  and for a copy kept inside one project.
 
 ## Set up and connect
 
@@ -249,7 +265,7 @@ flowchart LR
 
 ## Limits to know
 
-- One seat per Windows session: agents and CLI clients share it and take turns.
+- One seat per PC at a time: agents and CLI clients share it and take turns.
 - Not for Windows Home or macOS, or when you need a security sandbox:
   [when to use which](docs/COMPARISON.md) says what to use instead.
 - Files, accounts, network ports and application singletons are shared. Steam games run in the seat
