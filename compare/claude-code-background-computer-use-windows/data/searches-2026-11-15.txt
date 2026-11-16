@@ -1,0 +1,131 @@
+Raw search results for the page "Background computer use on Windows for Claude Code" (15 November 2026)
+Tool: WebSearch (mode standard; US index). Searches a-e were sent together in one batch:
+clock read 2026-11-15T15:31:27Z just before and 15:32:06Z just after, so each ran ~15:31-15:32 UTC.
+"Anode result?" = any result from skulitom.github.io/Anode or github.com/skulitom/Anode
+(raw.githubusercontent.com/skulitom/Anode is the same repo's README, noted separately).
+
+==================================================================
+a. "Claude Code computer use Windows background"   (~15:31 UTC)
+ 1. DEV Community - https://dev.to/gentic_news/cua-driver-brings-background-computer-use-to-windows-35pf
+ 2. Wednesday, October 7, 2026 - https://cybersecuritynews.com/claude-ai-controls-macos-and-windows/
+ 3. Why CuaFleet - https://cua.ai/blog/inside-windows-computer-use
+ 4. Computer Use Comes to Windows: Codex, Claude and Gemini Compared for PC Users - https://pasqualepillitteri.it/en/news/3765/computer-use-windows-codex-claude-gemini-compared
+ 5. Claude Extends Desktop Control Across macOS and Windows - https://letsdatascience.com/news/claude-extends-desktop-control-across-macos-and-windows-0e32c092
+ 6. support.claude.com - https://support.claude.com/en/articles/14128542)
+ 7. support.claude.com - https://support.claude.com/en/articles/14128542
+ 8. # Let Claude use your computer in Cowork - https://support.claude.com/en/articles/14128542-let-claude-use-your-computer-in-cowork.md
+ 9. Anthropic Brings Claude Computer Use to Windows - https://www.thurrott.com/a-i/anthropic/334498/anthropic-brings-claude-computer-use-to-windows
+10. Anthropic Brings Claude Computer Use to Windows - https://www.thurrott.com/?p=334498
+11. claude can now click and type in the background while you work - https://www.pcworld.com/article/3226763/claude-can-now-click-and-type-in-the-background-while-you-work.html
+12. Preflight Checklist - https://github.com/anthropics/claude-code/issues/64381
+13. claude code computer use in 2026 windows setup ... - https://dev.to/dublecc/claude-code-computer-use-in-2026-windows-setup-the-permission-tier-model-and-the-spare-machine-3g5e
+14. Claude's "Computer Use" Feature Arrives on Windows ... - https://assets.thehansindia.com/tech/claudes-computer-use-feature-arrives-on-windows-expanding-ai-automation-1062218
+15. claude background computer use - https://xenospectrum.com/en/claude-background-computer-use/
+16. Consider supporting Cua Driver for window-scoped/background computer use - https://claudeissues.com/issue/55496-consider-supporting-cua-driver-for-window-scoped-background-computer-use
+17. Claude Computer Use Runs in the Background in Cowork and Claude Code - https://aicatchup.com/news/claude-background-computer-use-cowork-code
+18. cua driver brings background - https://gentic.news/article/cua-driver-brings-background
+Summary said: Windows computer use exists in Desktop, background mode is macOS 15+ only, CLI computer use is not on Windows; named Cua Driver as the third-party Windows background option.
+Anode result? No.
+
+==================================================================
+b. "Claude Code isolated Windows GUI testing separate session"   (~15:31 UTC)
+ 1. [FEATURE] Feature Request: Isolated Windows GUI testing using RDP Child Sessions - https://claudeissues.com/issue/99740-feature-feature-request-isolated-windows-gui-testing-using-rdp-child-sessions
+ 2. Preflight Checklist - https://github.com/anthropics/claude-code/issues/27658
+ 3. github.com - https://github.com/anthropics/claude-code/issues/60879
+ 4. Feature request: Isolated preview tabs per session - https://claudeissues.com/issue/49477-feature-request-isolated-preview-tabs-per-session
+ 5. Desktop App - https://claude-code-playbook.pages.dev/en/docs/level-1/desktop-app
+ 6. DEV Community - https://dev.to/agentis/claude-desktop-and-claude-code-are-different-windows-states-228g
+ 7. [BUG] ralph-wiggum does not do session isolation - https://claudeissues.com/issue/15790-bug-ralph-wiggum-does-not-do-session-isolation
+ 8. code.claude.com - https://code.claude.com/docs/en/worktrees
+ 9. [BUG] Agent with isolation="worktree" causes Warp terminal to split ... - https://claudeissues.com/issue/43038-bug-agent-with-isolation-worktree-causes-warp-terminal-to-split-into-two-panes-b
+10. Desktop app: support multiple windows on Windows for virtual-desktop workflows - https://claudeissues.com/issue/60879-desktop-app-support-multiple-windows-on-windows-for-virtual-desktop-workflows
+11. raw.githubusercontent.com - https://raw.githubusercontent.com/skulitom/Anode/HEAD/README.md
+12. # Evaluate Computer-Use Agents on Windows Sandboxes - https://www.daytona.io/docs/en/guides/computer-use/windows-evals.md
+13. [FEATURE] I built an app for this: Multi Instance for Claude Desktop ... - https://claudeissues.com/issue/70665-feature-i-built-an-app-for-this-multi-instance-for-claude-desktop-run-isolated-i
+14. claude code desktop app features - https://www.mindstudio.ai/blog/claude-code-desktop-app-features
+15. Running two Claude Code accounts on one Windows PC - https://joshcgrossman.com/2026/02/04/claude-two-accounts-windows/
+16. Parallel sessions crash simultaneously on Windows (native install) - https://claudeissues.com/issue/27646-parallel-sessions-crash-simultaneously-on-windows-native-install
+17. Evaluate Computer-Use Agents on Windows Sandboxes - https://www.daytona.io/docs/en/guides/computer-use/windows-evals
+18. [FEATURE] I built a free app for this: Multi Instance for Claude Desktop ... - https://claudeissues.com/issue/70665-feature-i-built-a-free-app-for-this-multi-instance-for-claude-desktop-run-isolat
+19. # Claude Code Desktop Guide: Setup and Best Practices - https://capitalandcompute.net/md/claude-code-desktop-guide.md
+20. Cua DriverGuideGetting Started - https://cua.ai/docs/cua-driver/guide/getting-started/windows-ssh
+Summary said: no shipped Claude Code feature; #99740 (mirror) opened 5 Oct 2026 and open; described Anode as an open-source Windows MCP server giving Claude Code its own hidden session; also cua-driver (Session 0 warning), Daytona Windows sandboxes, worktrees (files only).
+Anode result? Not skulitom.github.io or github.com/skulitom/Anode; but #11 is raw.githubusercontent.com/skulitom/Anode/HEAD/README.md (Anode's README), and the summary described Anode.
+
+==================================================================
+c. "background computer use on Windows for Claude Code and Codex"   (~15:31 UTC)
+ 1. DEV Community - https://dev.to/gentic_news/cua-driver-brings-background-computer-use-to-windows-35pf
+ 2. Why CuaFleet - https://cua.ai/blog/inside-windows-computer-use
+ 3. Computer Use Comes to Windows: Codex, Claude and Gemini Compared for PC Users - https://pasqualepillitteri.it/en/news/3765/computer-use-windows-codex-claude-gemini-compared
+ 4. openai codex computer use windows 2026 - https://noqta.tn/en/news/openai-codex-computer-use-windows-2026
+ 5. Wednesday, October 7, 2026 - https://cybersecuritynews.com/claude-ai-controls-macos-and-windows/
+ 6. Feature request: Codex-style background computer control with concurrent window/session ownership - https://claudeissues.com/issue/66706-feature-request-codex-style-background-computer-control-with-concurrent-window-s
+ 7. cua driver brings background - https://gentic.news/article/cua-driver-brings-background
+ 8. (ja) Computer Use が Windows に対応 ... - https://pasqualepillitteri.it/ja/news/3773/computer-use-windows-codex-claude-gemini-hikaku
+ 9. (zh) Computer Use 登陆 Windows ... - https://pasqualepillitteri.it/zh/news/3771/computer-use-windows-codex-claude-gemini-duibi
+10. claude can now click and type in the background while you work - https://www.pcworld.com/article/3226763/claude-can-now-click-and-type-in-the-background-while-you-work.html
+11. claude background computer use - https://xenospectrum.com/en/claude-background-computer-use/
+12. (de) Computer Use kommt auf Windows ... - https://pasqualepillitteri.it/de/news/3768/computer-use-windows-codex-claude-gemini-vergleich
+13. openai rolls out major codex for windows update with computer use and mobile access - https://www.neowin.net/news/openai-rolls-out-major-codex-for-windows-update-with-computer-use-and-mobile-access/
+14. About Us - https://en.kocpc.com.tw/?p=2085
+15. OpenAI Codex Adds Computer Use to Windows Desktops - https://aiweekly.co/alerts/openai-codex-adds-computer-use-to-windows-desktops
+16. Codex Computer Use on Windows: Desktop Automation, QA Testing, and GUI-Driven Agent Workflows - https://codex.danielvaughan.com/2026/05/30/codex-computer-use-windows-desktop-automation-qa-testing-workflows/
+17. Claude Computer Use Runs in the Background in Cowork and Claude Code - https://aicatchup.com/news/claude-background-computer-use-cowork-code
+18. FaceTime Like A Pro (eBook) - https://dev.igeeksblog.com/?p=786488
+Summary said: Codex has Windows computer use (since 26.527) but it is foreground-only on Windows; Claude's background mode is macOS-only; Cua Driver claims Windows background computer use for Claude Code and Codex; launch dates for Cua conflict between reposts.
+Anode result? No.
+
+==================================================================
+d. "Claude Code test WinForms WPF app GUI without taking over mouse"   (~15:31 UTC)
+ 1. [FEATURE] Feature Request: Isolated Windows GUI testing using RDP Child Sessions - https://claudeissues.com/issue/99740-feature-feature-request-isolated-windows-gui-testing-using-rdp-child-sessions
+ 2. Why CuaFleet - https://cua.ai/blog/inside-windows-computer-use
+ 3. Letting AI agents drive a GUI app with -dbg-control - https://blog.kowalczyk.info/a-kf3p/debugging-gui-apps-from-ai-agents.html
+ 4. debugging gui apps from ai agents - https://blog.kowalczyk.info/a-kf3p/debugging-gui-apps-from-ai-agents.md
+ 5. affaan m everything claude code windows desktop e2e - https://skills.browseract.com/skills/affaan-m-everything-claude-code-windows-desktop-e2e
+ 6. Winwright 1.1.7 - https://www.nuget.org/packages/Winwright
+ 7. claude shared skills windows gui visual testing - https://skillsmp.com/creators/mlidbom/jastudio/claude-shared-skills-windows-gui-visual-testing
+ 8. Member-only story - https://levelup.gitconnected.com/i-let-claude-take-over-my-windows-apps-it-never-took-a-single-screenshot-8228c8fb15e8
+ 9. claude shared skills windows gui visual testing - https://skillsmp.com/creators/mlidbom/compze/claude-shared-skills-windows-gui-visual-testing
+10. Winwright 1.1.6 - https://www.nuget.org/packages/Winwright/1.1.6
+11. agent desktop computer use cli - https://azukiazusa.dev/en/blog/agent-desktop-computer-use-cli
+12. windows desktop e2e testing - https://mcpmarket.com/ko/tools/skills/windows-desktop-e2e-testing
+13. Claude Code Can Now Control Your Mac. Here's How to Use It - https://apidog.com/blog/claude-code-computer-use
+14. Skillselion windows-desktop-e2e - https://skillselion.com/skills/affaan-m/ecc/windows-desktop-e2e
+15. windows desktop e2e - https://claudeskills.info/zh-hant/skills/affaan-m/ecc/windows-desktop-e2e/
+16. with one click - https://skillsmp.com/creators/affaan-m/ecc/skills-windows-desktop-e2e
+17. claude skills windows desktop e2e - https://skillsmp.com/ko/creators/somrat10369/windows-11-productive-rice-configs/claude-skills-windows-desktop-e2e
+Summary said: no built-in Claude Code feature; options are the #99740 proposal, UIA tools (Winwright, a pywinauto "windows-desktop-e2e" skill), Cua Driver (notes WPF drags carry a foreground cost), an in-app control channel (SumatraPDF author), and a visual-only skill.
+Anode result? No.
+
+==================================================================
+e. "RDP child session AI agent desktop automation Windows"   (~15:31 UTC)
+ 1. [FEATURE] Feature Request: Isolated Windows GUI testing using RDP Child Sessions - https://claudeissues.com/issue/99740-feature-feature-request-isolated-windows-gui-testing-using-rdp-child-sessions
+ 2. raw.githubusercontent.com - https://raw.githubusercontent.com/skulitom/Anode/HEAD/README.md
+ 3. agent rdp - https://smithery.ai/skills/thisnick/agent-rdp
+ 4. Automating Windows tasks that require a desktop window - https://docs.cs.redwood.com/9.2.9/WinSession
+ 5. child sessions - https://learn.microsoft.com/en-ie/windows/win32/termserv/child-sessions
+ 6. child sessions - https://learn.microsoft.com/en-ie/Windows/Win32/termserv/child-sessions
+ 7. Child Sessions - https://learn.microsoft.com/hu-hu/windows/win32/termserv/child-sessions
+ 8. Employ remote management - Training - https://learn.microsoft.com/en-us/windows/win32/termserv/child-sessions
+ 9. automation bot works over rdp sessions - https://ai.novoflow.io/automation-bot-works-over-rdp-sessions
+10. Child Sessions - https://msdn.microsoft.com/en-us/library/windows/desktop/jj553447
+11. ai agents desktop applications and legacy software - https://tsplus.net/pt_pt/ai-agents-desktop-applications-and-legacy-software/
+12. ipiq.io - https://ipiq.io/patent_classifications/cpc_subgroups/177613?page=6+6
+13. vs remote control - https://docs.askui.com/06-agent-os/vs-remote-control
+14. Setup for Windows Desktop automation - https://sema4.ai/docs/automation/control-room/unattended/worker-setups/windows-desktop
+15. # agent-rdp - https://cdn.jsdelivr.net/gh/thisnick/agent-rdp@main/README.md
+16. What it does - https://thisnick.pages.dev/projects/agent-rdp
+17. Is there a bot that works on remote desktop (RDP) sessions? - https://ai.novoflow.io/bot-works-remote-desktop-rdp-sessions-novoflow
+18. agent rdp - https://www.skills.sh/smithery/ai/agent-rdp
+Summary said: Microsoft child sessions (Windows 8 / Server 2012+, must be enabled, one active child session, cannot be locked); Anode named as an open-source Windows MCP server whose agent desktop is a loopback-RDP child session; agent-rdp (IronRDP CLI); #99740 request (open); AskUI on why plain RDP is fragile.
+Anode result? Not skulitom.github.io or github.com/skulitom/Anode; #2 is raw.githubusercontent.com/skulitom/Anode/HEAD/README.md and the summary quoted Anode's README.
+
+==================================================================
+Extra searches for Part 2 (not ranked for the page; ~15:35-15:44 UTC)
+f. "Anthropic Claude background computer use macOS release notes September 2026": top results letsdatascience (background on Mac), letsdatascience (macOS and Windows), PCWorld 3226763, kocpc, xenospectrum, androidauthority 3706684, support.claude.com release notes 12138966. Summary: background mode launched ~2 Sep 2026 for macOS (Pro/Max), announced on X; official release notes excerpt had no background entry. No Anode result.
+g. "developers.openai.com codex computer use Windows foreground": livedoor, noqta.tn, developers.openai.com/ja-JP/docs/computer-use, gigazine 20260601, neowin, ... learn-side docs not directly in results; summary: Windows computer use is foreground-only; EEA/UK/CH unavailable at launch (secondary). No Anode result.
+h. "help.openai.com Codex computer use availability EEA UK Switzerland Windows": help.openai.com 11369540 variants, community.openai.com "Now in Europe..." (1383925), aiweekly node/3092, pasqualepillitteri (several languages), thewincentral. Summary: 16 Jun 2026 expansion to EEA/UK/CH per OpenAI Developers post (secondary). No Anode result.
+i. "Codex \"background mode\" learn.chatgpt.com docs": community.openai.com 1274043, stafforini, daniel vaughan, baeseokjae "openai codex background computer use guide" (says macOS). No first-party Windows background mode. No Anode result.
+j. (item 8) "Claude computer use background mode Windows now supported November 2026": cybersecuritynews, dev.to gentic_news (Cua), cua.ai blog, PCWorld, support.claude.com 14128542 .md, letsdatascience, cryptobriefing (Mac background), digit.in, alternativeto (2026/9 macOS), thewincentral, aicatchup. Summary: every source ties background mode to macOS. No Anode result.
+k. (item 8) "Codex computer use Windows background separate session virtual desktop support": daniel vaughan (05-30), neowin, aiweekly, noqta.tn, kingy.ai, thetechoutlook, daniel vaughan (06-04), kocpc, learn.chatgpt.com/codex/computer-use, cua.ai blog, ... Summary: Codex on Windows is foreground-only; no separate-session or virtual-desktop mode found. No Anode result.
+l. "\"Computer Use is available on macOS and Windows in these regions\"": aiweekly node/3092, learn.chatgpt.com computer-use variants, windowsreport (Europe), support.claude.com, kiro.dev. Summary: OpenAI docs only say "In supported regions". No Anode result.

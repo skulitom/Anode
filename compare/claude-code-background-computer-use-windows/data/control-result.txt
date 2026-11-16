@@ -1,0 +1,31 @@
+Positive control for parent_watch.py, 15 November 2026, about 15:44 UTC
+
+Run inside the seat (session 2) through Anode's seat_exec, never on the PC's own desktop:
+  python -I control_run.py <folder>
+
+Output:
+scripted pointer placements: 6
+{
+ "app": "none.exe",
+ "watcher_session": 2,
+ "samples": 98,
+ "seconds": 5.0,
+ "interval_s": 0.05,
+ "foreground_samples_app_under_test": 0,
+ "foreground_samples_anode": 0,
+ "foreground_changes": 0,
+ "distinct_pointer_positions": 6,
+ "pointer_moves_without_input_in_this_session": 6,
+ "input_bursts_in_this_session": 0,
+ "longest_idle_ms": 25719,
+ "process_checks": 5,
+ "process_checks_with_app_running": 0,
+ "sessions_holding_app_process": [],
+ "max_app_windows_on_this_desktop": 0
+}
+
+Reading: the watcher counted all 6 pointer moves that a program made with no input. So a "0" in the six runs'
+desktop summaries means no such move was seen, not that the watcher cannot see one.
+
+Anode's pointer guard counter read 9 before this control and 15 after it, with 0 forwarded: the six scripted moves
+of the seat's pointer were kept off the PC's own pointer.

@@ -1,0 +1,252 @@
+{
+ "date": "2026-11-15",
+ "anode": "0.11.4",
+ "windows": "Windows 11 Pro, build 26200",
+ "total": {
+  "runs": 6,
+  "runs_loop_completed": 5,
+  "tool_calls": 160,
+  "anode_tool_calls": 105,
+  "calls_not_ok": 15,
+  "desktop_samples": 8491,
+  "desktop_seconds": 437.3,
+  "foreground_samples_app_or_anode": 0,
+  "pointer_moves_without_input": 0,
+  "input_bursts_on_the_desktop": 182,
+  "app_windows_on_the_desktop": 0,
+  "cost_usd_list_price_estimate": 0.6866,
+  "calls_not_ok_by_kind": {
+   "refused by this run's permission list": 12,
+   "Anode: the seat was held by another session of ours, wait timed out": 1,
+   "Anode: refused an observation id the model had mistyped": 1,
+   "build failed": 1
+  }
+ },
+ "runs": [
+  {
+   "run": 1,
+   "model": "claude-sonnet-5-5",
+   "claude_code": "2.1.325",
+   "allow_list": "without mcp__anode__seat_window",
+   "loop_completed": true,
+   "result_label_we_read_in_the_seat_afterwards": "Total: 92.00",
+   "source_after": "return bill + bill * tipPercent / 100;",
+   "duration_s": 54.8,
+   "model_time_s": 45.7,
+   "turns": 27,
+   "tool_calls": 26,
+   "anode_tool_calls": 16,
+   "calls_not_ok": 2,
+   "calls_not_ok_by_kind": {
+    "refused by this run's permission list": 2
+   },
+   "cost_usd_list_price_estimate": 0.1814,
+   "desktop_watch": {
+    "samples": 1165,
+    "seconds": 60.1,
+    "foreground_samples_app_under_test": 0,
+    "foreground_samples_anode": 0,
+    "foreground_changes": 4,
+    "distinct_pointer_positions": 293,
+    "pointer_moves_without_input_in_this_session": 0,
+    "input_bursts_in_this_session": 137,
+    "sessions_holding_app_process": [
+     2
+    ],
+    "max_app_windows_on_this_desktop": 0
+   },
+   "anode_pointer_guard_kept_off_count": [
+    7,
+    8
+   ]
+  },
+  {
+   "run": 2,
+   "model": "claude-sonnet-5-5",
+   "claude_code": "2.1.325",
+   "allow_list": "without mcp__anode__seat_window",
+   "loop_completed": true,
+   "result_label_we_read_in_the_seat_afterwards": "Total: 92.00",
+   "source_after": "return bill + bill * tipPercent / 100;",
+   "duration_s": 140.8,
+   "model_time_s": 41.6,
+   "turns": 30,
+   "tool_calls": 29,
+   "anode_tool_calls": 19,
+   "calls_not_ok": 4,
+   "calls_not_ok_by_kind": {
+    "refused by this run's permission list": 3,
+    "Anode: the seat was held by another session of ours, wait timed out": 1
+   },
+   "cost_usd_list_price_estimate": 0.1744,
+   "desktop_watch": {
+    "samples": 2833,
+    "seconds": 145.8,
+    "foreground_samples_app_under_test": 0,
+    "foreground_samples_anode": 0,
+    "foreground_changes": 0,
+    "distinct_pointer_positions": 13,
+    "pointer_moves_without_input_in_this_session": 0,
+    "input_bursts_in_this_session": 7,
+    "sessions_holding_app_process": [
+     2
+    ],
+    "max_app_windows_on_this_desktop": 0
+   },
+   "anode_pointer_guard_kept_off_count": [
+    8,
+    8
+   ]
+  },
+  {
+   "run": 3,
+   "model": "claude-sonnet-5-5",
+   "claude_code": "2.1.325",
+   "allow_list": "without mcp__anode__seat_window",
+   "loop_completed": true,
+   "result_label_we_read_in_the_seat_afterwards": "Total: 92.00",
+   "source_after": "return bill + bill * tipPercent / 100;",
+   "duration_s": 53.2,
+   "model_time_s": 44.9,
+   "turns": 27,
+   "tool_calls": 26,
+   "anode_tool_calls": 17,
+   "calls_not_ok": 2,
+   "calls_not_ok_by_kind": {
+    "refused by this run's permission list": 2
+   },
+   "cost_usd_list_price_estimate": 0.1593,
+   "desktop_watch": {
+    "samples": 1128,
+    "seconds": 58.1,
+    "foreground_samples_app_under_test": 0,
+    "foreground_samples_anode": 0,
+    "foreground_changes": 0,
+    "distinct_pointer_positions": 1,
+    "pointer_moves_without_input_in_this_session": 0,
+    "input_bursts_in_this_session": 0,
+    "sessions_holding_app_process": [
+     2
+    ],
+    "max_app_windows_on_this_desktop": 0
+   },
+   "anode_pointer_guard_kept_off_count": [
+    8,
+    9
+   ]
+  },
+  {
+   "run": 4,
+   "model": "claude-haiku-5-5",
+   "claude_code": "2.1.325",
+   "allow_list": "without mcp__anode__seat_window",
+   "loop_completed": false,
+   "result_label_we_read_in_the_seat_afterwards": "Total: 95.00 (the first, unfixed build was still open)",
+   "source_after": "return bill + bill * tipPercent / 100m;",
+   "duration_s": 54.3,
+   "model_time_s": 34.3,
+   "turns": 23,
+   "tool_calls": 22,
+   "anode_tool_calls": 16,
+   "calls_not_ok": 4,
+   "calls_not_ok_by_kind": {
+    "refused by this run's permission list": 2,
+    "Anode: refused an observation id the model had mistyped": 1,
+    "build failed": 1
+   },
+   "cost_usd_list_price_estimate": 0.0158,
+   "desktop_watch": {
+    "samples": 1150,
+    "seconds": 59.3,
+    "foreground_samples_app_under_test": 0,
+    "foreground_samples_anode": 0,
+    "foreground_changes": 0,
+    "distinct_pointer_positions": 64,
+    "pointer_moves_without_input_in_this_session": 0,
+    "input_bursts_in_this_session": 38,
+    "sessions_holding_app_process": [
+     2
+    ],
+    "max_app_windows_on_this_desktop": 0
+   },
+   "anode_pointer_guard_kept_off_count": [
+    9,
+    9
+   ]
+  },
+  {
+   "run": 5,
+   "model": "claude-haiku-5-5",
+   "claude_code": "2.1.325",
+   "allow_list": "with mcp__anode__seat_window",
+   "loop_completed": true,
+   "result_label_we_read_in_the_seat_afterwards": "Total: 92.00",
+   "source_after": "return bill + bill * tipPercent / 100;",
+   "duration_s": 58.8,
+   "model_time_s": 46.2,
+   "turns": 36,
+   "tool_calls": 35,
+   "anode_tool_calls": 24,
+   "calls_not_ok": 2,
+   "calls_not_ok_by_kind": {
+    "refused by this run's permission list": 2
+   },
+   "cost_usd_list_price_estimate": 0.0184,
+   "desktop_watch": {
+    "samples": 1239,
+    "seconds": 63.8,
+    "foreground_samples_app_under_test": 0,
+    "foreground_samples_anode": 0,
+    "foreground_changes": 0,
+    "distinct_pointer_positions": 1,
+    "pointer_moves_without_input_in_this_session": 0,
+    "input_bursts_in_this_session": 0,
+    "sessions_holding_app_process": [
+     2
+    ],
+    "max_app_windows_on_this_desktop": 0
+   },
+   "anode_pointer_guard_kept_off_count": [
+    9,
+    9
+   ]
+  },
+  {
+   "run": 6,
+   "model": "claude-sonnet-5-5",
+   "claude_code": "2.1.325",
+   "allow_list": "with mcp__anode__seat_window",
+   "loop_completed": true,
+   "result_label_we_read_in_the_seat_afterwards": "Total: 92.00",
+   "source_after": "return bill + bill * tipPercent / 100;",
+   "duration_s": 45.3,
+   "model_time_s": 37.8,
+   "turns": 23,
+   "tool_calls": 22,
+   "anode_tool_calls": 13,
+   "calls_not_ok": 1,
+   "calls_not_ok_by_kind": {
+    "refused by this run's permission list": 1
+   },
+   "cost_usd_list_price_estimate": 0.1373,
+   "desktop_watch": {
+    "samples": 976,
+    "seconds": 50.2,
+    "foreground_samples_app_under_test": 0,
+    "foreground_samples_anode": 0,
+    "foreground_changes": 0,
+    "distinct_pointer_positions": 1,
+    "pointer_moves_without_input_in_this_session": 0,
+    "input_bursts_in_this_session": 0,
+    "sessions_holding_app_process": [
+     2
+    ],
+    "max_app_windows_on_this_desktop": 0
+   },
+   "anode_pointer_guard_kept_off_count": [
+    9,
+    9
+   ]
+  }
+ ]
+}

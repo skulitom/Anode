@@ -1,0 +1,20 @@
+{
+ "app": "TipCalc.exe",
+ "watcher_session": 1,
+ "samples": 1165,
+ "seconds": 60.1,
+ "interval_s": 0.05,
+ "foreground_samples_app_under_test": 0,
+ "foreground_samples_anode": 0,
+ "foreground_changes": 4,
+ "distinct_pointer_positions": 293,
+ "pointer_moves_without_input_in_this_session": 0,
+ "input_bursts_in_this_session": 137,
+ "longest_idle_ms": 10562,
+ "process_checks": 59,
+ "process_checks_with_app_running": 32,
+ "sessions_holding_app_process": [
+  2
+ ],
+ "max_app_windows_on_this_desktop": 0
+}

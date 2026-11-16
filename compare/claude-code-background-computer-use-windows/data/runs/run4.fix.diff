@@ -1,0 +1,10 @@
+--- TipCalc/TipMath.cs (before)
++++ TipCalc/TipMath.cs (after the agent)
+@@ -5,6 +5,6 @@
+     /// <summary>Total to pay: the bill plus the tip.</summary>
+     public static decimal Total(decimal bill, decimal tipPercent)
+     {
+-        return bill + tipPercent;
++        return bill + bill * tipPercent / 100m;
+     }
+ }

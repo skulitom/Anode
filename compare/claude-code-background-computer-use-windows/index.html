@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Background computer use on Windows for Claude Code: a tested guide</title>
+<meta name="description" content="Tested 15 Nov 2026: with Anode 0.11.4, headless Claude Code 2.1.325 built a Windows Forms app, tested it in a hidden Windows session, fixed it and re-checked it there in 5 of 6 runs; the app never ran or showed a window on the PC's own desktop.">
+<link rel="canonical" href="https://skulitom.github.io/Anode/compare/claude-code-background-computer-use-windows/">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "Background computer use on Windows for Claude Code: test a GUI app in a separate Windows session",
+  "description": "How to let Claude Code build a Windows desktop app, test it in Anode's hidden Windows session and fix it while you keep your mouse, keyboard and screen, with six measured runs (15 November 2026, Claude Code 2.1.325, Anode 0.11.4), what Claude Code, Claude Desktop and Codex do on Windows today from their docs, the limits, and when to use something else.",
+  "datePublished": "2026-11-16",
+  "dateModified": "2026-11-16",
+  "inLanguage": "en",
+  "url": "https://skulitom.github.io/Anode/compare/claude-code-background-computer-use-windows/",
+  "author": {"@type": "Organization", "name": "Anode maintainers", "url": "https://github.com/skulitom/Anode"},
+  "about": [
+    {"@type": "SoftwareApplication", "name": "Claude Code", "url": "https://github.com/anthropics/claude-code", "softwareVersion": "2.1.325"},
+    {"@type": "SoftwareApplication", "name": "Anode", "url": "https://github.com/skulitom/Anode", "operatingSystem": "Windows", "softwareVersion": "0.11.4"}
+  ]
+}
+</script>
+<style>
+:root { --bg: #ffffff; --fg: #1d1d1f; --muted: #5b5b66; --link: #0b57d0; --rule: #d9d9e0; --head: #f3f3f6; --note: #fff8e1; }
+@media (prefers-color-scheme: dark) { :root { --bg: #16171a; --fg: #e8e8ec; --muted: #a2a2ad; --link: #8ab4f8; --rule: #33343a; --head: #202126; --note: #2a2618; } }
+body { background: var(--bg); color: var(--fg); font: 17px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; }
+main { max-width: 52rem; margin: 0 auto; padding: 2rem 16px 4rem; }
+a { color: var(--link); }
+h1 { font-size: 1.65rem; line-height: 1.25; margin: 0 0 1rem; }
+h2 { font-size: 1.25rem; margin: 2.2rem 0 0.6rem; }
+h3 { font-size: 1.05rem; margin: 1.6rem 0 0.4rem; }
+.lead { font-size: 1.08rem; }
+.meta, .muted { color: var(--muted); font-size: 0.92rem; }
+.note { background: var(--note); border: 1px solid var(--rule); border-radius: 6px; padding: 0.6rem 0.9rem; }
+.wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 1rem 0; }
+table { border-collapse: collapse; font-size: 0.92rem; }
+th, td { border: 1px solid var(--rule); padding: 0.45rem 0.55rem; text-align: left; vertical-align: top; }
+thead th { background: var(--head); }
+tbody th { background: var(--head); font-weight: 600; }
+code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 0.88em; overflow-wrap: anywhere; }
+pre { background: var(--head); border: 1px solid var(--rule); border-radius: 6px; padding: 0.7rem; overflow-x: auto; font-size: 0.85rem; }
+pre code { overflow-wrap: normal; }
+figure { margin: 1.2rem 0; }
+figure img { max-width: 100%; height: auto; border: 1px solid var(--rule); }
+figcaption { color: var(--muted); font-size: 0.9rem; }
+li { margin: 0.25rem 0; }
+footer { border-top: 1px solid var(--rule); margin-top: 3rem; padding-top: 1rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>Background computer use on Windows for Claude Code: test a GUI app in a separate Windows session</h1>
+
+<p class="lead">Can Claude Code test a Windows desktop app without taking over your mouse, keyboard and screen?
+<strong>Yes, in our test: on 15 November 2026, with Anode 0.11.4's MCP server, headless Claude Code 2.1.325 built a
+small Windows Forms app, started it in Anode's hidden Windows session, found a wrong total by entering the spec's
+example and pressing the app's button, fixed the source, rebuilt and re-checked it in 5 of 6 runs (4 of 4 on Sonnet 5.5, 1 of 2 on Haiku
+5.5); the completed runs took 45 to 141 s, and the one run that stopped (Haiku) was refused Anode's window-closing tool by our own permission list and didn't close the app another way. In 8,491 samples
+taken about every 50 ms over 437 s on the PC's own desktop, the app and Anode never had the foreground, the app never had a
+window or a process there (its process ran in session 2 only), and no pointer move happened without input in that
+session; the desktop was in use during three runs, and in the three where nobody touched it the pointer never moved at all.</strong> This needs a tool because, by
+their docs read on 16 November 2026, Claude Code's own computer use is not available on Windows, Claude Desktop's
+computer use "runs on your actual desktop", and the background mode that leaves your pointer and keyboard alone is documented for
+macOS only; open request <a href="https://github.com/anthropics/claude-code/issues/99740">#99740</a> asks Claude Code
+for an "isolated GUI testing mode on Windows".</p>
+
+<p class="note"><strong>We make Anode.</strong> Claude Code is Anthropic's; we are not affiliated with Anthropic. Our
+numbers come from six recorded runs whose data is linked under <a href="#method">Method</a>. Everything about Claude
+Code, Claude Desktop, Codex and the other tools comes from their own docs and issues, read on 15 November 2026, re-read on 16 November and
+linked; we did not run those features. If we got something wrong,
+<a href="https://github.com/skulitom/Anode/issues/new">open an issue</a> and we will correct it.</p>
+
+<p class="meta">Last checked: 16 November 2026 (runs: 15 November) · Claude Code 2.1.325 · Anode 0.11.4 · Windows 11 Pro 25H2 (build 26200)
+· Next check by 16 December 2026, or sooner when Claude Code or Anode changes how computer use works on Windows.</p>
+
+<h2 id="short-answer">The short answer</h2>
+<ul>
+<li><strong>To have it now, on Windows 10 or 11 Pro, Enterprise or Education (x64):</strong> install Anode, register it
+with Claude Code and ask for the test (<a href="#setup">steps below</a>). Anode starts your app in its seat, which its
+README describes as "a Windows child session running as your user", with its own screen, pointer and keyboard focus.
+In our six runs the app's process ran only there.</li>
+<li><strong>On Windows Home:</strong> this doesn't work. Anode needs Pro, Enterprise or Education.</li>
+<li><strong>On macOS:</strong> Anode doesn't run there, and you may not need it: Anthropic's help centre says that on
+macOS 15 or later the Claude Desktop app's computer use (Cowork and its Code tab) works in background windows by
+default, without taking over your pointer or keyboard. The CLI's own computer use hides your other apps while it
+works and needs an interactive session, so it isn't available with <code>claude -p</code> (from their docs, not run
+by us).</li>
+<li><strong>If you need a security boundary:</strong> use a virtual machine or Windows Sandbox. The seat runs as your
+user, with your files and network
+(<a href="https://github.com/skulitom/Anode/blob/v0.11.4/docs/SECURITY.md#what-the-seat-is-not-isolated-from">what the
+seat is not isolated from</a>).</li>
+<li><strong>If the check needs no desktop:</strong> as Anode's README says, an API, a shell or a headless browser test is
+simpler.</li>
+<li><strong>If you want to watch the agent on your own desktop:</strong> Claude Desktop's computer use (a research
+preview on Pro, Max and Ultra plans) works there and hides your other windows while it works (from its docs, not run by
+us).</li>
+</ul>
+
+<h2 id="today">What Claude Code and Codex do on Windows today</h2>
+<p class="muted">From their docs and issues, read on 15 November 2026 and again on 16 November; we ran none of these
+features.</p>
+<ul>
+<li><strong>Claude Code (the CLI), 2.1.325 of 13 November 2026:</strong> computer use is a research preview on macOS for
+Pro, Max and Ultra plans; its docs say it is "not available on Linux or Windows", send Windows users to Claude
+Desktop, and say it needs an interactive session, so it isn't available with <code>claude -p</code>, the headless
+mode our runs used (<a href="https://code.claude.com/docs/en/computer-use">Claude Code computer use docs</a>). None of the
+computer-use lines in its <a href="https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md">changelog</a> adds
+Windows to the CLI.</li>
+<li><strong>Claude Desktop</strong> (the Code tab and Cowork; v5.11492.5 of 13 November 2026): computer use is a research
+preview on macOS and Windows, for Pro, Max and Ultra plans, not Team or Enterprise. It "runs on your actual desktop"
+with access to what you approve, and Claude hides your other windows while it works
+(<a href="https://code.claude.com/docs/en/desktop">desktop docs</a>,
+<a href="https://support.claude.com/en/articles/14128542-let-claude-use-your-computer-in-cowork">help centre</a>,
+<a href="https://claude.com/docs/cowork/changelog">desktop changelog</a>).</li>
+<li><strong>Background mode</strong>, where Claude works in background windows and leaves your pointer and keyboard alone,
+is documented for macOS 15 or later, where it is the default (help centre). No Anthropic page we read says Windows has
+it: we checked the docs, the help centre, the release notes and both changelogs.</li>
+<li><strong>Codex</strong> (computer use in the ChatGPT desktop app): OpenAI's docs say that on Windows it runs on the
+active desktop, moves the pointer, types and takes over the foreground, and "can't operate in the background while you
+keep using the same Windows session"; they suggest a Windows virtual machine or a second device
+(<a href="https://learn.chatgpt.com/docs/computer-use">Computer Use</a>, section "Windows foreground use").</li>
+<li><strong>The requests:</strong> <a href="https://github.com/anthropics/claude-code/issues/99740">#99740</a>, opened on 5
+October 2026, asks for an optional "isolated GUI testing mode on Windows" built on Windows' Remote Desktop child
+sessions, to give the agent "an isolated/background interactive desktop for GUI testing"; it says the implementation
+needn't be child sessions, as long as the agent gets that isolated desktop. On 16 November it was open, with no
+comments, no reactions and no reply from Anthropic.
+<a href="https://github.com/anthropics/claude-code/issues/64381">#64381</a>, which asked for the CLI's computer use on
+Windows, was closed as not planned by a stale-issue bot on 27 July 2026, with no Anthropic reply.</li>
+</ul>
+<p>Microsoft documents a child session as a loopback Remote Desktop session tied to the user's own session, available
+since Windows 8 and Windows Server 2012, one active per system
+(<a href="https://learn.microsoft.com/windows/win32/termserv/child-sessions">child sessions</a>). Anode's README says its
+seat is a child session for your own account, created by Windows' loopback Remote Desktop feature. Anode is a separate
+MCP server that Claude Code calls, not the built-in mode #99740 asks Anthropic for.</p>
+
+<h2 id="setup">Set it up</h2>
+<p>From <a href="https://github.com/skulitom/Anode/blob/v0.11.4/README.md">Anode 0.11.4's README</a>. You need Windows 10
+or 11 Pro, Enterprise or Education (not Home) on x64, and administrator rights once, for <code>anode setup</code>. On a
+managed work PC, a policy that blocks unsigned programs or keeps Remote Desktop off will stop it. Anode's own
+walk-through is <a href="https://github.com/skulitom/Anode/blob/v0.11.4/docs/GUIDE-DESKTOP-APP.md">Test your desktop app
+with Claude Code</a>.</p>
+
+<h3>1. Install, set up and register</h3>
+<p>In PowerShell, run the first line, then open a <strong>new terminal</strong> for the next two:</p>
+<pre><code>iwr -UseBasicParsing https://github.com/skulitom/Anode/releases/latest/download/install.ps1 -OutFile install.ps1; powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+anode setup | Out-Host       # in a NEW terminal: one administrator prompt, once per machine
+anode configure | Out-Host   # registers Anode with the Claude Code and/or Codex CLIs on your PATH</code></pre>
+<ul>
+<li><code>anode setup</code> turns on the Remote Desktop host (adding no firewall rule) and child sessions. It can
+restart Remote Desktop Services, which disconnects any Remote Desktop session to this PC, so run it at the machine itself
+(<a href="https://github.com/skulitom/Anode/blob/v0.11.4/docs/SECURITY.md#what-anode-setup-changes">what it
+changes</a>).</li>
+<li><code>anode configure</code> backs up the client settings, registers Anode by absolute path, sets a 420-second tool
+timeout and installs the <code>anode-desktop</code> skill. <code>anode configure claude</code> picks Claude Code only;
+<code>--no-skill</code> skips the skill. Restart Claude Code; <code>/mcp</code> should list <code>anode</code>
+(<a href="https://github.com/skulitom/Anode/blob/v0.11.4/docs/CONNECTING-AGENTS.md#1-claude-code">connecting Claude
+Code</a>).</li>
+<li>If you sign in to Windows only with a PIN or Windows Hello, the seat needs your Windows password: choose <strong>Sign
+in…</strong> from the Anode tray icon or the viewer's header. An agent can't do this step, and Windows may ask again
+for a new seat (<a href="https://github.com/skulitom/Anode/blob/v0.11.4/docs/TROUBLESHOOTING.md#it-asks-for-a-password-every-time">sign-in</a>).</li>
+</ul>
+<p class="muted">The PC we measured on was already set up and signed in, so we did not re-run these steps today. Our
+runs also did not use <code>anode configure</code>: they gave Claude Code the server through <code>--mcp-config</code>
+(<a href="data/mcp-config.json">mcp-config.json</a>) in a fresh, empty config folder, without Anode's <code>anode-desktop</code> skill and with no timeout
+setting.</p>
+
+<h3>2. Ask for the test</h3>
+<p>The prompt we gave Claude Code, word for word (<a href="data/prompt.txt">prompt.txt</a>):</p>
+<blockquote>
+<p>You are working on TipCalc, a small Windows Forms app in the TipCalc folder (its spec is TipCalc/SPEC.txt). Check
+that the app does what the spec says by using it the way a user would, in Anode's background seat, not on my desktop.</p>
+<ol>
+<li>Build it with exactly this command: dotnet build TipCalc/TipCalc.csproj -c Release</li>
+<li>Start the built TipCalc.exe in the seat with Anode, and test the spec's example by typing into the app and pressing
+its button.</li>
+<li>If the app shows the wrong result, find the cause in the source, fix it, close the app, rebuild with the same
+command, start it again in the seat and test the same example again.</li>
+<li>Leave the app open showing the final result. Then report what the app showed before and after, what you changed, and
+each Anode tool you used.</li>
+</ol>
+<p>Use only Anode's tools on the app's window. Keep the viewer hidden, don't touch any other window in the seat, and
+don't use my desktop.</p>
+</blockquote>
+
+<h3>3. Allow the tools it needs</h3>
+<p>Our allow-list was Read, Edit, Glob, Grep, <code>Bash(dotnet build:*)</code> and 15 of Anode's tools:
+<code>anode_guide</code>, <code>seat_status</code>, <code>seat_lease</code>, <code>seat_capabilities</code>,
+<code>seat_run</code>, <code>seat_windows</code>, <code>seat_observe</code>, <code>seat_element</code>,
+<code>seat_wait</code>, <code>seat_screenshot</code>, <code>seat_click</code>, <code>seat_type</code>,
+<code>seat_key</code>, <code>seat_processes</code> and <code>seat_kill_process</code>; runs 5 and 6 added
+<code>seat_window</code>. With nobody to ask, headless Claude Code refused every call that needed approval (12 in
+all). Two lessons:</p>
+<ul>
+<li><strong>Allow Anode's <code>seat_window</code></strong>, or the agent may stop short of closing your app before a
+rebuild. In run 4, Haiku asked for it, was refused, chose not to close the window another way, and the rebuild failed
+because the running app locked its exe. The three Sonnet runs with the same list pressed the Close button in the window's title bar
+instead.</li>
+<li><strong>Expect a refused compound command.</strong> In five of the six runs Claude Code refused one chained
+command. In runs 3, 5 and 6 it started with <code>cd TipCalc</code> (in run 6:
+<code>cd TipCalc &amp;&amp; cat TipMath.cs MainForm.cs &amp;&amp; dotnet build … | tail -5; cd ..; ls TipCalc</code>),
+and Claude Code said parts of it needed approval. In runs 1 and 2 it ended with <code>find</code> on a relative
+path, and Claude Code said it couldn't tell which file that meant while our wrapper's deny rules for secret folders
+were set. A <code>cd</code> to the run's folder by its full path followed by a build or file reads did run (run 1,
+call 20; run 4, call 3), as did <code>ls -la TipCalc &amp;&amp; cat TipCalc/SPEC.txt</code> in runs 4 and 5. Each
+time the agent carried on with other calls.</li>
+</ul>
+
+<h2 id="measured">What we measured</h2>
+<p><strong>The app:</strong> TipCalc, a Windows Forms app on .NET 10 with two text boxes ("Bill amount", "Tip percent"),
+a Calculate button and a result label, all with accessible names. Its <a href="data/TipCalc/SPEC.txt">spec</a> gives one
+example: bill 80 and tip 15 should show "Total: 92.00". We planted one bug:
+<a href="data/TipCalc/TipMath.cs"><code>TipMath.Total</code></a> returned <code>bill + tipPercent</code>, so the example
+showed "Total: 95.00".</p>
+<p><strong>The runs:</strong> six headless <code>claude -p</code> jobs on 15 November 2026, 15:34 to 15:44 UTC, each in a
+fresh copy of the app, with the prompt and allow-list above. Four ran on Sonnet 5.5 (<code>claude-sonnet-5-5</code>), two
+on Haiku 5.5 (<code>claude-haiku-5-5</code>). After each job we read the app's result label ourselves in the seat, then
+closed the app (<a href="data/results.json">results.json</a>). The four Sonnet runs typed the numbers with
+<code>seat_type</code>; the two Haiku runs set the boxes' values through accessibility (<code>seat_element</code>).
+Calculate was pressed with a click (<code>seat_click</code>, runs 1, 3 and 6) or an accessibility invoke
+(<code>seat_element</code>, runs 2, 4 and 5).</p>
+<div class="wrap">
+<table>
+<thead><tr><th>Run</th><th>Model</th><th>Permission list</th><th>Finished the loop?</th><th>Time</th><th>Tool calls (Anode's)</th><th>Calls not ok</th><th>List-price cost (USD)</th><th>What we read in the seat afterwards</th></tr></thead>
+<tbody>
+<tr><th>1</th><td>Sonnet 5.5</td><td>without <code>seat_window</code></td><td>Yes</td><td>54.8 s</td><td>26 (16)</td><td>2, both refused by our list</td><td>0.1814</td><td>Total: 92.00</td></tr>
+<tr><th>2</th><td>Sonnet 5.5</td><td>without <code>seat_window</code></td><td>Yes</td><td>140.8 s (model time 41.6 s; it waited for the seat)</td><td>29 (19)</td><td>4: 3 refused by our list, 1 seat wait that ran out</td><td>0.1744</td><td>Total: 92.00</td></tr>
+<tr><th>3</th><td>Sonnet 5.5</td><td>without <code>seat_window</code></td><td>Yes</td><td>53.2 s</td><td>26 (17)</td><td>2, both refused by our list</td><td>0.1593</td><td>Total: 92.00</td></tr>
+<tr><th>4</th><td>Haiku 5.5</td><td>without <code>seat_window</code></td><td>No: it fixed the source, but the rebuild failed</td><td>54.3 s</td><td>22 (16)</td><td>4: 2 refused by our list, 1 mistyped observation id, 1 failed rebuild</td><td>0.0158</td><td>Total: 95.00 (the first, unfixed build was still open)</td></tr>
+<tr><th>5</th><td>Haiku 5.5</td><td>with <code>seat_window</code></td><td>Yes</td><td>58.8 s</td><td>35 (24)</td><td>2, both refused by our list</td><td>0.0184</td><td>Total: 92.00</td></tr>
+<tr><th>6</th><td>Sonnet 5.5</td><td>with <code>seat_window</code></td><td>Yes</td><td>45.3 s</td><td>22 (13)</td><td>1, refused by our list</td><td>0.1373</td><td>Total: 92.00</td></tr>
+<tr><th>All</th><td></td><td></td><td>5 of 6</td><td></td><td>160 (105)</td><td>15</td><td>0.6866</td><td>Total: 92.00 in 5 of 6</td></tr>
+</tbody>
+</table>
+</div>
+<p>Every run made the same one-line fix, <code>return bill + bill * tipPercent / 100;</code> (run 4 wrote
+<code>100m</code>, the same value). Of the 15 calls that weren't ok, 12 were refused by our permission list; 1 was run
+2's first request for the seat, which our own session still held after taking the screenshot below and closing run
+1's app (Anode put the agent first in line, and its second request got the seat); 1 was an observation id that Anode didn't recognise because the
+model had mistyped it (it resent the right one); and 1 was run 4's failed rebuild. Costs are Claude Code's own
+list-price estimate for these tiny runs.</p>
+
+<h3>Run 6, call by call</h3>
+<p>Sonnet 5.5, 22 calls, 13 of them Anode's, 45.3 s (<a href="data/runs/run6.agent.json">run6.agent.json</a>):</p>
+<ol>
+<li>Loaded Anode's tool definitions (Claude Code's ToolSearch), read the spec and listed the source files.</li>
+<li>Tried one compound shell command, which the allow-list refused.</li>
+<li>Built with <code>dotnet build TipCalc/TipCalc.csproj -c Release</code> in its own shell, and read
+<code>TipMath.cs</code> and <code>MainForm.cs</code>.</li>
+<li><code>seat_run</code> started TipCalc.exe in the seat, <code>seat_windows</code> found its window and
+<code>seat_observe</code> read its controls, without a screenshot.</li>
+<li><code>seat_type</code> typed 80, Tab, 15; <code>seat_click</code> pressed Calculate; <code>seat_observe</code> read the
+result: "Total: 95.00".</li>
+<li>Edited <code>TipMath.cs</code>.</li>
+<li><code>seat_window</code> closed the app, and <code>seat_processes</code> showed it had exited.</li>
+<li>Rebuilt with the same command.</li>
+<li><code>seat_run</code>, <code>seat_windows</code>, <code>seat_type</code> and <code>seat_click</code> again, then
+<code>seat_wait</code> until the result label contained "Total: 92.00".</li>
+</ol>
+<figure>
+<img src="data/tipcalc-after-fix.png" width="300" height="230" alt="The TipCalc window inside the seat: Bill amount 80, Tip percent 15, a Calculate button, and the result line Total: 92.00.">
+<figcaption>TipCalc in the seat after run 1, captured inside the seat by our own session and cropped to the
+window, with its four corners cut to transparent so nothing behind the window shows.</figcaption>
+</figure>
+
+<h3>What the PC's own desktop saw</h3>
+<p><a href="data/parent_watch.py">parent_watch.py</a> ran on the PC's own desktop (session 1) from 2 seconds before each
+job until it ended. About every 50 ms (it sleeps 50 ms between samples) it read the pointer position, which process owned the foreground window (compared only
+with TipCalc's and Anode's names) and the session's last-input clock; once a second it listed the sessions holding a
+TipCalc.exe process and counted that app's windows on this desktop. A pointer move counts as "without input" when the
+clock shows no input in the session since the previous sample, that is, a program moved the pointer. As a positive
+control, <a href="data/control_run.py">control_run.py</a> ran the watcher inside the seat and moved the pointer there 6
+times with <code>SetCursorPos</code>: it counted 6 of 6, and Anode's pointer guard count went from 9 to 15 with 0
+forwarded (<a href="data/control-result.txt">control-result.txt</a>).</p>
+<div class="wrap">
+<table>
+<thead><tr><th>Run</th><th>Samples</th><th>Seconds</th><th>Samples with new input</th><th>Pointer positions</th><th>Foreground changes</th><th>Foreground samples: app or Anode</th><th>Pointer moves without input</th><th>Sessions holding the app's process</th><th>App windows on this desktop</th><th>Pointer guard count, before → after</th></tr></thead>
+<tbody>
+<tr><th>1</th><td>1,165</td><td>60.1</td><td>137</td><td>293</td><td>4</td><td>0</td><td>0</td><td>2</td><td>0</td><td>7 → 8</td></tr>
+<tr><th>2</th><td>2,833</td><td>145.8</td><td>7</td><td>13</td><td>0</td><td>0</td><td>0</td><td>2</td><td>0</td><td>8 → 8</td></tr>
+<tr><th>3</th><td>1,128</td><td>58.1</td><td>0</td><td>1</td><td>0</td><td>0</td><td>0</td><td>2</td><td>0</td><td>8 → 9</td></tr>
+<tr><th>4</th><td>1,150</td><td>59.3</td><td>38</td><td>64</td><td>0</td><td>0</td><td>0</td><td>2</td><td>0</td><td>9 → 9</td></tr>
+<tr><th>5</th><td>1,239</td><td>63.8</td><td>0</td><td>1</td><td>0</td><td>0</td><td>0</td><td>2</td><td>0</td><td>9 → 9</td></tr>
+<tr><th>6</th><td>976</td><td>50.2</td><td>0</td><td>1</td><td>0</td><td>0</td><td>0</td><td>2</td><td>0</td><td>9 → 9</td></tr>
+<tr><th>All</th><td>8,491</td><td>437.3 (sum of the rows)</td><td>182</td><td></td><td>4</td><td>0</td><td>0</td><td>2 only</td><td>0</td><td>7 → 9, 0 forwarded</td></tr>
+</tbody>
+</table>
+</div>
+<p>Anode's pointer guard counts the seat's pointer moves it kept off your own pointer: Windows' Remote Desktop control in
+Anode's viewer would otherwise copy them onto yours while your pointer is over the viewer's rectangle
+(<a href="https://github.com/skulitom/Anode/blob/v0.11.4/docs/TROUBLESHOOTING.md#my-real-pointer-jumps-while-something-runs-in-the-seat">Anode's
+troubleshooting</a>). Its count rose by 1 in runs 1 and 3 and not in run 6, though all three clicked with <code>seat_click</code> (two or
+three times each); we don't know which seat event each count was. Its forwarded count stayed at 0
+(<a href="data/run-notes.txt">run-notes.txt</a>; per run: <a href="data/runs/run1.desktop.json">1</a>,
+<a href="data/runs/run2.desktop.json">2</a>, <a href="data/runs/run3.desktop.json">3</a>,
+<a href="data/runs/run4.desktop.json">4</a>, <a href="data/runs/run5.desktop.json">5</a>,
+<a href="data/runs/run6.desktop.json">6</a>).</p>
+
+<h2 id="not-shown">What this doesn't show</h2>
+<ul>
+<li><strong>Other apps.</strong> One tiny Windows Forms app with accessible controls and a planted one-line bug. No WPF,
+WinUI, MAUI or canvas-only app; no dialogs, menus, drag and drop or several windows.</li>
+<li><strong>Harder tasks.</strong> The prompt named the build command, and the spec gave the example, the expected
+result and the formula itself, so the agent didn't have to work out what to test or what the right code was.</li>
+<li><strong>Other ways of running Claude Code.</strong> Headless <code>claude -p</code> only, not the interactive
+terminal. Two models, six runs, one PC, Windows 11 only.</li>
+<li><strong>A hidden viewer.</strong> Anode's viewer was open, view-only, on a second monitor throughout. We didn't test
+it hidden, or with <strong>Take control</strong> pressed, when your input goes to the seat by design. The Sonnet reports
+in runs 2 and 3 said the viewer stayed hidden; it didn't, so check what an agent says it did.</li>
+<li><strong>Typing on your desktop.</strong> The watcher can't tell a person's key press from an injected one. So
+"nothing typed on your desktop" rests on where the app ran (session 2 only, never a window on this desktop) and on the
+three runs with no input at all, in which the pointer stayed at one position and the foreground never changed.</li>
+<li><strong>A pointer move while someone used the mouse.</strong> The watcher flags a pointer move only when no input
+reached the session since the previous sample. In runs 1, 2 and 4 someone was using the PC, so a move made by a program
+at those moments would have counted as "with input". The firm evidence is runs 3, 5 and 6, where the pointer never
+moved.</li>
+<li><strong>Who changed the foreground in run 1.</strong> Its four foreground changes happened while someone used the
+PC, and none went to the app or Anode, but we can't say who caused them: the watcher doesn't record window titles or
+other programs' names.</li>
+<li><strong>A cold start.</strong> The seat had been up for about 16 hours and was signed in. Starting a seat, and the
+PIN sign-in, weren't part of these runs.</li>
+<li><strong>Codex.</strong> Not run.</li>
+<li><strong>Cost at scale.</strong> The costs are Claude Code's list-price estimate for these tiny runs.</li>
+</ul>
+
+<h2 id="codex">With Codex instead</h2>
+<p><code>anode configure</code> also registers Anode with the Codex CLI when it is on your PATH, including the 420-second
+tool timeout that lets a cold seat finish signing in (README;
+<a href="https://github.com/skulitom/Anode/blob/v0.11.4/docs/CONNECTING-AGENTS.md#2-codex-cli">connecting Codex</a>).
+Codex's own computer use on Windows works on your active desktop and takes over the pointer and foreground, by OpenAI's
+docs. We didn't run Codex for this page.</p>
+
+<h2 id="limits">Where Anode doesn't help</h2>
+<ul>
+<li><strong>Windows Home, macOS and Linux.</strong> The release targets x64 Pro, Enterprise and Education, or Windows
+Server with a Remote Desktop host; ARM64 is not validated.</li>
+<li><strong>Your open windows.</strong> The agent works only on windows in the seat, not on the ones you have open. Apps that refuse to run twice,
+such as Office or a browser on the same profile, won't run in both sessions at once.</li>
+<li><strong>Not a sandbox.</strong> The seat signs in as you, with your files, saved sign-ins and network. Apps that
+restore their last session, such as Windows 11 Notepad, reopen your documents there, and startup programs run there too
+(two did in ours).</li>
+<li><strong>Elevated apps.</strong> The seat runs unelevated; don't plan on it installing software.</li>
+<li><strong>Sign-in.</strong> If you sign in to Windows only with a PIN or Windows Hello, a new seat may need your
+password through <strong>Sign
+in…</strong>; an agent can't do it.</li>
+<li><strong>Parts that do touch your desktop.</strong> With <strong>Take control</strong> pressed in the viewer, your input
+goes to the seat and the seat's pointer moves yours. When a game in the seat needs Steam, Anode starts Steam on your
+desktop, minimized. Without HidHide, its virtual gamepad reaches games on your desktop.</li>
+<li><strong>One seat,</strong> shared by agents in turn (run 2 waited for it).</li>
+</ul>
+<p class="muted">Sources: Anode 0.11.4's <a href="https://github.com/skulitom/Anode/blob/v0.11.4/README.md">README</a>,
+<a href="https://github.com/skulitom/Anode/blob/v0.11.4/docs/SECURITY.md">SECURITY.md</a> and
+<a href="https://github.com/skulitom/Anode/blob/v0.11.4/docs/USAGE.md#limits-honestly">USAGE.md</a>. The full list, and
+a comparison with Codex, Claude, GitHub Copilot's app, agent-desktop and Cua Driver, is in
+<a href="../windows-computer-use-in-the-background/">AI computer use on Windows in the background</a>.</p>
+
+<h2 id="other-options">When to use something else</h2>
+<p class="muted">From each tool's docs or issues, read on 16 November 2026, not run by us.</p>
+
+<h3>Claude on macOS</h3>
+<p>On macOS 15 or later, the Claude Desktop app's computer use (Cowork and its Code tab) works in background windows
+by default and leaves your pointer and
+keyboard alone (<a href="https://support.claude.com/en/articles/14128542-let-claude-use-your-computer-in-cowork">help
+centre</a>). The CLI's own computer use hides your other apps while it works and needs an interactive session, so it
+isn't available with <code>claude -p</code> (<a href="https://code.claude.com/docs/en/computer-use">its docs</a>).</p>
+
+<h3>Claude's own computer use on Windows, while you watch</h3>
+<p>For a short task you want to see happen and can step away for: Claude Desktop's computer use runs on your actual
+desktop, hides your other windows while it works, and is a research preview on Pro, Max and Ultra plans
+(<a href="https://code.claude.com/docs/en/desktop">desktop docs</a>). Claude Code's CLI has no computer use on
+Windows.</p>
+
+<h3>Windows Sandbox or a virtual machine</h3>
+<p>When the agent's work must not reach your files, accounts or network. Windows Sandbox comes with Pro, Enterprise and
+Education, not Home; closing it deletes everything in it, software installed on your PC isn't available inside it, and
+only one runs at a time (<a href="https://learn.microsoft.com/en-us/windows/security/application-security/application-isolation/windows-sandbox/">Microsoft</a>).
+Hyper-V comes with Windows 11 Pro, Enterprise and Education
+(<a href="https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/overview?pivots=windows">Microsoft</a>). Either way you set
+up your app's runtime and tools in a second Windows, which #99740 counts as more overhead. OpenAI suggests a Windows
+virtual machine for Codex's computer use.</p>
+
+<h3>Tools that work inside your own session</h3>
+<p>They send accessibility calls or window messages to one app's window in your own session, so they can reach windows
+you already have open, without a second session. <a href="https://github.com/vercel-labs/agent-desktop">agent-desktop</a>
+(1.3.1, 13 November; Windows 10 1809 or later, x64 or ARM64): its README says its ref actions use the accessibility API
+without moving the pointer or taking focus; typing needs <code>--headed</code> (<a href="https://agent-browser.dev/desktop/platforms/windows">its Windows
+page</a>), and an open issue
+(<a href="https://github.com/vercel-labs/agent-desktop/issues/567">#567</a>) reports its actions bringing background
+windows forward. Cua Driver (0.52.6, 16 November): <a href="https://cua.ai/docs/cua-driver/concepts/how-cua-driver-works">its
+docs</a> say it doesn't raise the window, move the real pointer or switch the frontmost app, sending window messages to
+the target window and reporting <code>background_unavailable</code> when it can't; its sessions still share one screen,
+keyboard and focus. #99740 notes that window-scoped tools don't give complete desktop semantics to apps with several
+windows.</p>
+
+<h3>Headless tests</h3>
+<p>When the check needs no desktop. This page's planted bug sits in one function, so a unit test would find it without
+any window; a GUI loop earns its keep when the fault is in what the window shows or how it responds.</p>
+
+<h3>A headed browser</h3>
+<p>A pull request for a Playwright option to stop a headed Chromium's new pages taking the operating system's focus
+(<a href="https://github.com/microsoft/playwright/pull/41282">#41282</a>) was closed unmerged on 15 June 2026, and the
+follow-up issue (<a href="https://github.com/microsoft/playwright/issues/41306">#41306</a>) was closed as not planned on
+31 October 2026. Run browser tests headless when you can. Anode's README says it also runs headed browsers in the seat;
+we didn't measure that here.</p>
+
+<h2 id="method">Method: how to repeat it</h2>
+<ul>
+<li><strong>The PC:</strong> Windows 11 Pro 25H2, build 26200, 64-bit; .NET SDK 10.0.401; Claude Code 2.1.325; Anode
+0.11.4, set up and signed in beforehand. The seat was session 2 and had been up for about 16 hours; its viewer was open,
+view-only, on a second monitor. A VPN client and another tool's overlay, both started with the seat, had windows there
+and weren't used.</li>
+<li><strong>Each run:</strong> a fresh copy of TipCalc (<a href="data/TipCalc/SPEC.txt">SPEC.txt</a>,
+<a href="data/TipCalc/TipMath.cs">TipMath.cs</a>, <a href="data/TipCalc/MainForm.cs">MainForm.cs</a>,
+<a href="data/TipCalc/Program.cs">Program.cs</a>, <a href="data/TipCalc/TipCalc.csproj">TipCalc.csproj</a>) in an empty
+folder; <code>parent_watch.py</code> started on the PC's own desktop 2 seconds before the job and stopped after it; then
+Claude Code, headless, from that folder, through our job wrapper, which adds a spending cap and a fresh, empty Claude Code
+config folder (no user settings, plugins, skills, memory or other MCP servers; Claude Code's own bundled skills and
+plugins still load) and runs:
+<pre><code>claude -p --settings &lt;a deny list for secret folders&gt; --setting-sources user --strict-mcp-config
+  --model sonnet|haiku --max-budget-usd 3 --no-session-persistence --output-format stream-json --verbose
+  --mcp-config mcp-config.json --allowedTools "&lt;the list below&gt;" --max-turns 60   &lt; prompt.txt</code></pre>
+The allow-list is the one under <a href="#setup">Set it up</a>.</li>
+<li><strong>Afterwards:</strong> we read the result label ourselves in the seat (<code>seat_observe</code> or
+<code>seat_wait</code>), closed the app, and read Anode's pointer guard count. The figure was saved inside the seat; <a
+href="data/grab_window.ps1">grab_window.ps1</a> saves one rectangle of the screen of the session it runs in.</li>
+<li><strong>Data:</strong> <a href="data/results.json">results.json</a>, <a href="data/run-notes.txt">run-notes.txt</a>,
+<a href="data/control-result.txt">control-result.txt</a>, <a href="data/prompt.txt">prompt.txt</a>,
+<a href="data/mcp-config.json">mcp-config.json</a>, <a href="data/parent_watch.py">parent_watch.py</a>,
+<a href="data/control_run.py">control_run.py</a>, <a href="data/summarize_run.py">summarize_run.py</a>,
+<a href="data/tipcalc-after-fix.png">tipcalc-after-fix.png</a>. Each run's calls, desktop summary and fix: run 1
+(<a href="data/runs/run1.agent.json">calls</a>, <a href="data/runs/run1.desktop.json">desktop</a>,
+<a href="data/runs/run1.fix.diff">fix</a>), run 2 (<a href="data/runs/run2.agent.json">calls</a>,
+<a href="data/runs/run2.desktop.json">desktop</a>, <a href="data/runs/run2.fix.diff">fix</a>), run 3
+(<a href="data/runs/run3.agent.json">calls</a>, <a href="data/runs/run3.desktop.json">desktop</a>,
+<a href="data/runs/run3.fix.diff">fix</a>), run 4 (<a href="data/runs/run4.agent.json">calls</a>,
+<a href="data/runs/run4.desktop.json">desktop</a>, <a href="data/runs/run4.fix.diff">fix</a>), run 5
+(<a href="data/runs/run5.agent.json">calls</a>, <a href="data/runs/run5.desktop.json">desktop</a>,
+<a href="data/runs/run5.fix.diff">fix</a>), run 6 (<a href="data/runs/run6.agent.json">calls</a>,
+<a href="data/runs/run6.desktop.json">desktop</a>, <a href="data/runs/run6.fix.diff">fix</a>).</li>
+<li><strong>Not published:</strong> the raw job logs, because they hold this PC's paths; <code>runs/runN.agent.json</code>
+is made from them by <code>summarize_run.py</code>, which keeps each call's name, a short argument note and any error
+text, and drops tool results, screenshots and paths. In run 2's busy-seat error we also replaced our own session's
+internal name with "another Claude Code session of ours". The watcher's CSV files hold the pointer path of whoever used
+the PC, so only their summaries are published.</li>
+</ul>
+
+<h2 id="searches">Searches this page answers</h2>
+<p>Run together on 15 November 2026 at about 15:31 UTC, with a web search tool on a US index
+(<a href="data/searches-2026-11-15.txt">raw results</a>). "Our site" means skulitom.github.io/Anode or
+github.com/skulitom/Anode. Three of the results named below were on claudeissues.com, a site that mirrors GitHub
+issues; we couldn't open it from our network on 16 November, so it is named here and the link goes to the issue itself.</p>
+<ul>
+<li><strong>"Claude Code computer use Windows background"</strong>: first were a DEV Community post on
+<a href="https://dev.to/gentic_news/cua-driver-brings-background-computer-use-to-windows-35pf">Cua Driver</a>,
+<a href="https://cybersecuritynews.com/claude-ai-controls-macos-and-windows/">Cybersecurity News</a> and
+<a href="https://cua.ai/blog/inside-windows-computer-use">Cua's blog</a>. Nothing from our site or repository.</li>
+<li><strong>"Claude Code isolated Windows GUI testing separate session"</strong>: first were a
+claudeissues.com mirror of <a href="https://github.com/anthropics/claude-code/issues/99740">#99740</a>, <a href="https://github.com/anthropics/claude-code/issues/27658">claude-code #27658</a> and
+<a href="https://github.com/anthropics/claude-code/issues/60879">#60879</a>. Not our site, but Anode's README on
+raw.githubusercontent.com ranked 11th, and the search summary described Anode.</li>
+<li><strong>"background computer use on Windows for Claude Code and Codex"</strong>: the same
+<a href="https://dev.to/gentic_news/cua-driver-brings-background-computer-use-to-windows-35pf">DEV Community post</a>,
+<a href="https://cua.ai/blog/inside-windows-computer-use">Cua's blog</a> and a
+<a href="https://pasqualepillitteri.it/en/news/3765/computer-use-windows-codex-claude-gemini-compared">comparison of
+Codex, Claude and Gemini</a>. Nothing from our site or repository.</li>
+<li><strong>"Claude Code test WinForms WPF app GUI without taking over mouse"</strong>: the
+claudeissues.com mirror of <a href="https://github.com/anthropics/claude-code/issues/99740">#99740</a>, <a href="https://cua.ai/blog/inside-windows-computer-use">Cua's blog</a> and
+<a href="https://blog.kowalczyk.info/a-kf3p/debugging-gui-apps-from-ai-agents.html">a post on driving a GUI app from an
+agent</a>. Nothing from our site or repository.</li>
+<li><strong>"RDP child session AI agent desktop automation Windows"</strong>: the
+claudeissues.com mirror of <a href="https://github.com/anthropics/claude-code/issues/99740">#99740</a>, then Anode's README on raw.githubusercontent.com, then
+<a href="https://github.com/thisnick/agent-rdp">agent-rdp</a> (the result was its Smithery listing, which returned
+404 on 16 November, so the link goes to its repository). Not our site; the summary quoted Anode's
+README.</li>
+</ul>
+
+<footer class="muted">
+<p>Last checked 16 November 2026. A plain static page: no JavaScript, trackers or cookies.
+<a href="https://skulitom.github.io/Anode/">Anode</a> ·
+<a href="../">All comparisons</a> ·
+<a href="https://github.com/skulitom/Anode">GitHub</a> ·
+<a href="https://github.com/skulitom/Anode/issues/new">Report a mistake</a></p>
+</footer>
+</main>
+</body>
+</html>

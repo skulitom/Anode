@@ -1,0 +1,5 @@
+TipCalc: what it should do
+
+- Two boxes, "Bill amount" and "Tip percent", and a "Calculate" button.
+- Calculate shows "Total: X", where X = bill + bill * tip percent / 100, with two decimals.
+- Example: bill 80, tip 15 -> "Total: 92.00".
