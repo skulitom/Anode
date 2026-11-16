@@ -6,7 +6,7 @@ namespace Anode.Mcp;
 /// <summary>One embedded workflow shared with the distributed, discoverable skill.</summary>
 internal static class AgentGuide
 {
-    public const string Description = "Background Windows desktop for AI agents: native GUI automation, screenshots and app testing.";
+    public const string Description = "Background computer use on Windows for AI agents: GUI automation, screenshots and app testing.";
 
     // Claude Code loads only tool names and these instructions before a tool search and
     // truncates them at 2 KB, so the lease workflow and tool names must fit here.

@@ -39,8 +39,8 @@ anode configure | Out-Host      # register installed CLIs and the discoverable s
 
 The MCP server's initialization message describes when to use Anode and the lease workflow.
 Tool names, descriptive titles and task-oriented descriptions help clients find it through tool
-search. Search for **Anode background Windows desktop**, **native UI automation**, or
-**headed app testing**.
+search. Search for **Anode background Windows desktop**, **background computer use on Windows**,
+**native UI automation**, or **headed app testing**.
 
 The server also offers four MCP prompts, which clients show as slash commands. `desktop_test`
 asks the agent to test the app or task the user names, following the workflow below.

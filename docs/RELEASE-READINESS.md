@@ -77,7 +77,11 @@ live check) in CI and on any PC.
 - code cleanup: #93 (an unused default parameter on the CLI's validating `Connect` overload; no
   change in behaviour);
 - docs: #89 (the README, `llms.txt` and `docs/COMPARISON.md`: the refreshed Windows desktop
-  automation comparison) and #94 (0.11.4's live validation record);
+  automation comparison), #94 (0.11.4's live validation record) and the listing text (the one-line
+  description in the server's `serverInfo`, `server.json`, the plugin, the MCPB manifest, Scoop and
+  winget now reads "Background computer use on Windows for AI agents: GUI automation, screenshots
+  and app testing."; the README's top, `llms.txt`, the skill's description and a paragraph on
+  headless Claude Code runs in `docs/CONNECTING-AGENTS.md` say the same; no change in behaviour);
 - one fix: `seat_run` starts programs on a thread of its own and answers `"pending": true` after
   10 seconds (or at the request's deadline) when Windows hasn't started the program, for example
   behind "Open File - Security Warning" for a downloaded file, instead of holding the seat host and

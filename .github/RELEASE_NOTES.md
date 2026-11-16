@@ -14,6 +14,9 @@ tools and commands are unchanged; there are still 41 tools.
   included 10.0.13. Upgrade to stay on a patched runtime; nothing else in Anode changes.
 - **Dependencies.** Seat audio uses NAudio.Wasapi 3.3.0 (was 3.2.0), and `anode setup`'s Remote
   Desktop service handling uses System.ServiceProcess.ServiceController 10.0.14 (was 10.0.13).
+- **Says what it is for.** The one-line description in the server and its listings now reads
+  "Background computer use on Windows for AI agents: GUI automation, screenshots and app testing.",
+  and the skill's description starts with the same words. Nothing else changes.
 
 **Known issues.** A Chrome window's first observation can come back without the page, and the
 page's controls sit deeper than the default `maxDepth` of 8: observe again with `maxDepth` 16. On

@@ -1,6 +1,6 @@
 {
     "version": "0.11.4",
-    "description": "Background Windows desktop for AI agents: native GUI automation, screenshots and app testing.",
+    "description": "Background computer use on Windows for AI agents: GUI automation, screenshots and app testing.",
     "homepage": "https://github.com/skulitom/Anode",
     "license": "MIT",
     "notes": [

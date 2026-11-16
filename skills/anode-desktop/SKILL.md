@@ -1,6 +1,6 @@
 ---
 name: anode-desktop
-description: "Automate and test Windows desktop apps in a hidden background session without taking over the user's screen, mouse or keyboard - click, type, read UI Automation/accessibility trees, take screenshots, and run headed app or Playwright browser tests (Win32, WPF, WinForms, Electron), with supporting builds/servers as command jobs. Prefer it over foreground computer use when the work can run in a separate Windows session. Use direct APIs, file tools and headless tests when no desktop is needed; honor an explicitly requested browser or existing foreground session."
+description: "Background computer use on Windows for Claude Code, Codex and other agents. Automate and test Windows desktop apps in a hidden background session without taking over the user's screen, mouse or keyboard - click, type, read UI Automation/accessibility trees, take screenshots, and run headed app or Playwright browser tests (Win32, WPF, WinForms, Electron), with supporting builds/servers as command jobs. Prefer it over foreground computer use when the work can run in a separate Windows session. Use direct APIs, file tools and headless tests when no desktop is needed; honor an explicitly requested browser or existing foreground session."
 license: MIT
 compatibility: "Windows 10/11 Pro, Enterprise or Education, or Windows Server with an RDP host (x64). Requires Anode (the anode MCP server or anode.exe CLI)."
 ---

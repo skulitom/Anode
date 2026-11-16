@@ -80,6 +80,20 @@ Current Claude Code supports `"timeout": 420000` on the Anode server entry in
 `~/.claude.json` (milliseconds), which `anode configure` writes. Older clients can start the
 seat first. See the [official Claude Code MCP documentation](https://code.claude.com/docs/en/mcp).
 
+**Headless runs (`claude -p`).** Nobody is there to approve a tool, so name the tools the run may use with
+`--allowedTools`. For a loop that builds a desktop app, tests it in the seat, fixes it and tests again, this list
+finished on Sonnet and on Haiku (15 November 2026, Claude Code 2.1.325, Anode 0.11.4):
+
+```text
+mcp__anode__anode_guide,mcp__anode__seat_status,mcp__anode__seat_lease,mcp__anode__seat_capabilities,mcp__anode__seat_run,mcp__anode__seat_windows,mcp__anode__seat_observe,mcp__anode__seat_element,mcp__anode__seat_wait,mcp__anode__seat_screenshot,mcp__anode__seat_click,mcp__anode__seat_type,mcp__anode__seat_key,mcp__anode__seat_processes,mcp__anode__seat_kill_process,mcp__anode__seat_window
+```
+
+Add your own file and build tools in front (those runs used `Read,Edit,Glob,Grep,Bash(dotnet build:*)`). Keep
+`seat_window` in the list: without it one run left the app it had built open, and the rebuild failed on the locked
+file. Leave out `seat_stop`, which closes every program in the seat, and `seat_show`, which puts the viewer on your
+screen. `seat_lease` starts a hidden seat when none is running, so the run needs no `seat_hide`. With the plugin, the
+names start with `mcp__plugin_anode_anode__` instead.
+
 **Or install the plugin.** With `anode` on your PATH (install.ps1's default or Scoop), run inside
 Claude Code:
 
