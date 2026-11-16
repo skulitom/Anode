@@ -107,12 +107,12 @@ mcp__anode__anode_guide,mcp__anode__seat_status,mcp__anode__seat_lease,mcp__anod
 ```
 
 Add your own file and build tools in front (those runs used
-`Read,Edit,Glob,Grep,Bash(dotnet build:*)`), and `seat_scroll`, `seat_drag` or `seat_move` if your
-app needs them. Keep `seat_window` in the list: without it a Haiku run left the app it had built
-open, and the rebuild failed on the locked file. Leave out `seat_stop`, which closes every program
-in the seat, and `seat_show`, which puts the viewer on your screen. `seat_lease` starts a hidden
-seat when none is running, so the run needs no `seat_hide`. With the plugin, the names start with
-`mcp__plugin_anode_anode__` instead.
+`Read,Edit,Glob,Grep,Bash(dotnet build:*)`), and `seat_scroll`, `seat_drag` or `seat_move`, with
+the same `mcp__anode__` prefix, if your app needs them. Keep `seat_window` in the list: without it
+a Haiku run left the app it had built open, and the rebuild failed on the locked file. Leave out
+`seat_stop`, which closes every program in the seat, and `seat_show`, which puts the viewer on your
+screen. `seat_lease` starts a hidden seat when none is running, so the run needs no `seat_hide`.
+With the plugin, the names start with `mcp__plugin_anode_anode__` instead.
 
 ## 2. Codex CLI
 

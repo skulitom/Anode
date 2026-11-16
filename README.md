@@ -9,8 +9,8 @@ keyboard focus, hidden by default and called the *seat*. The agent drives native
 Anode's own tools and takes screenshots while you keep working in yours. Anode does not change Claude's or Codex's
 built-in computer use: the agent works through Anode's MCP tools instead.
 
-**Limits, up front:** Windows 10/11 Pro, Enterprise or Education on x64, or Windows Server with a Remote Desktop host;
-not Windows Home, macOS or Linux. The seat is a second Windows session signed in as you, with your files, account and
+**Limits, up front:** Windows 10/11 Pro, Enterprise or Education, or Windows Server with a Remote Desktop host, on
+x64; not Windows Home, macOS or Linux. The seat is a second Windows session signed in as you, with your files, account and
 network, so it is not a sandbox. There is one seat per PC at a time, and agents take turns in it. If you sign in to
 Windows only with a PIN or Windows Hello, the seat needs your Windows password: you type it yourself in a Windows
 dialog, which an agent cannot do, and Windows asks for it again at every Reconnect and may ask when you create another
@@ -265,7 +265,7 @@ flowchart LR
 
 ## Limits to know
 
-- One seat per Windows session: agents and CLI clients share it and take turns.
+- One seat per PC at a time: agents and CLI clients share it and take turns.
 - Not for Windows Home or macOS, or when you need a security sandbox:
   [when to use which](docs/COMPARISON.md) says what to use instead.
 - Files, accounts, network ports and application singletons are shared. Steam games run in the seat
