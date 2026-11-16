@@ -1,0 +1,8 @@
+You are working on TipCalc, a small Windows Forms app in the TipCalc folder (its spec is TipCalc/SPEC.txt). Check that the app does what the spec says by using it the way a user would, in Anode's background seat, not on my desktop.
+
+1. Build it with exactly this command: dotnet build TipCalc/TipCalc.csproj -c Release
+2. Start the built TipCalc.exe in the seat with Anode, and test the spec's example by typing into the app and pressing its button.
+3. If the app shows the wrong result, find the cause in the source, fix it, close the app, rebuild with the same command, start it again in the seat and test the same example again.
+4. Leave the app open showing the final result. Then report what the app showed before and after, what you changed, and each Anode tool you used.
+
+Use only Anode's tools on the app's window. Keep the viewer hidden, don't touch any other window in the seat, and don't use my desktop.

@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "anode": {
+      "type": "stdio",
+      "command": "anode",
+      "args": ["mcp"]
+    }
+  }
+}

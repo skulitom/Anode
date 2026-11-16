@@ -1,0 +1,50 @@
+Run notes, 15 November 2026, 15:34 to 15:44 UTC
+
+Machine: Windows 11 Pro 25H2, build 26200, 64-bit. Anode 0.11.4 (the current release), set up and signed in before
+the runs. The seat was session 2 and had been up for about 16 hours; its viewer was open, view only, on a second
+monitor. Two other programs had windows in the seat, a VPN client and another tool's overlay, both started with the
+seat and not used. .NET SDK 10.0.401. Claude Code 2.1.325.
+
+How each run was started
+- A fresh copy of data/TipCalc in an empty folder.
+- parent_watch.py started on the PC's own desktop (session 1), 2 seconds before the job, and stopped after it.
+- Claude Code, headless, from that folder, through our own job wrapper. The wrapper adds a spending cap and a fresh,
+  empty Claude Code config folder (no user settings, plugins, skills, memory or other MCP servers; Claude Code's own
+  bundled skills and plugins still load), then runs:
+    claude -p --settings <a deny list for secret folders> --setting-sources user --strict-mcp-config
+      --model sonnet|haiku --max-budget-usd 3 --no-session-persistence --output-format stream-json --verbose
+      --mcp-config mcp-config.json --allowedTools "<the list below>" --max-turns 60   < prompt.txt
+- Allowed tools: Read, Edit, Glob, Grep, Bash(dotnet build:*), and Anode's anode_guide, seat_status, seat_lease,
+  seat_capabilities, seat_run, seat_windows, seat_observe, seat_element, seat_wait, seat_screenshot, seat_click,
+  seat_type, seat_key, seat_processes and seat_kill_process. Runs 5 and 6 also allowed seat_window.
+  Not allowed in any run: seat_exec, seat_show, seat_hide, seat_start, seat_stop and the Steam, Android, gamepad,
+  audio, browser and display tools.
+- After each job we read the app's result label ourselves in the seat (seat_observe or seat_wait) and closed the app.
+  runs/runN.agent.json is made from the job's log by summarize_run.py; the raw log stays with us because it holds
+  this PC's paths.
+
+Anode's pointer guard counter ("your pointer" in `anode status`, pointerGuard.suppressed in seat_status), read
+before and after each run: run 1: 7 to 8; run 2: 8 to 8; run 3: 8 to 9; runs 4, 5 and 6: 9 to 9. Its "forwarded"
+count was 0 before run 1 and 0 after the last run and the control.
+
+Things that went wrong, and why
+- Run 2 waited for the seat: our own session had just used the seat to take the screenshot and close run 1's app,
+  and still held its lease. Anode told the agent "Desktop in use ... You are number 1 in line"; the agent's second
+  request waited and got the seat. Run 2's 140.8 s includes that wait (the model's own time was 41.6 s).
+- Run 4 (Haiku) did not finish. Our allow-list left out Anode's seat_window tool; the model asked to close the app
+  with it, Claude Code's permission check refused, and the model chose not to close the window another way. The
+  rebuild then failed because the running app locked its exe. The three Sonnet runs with the same list closed the
+  app through the Close button in its window's title bar instead. We added seat_window for runs 5 and 6.
+- Claude Code refused one compound shell command in runs 1, 2, 3, 5 and 6: in runs 3, 5 and 6, which started with a
+  relative `cd TipCalc`, parts of the command needed approval; in runs 1 and 2 a `find` on a relative path after a cd couldn't be resolved
+  while the wrapper's Read() deny rules were set. In run 2 it also refused seat_exec, and in runs 4 and 5 seat_hide.
+- In run 4 the model mistyped one observation id; Anode refused it and the model sent the right one. The summary
+  drops observation ids, so here they are from the raw log: seat_observe returned s_68f0bd5b92a54e33a9ff987b183fdecf,
+  call 12 sent s_68f00bd5b92a54e33a9ff987b183fdecf (one extra 0), call 13 sent the right one.
+
+The figure: grab_window.ps1 saved the window's rectangle (316 x 239, from seat_windows) inside the seat after run 1;
+we then cropped it to 300 x 230 to cut the shadow margin, which showed a strip of the windows behind it. On 16 November we cut the window's four
+corners to transparent, slightly beyond its own rounded corners, so nothing behind it shows.
+
+Who was at the PC: we did not arrange it. The watcher's input clock shows the PC's own desktop was in use during
+runs 1 (137 samples with new input), 2 (7) and 4 (38), and untouched during runs 3, 5 and 6 (0).
