@@ -51,6 +51,11 @@ cut, and the nine clicks, which took 0.4 s, are shown four times slower.</sub>
   [Background computer use on Windows for Claude Code](https://skulitom.github.io/Anode/compare/claude-code-background-computer-use-windows/)
   (tested 15 November 2026 with Claude Code 2.1.325 and Anode 0.11.4; the run that stopped was refused a tool by our
   own permission list; one small app, six runs).
+- **Using Codex or Orca, and told to use a VM?** By OpenAI's docs, Codex's computer use on Windows can't work in the
+  background, and they suggest a Windows virtual machine; the design docs of Microsoft's MXC session containers say
+  synthetic input is blocked in them, and Agent Workspace is still a private preview. How to register Anode with
+  Codex instead, and when a VM, Windows Sandbox or MXC is still the better choice: [Background computer use on Windows without a VM](https://skulitom.github.io/Anode/compare/background-computer-use-windows-without-vm/)
+  (checked 19 November 2026; Codex, Orca and MXC read from their docs, not run by us).
 
 ## Install in 3 commands
 
