@@ -1,0 +1,18 @@
+The page's five searches, run 2026-11-19 about 15:25-15:30 GMT with Claude's WebSearch (Brave's index). Ours = skulitom.github.io.
+S1 "Codex computer use Windows background without taking over mouse": kocpc, codex.danielvaughan.com (30 May, 4 Jun), aiweekly,
+   dev.to (gentic_news Cua Driver; davekurian), noqta, cua.ai/blog/inside-windows-computer-use, thetechoutlook, neowin, smartscope,
+   learn.chatgpt.com/codex/computer-use, aitoolpulse, mcpservers.org shadowcursor, kingy.ai, joaoqueiros, eastondev, pulse.bot.
+   Summary: foreground only; OpenAI suggests a VM; Cua Driver claims background. Ours: none. Anode: not named.
+S2 "computer use on Windows without a VM separate session AI agent": danielvaughan, cua.ai (x3), geekchamp, aiweekly, themenonlab
+   (Windows-MCP), pinggy, pasqualepillitteri, dev.to infosaic, pi-agent-computer-use docs, learn.microsoft.com Copilot Studio
+   "configure where computer use runs" (x2), codenote, prommer.net. Ours: none. Anode: not named.
+S3 "Orca computer use Windows background foreground": open-orchestrators (Orca 1.4.0 news), GNOME Orca screen reader (x4, unrelated),
+   cua.ai (x3), docs.openclaw.ai, dev.to Cua, hermes docs mirror, bridge.surf. Ours: none. Orca's own docs: not in the top results.
+S4 "AI agent hidden Windows desktop session GUI testing keep using my PC": danielvaughan (x2), levelup.gitconnected, skillsdirectory.com
+   "skulitom anode desktop" (5th; a third-party listing of our skill), guru-connect spec, agensi.io offstage-windows, claudeissues.com
+   #99740 (RDP child sessions), dev.to codekingai, servicenow, askui, appveyor, tsplus (x2), redwood, skillselion, kowatek (Pig),
+   aicerts, cua.ai, skillsplayground agentfenster. Summary names anode, offstage-windows, agentfenster. Ours: none (Anode via a listing).
+S5 "MXC session container computer use agent GUI Windows": blogs.windows.com MXC post (several URL variants), fleetdm, petri (x2),
+   vpncentral, windowsmode, dev.to om_shree, thewindowsclub (Meta Muse), itnext, letsdatascience, helpnetsecurity, dipjyotimetia,
+   channel.tel. Summary: session containers are "for graphical workloads" per secondary sources; MXC's own docs (read today) say
+   GUI apps are not supported in the one-shot backend and input injection is blocked. Ours: none.
