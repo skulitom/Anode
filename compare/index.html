@@ -26,7 +26,7 @@ footer { border-top: 1px solid var(--rule); margin-top: 3rem; padding-top: 1rem;
   "description": "Anode's comparison pages: which Windows desktop automation MCP servers act in your own session and move your real pointer, and when to use Anode or something else.",
   "url": "https://skulitom.github.io/Anode/compare/",
   "inLanguage": "en",
-  "dateModified": "2026-11-16",
+  "dateModified": "2026-11-19",
   "isPartOf": {
     "@type": "WebSite",
     "name": "Anode",
@@ -67,6 +67,12 @@ footer { border-top: 1px solid var(--rule); margin-top: 3rem; padding-top: 1rem;
       {
         "@type": "ListItem",
         "position": 5,
+        "url": "https://skulitom.github.io/Anode/compare/background-computer-use-windows-without-vm/",
+        "name": "Background computer use on Windows without a VM: Codex, Orca and a separate Windows session"
+      },
+      {
+        "@type": "ListItem",
+        "position": 6,
         "url": "https://github.com/skulitom/Anode/blob/main/docs/COMPARISON.md",
         "name": "When to use Anode, and when to use something else"
       }
@@ -87,6 +93,8 @@ footer { border-top: 1px solid var(--rule); margin-top: 3rem; padding-top: 1rem;
 <p>Checked 6 November 2026. By their own docs, the computer use built into Codex, Claude and GitHub Copilot&#x27;s app works on your own Windows desktop: Codex runs on the active desktop and takes over the pointer and foreground, Claude hides your other windows while it works (its background mode is macOS-only), and Copilot&#x27;s app works in the background where possible, bringing the target app into focus only when needed. agent-desktop and Cua Driver leave your pointer alone by default through UI Automation and window messages in your session. None of them was run by us. Anode runs the agent&#x27;s apps in a second Windows session; in our 22 October run, 13 Windows-MCP tool calls there left the PC&#x27;s own pointer and foreground window unchanged, with nobody using the PC. The page lists users&#x27; dated reports, Anode&#x27;s limits, and when to use each option instead.</p>
 <h2><a href="claude-code-background-computer-use-windows/">Background computer use on Windows for Claude Code: test a GUI app in a separate Windows session</a></h2>
 <p>Tested 15 November 2026. With Anode 0.11.4&#x27;s MCP server, headless Claude Code 2.1.325 built a small Windows Forms app, started it in Anode&#x27;s hidden Windows session, found a wrong total by entering the spec&#x27;s example and pressing the app&#x27;s button, fixed the source, rebuilt and re-checked it in 5 of 6 runs (4 of 4 on Sonnet 5.5, 1 of 2 on Haiku 5.5; the run that stopped was refused a tool by our own permission list). A watcher on the PC&#x27;s own desktop took 8,491 samples over 437 s: the app and Anode never had the foreground there, the app&#x27;s process ran only in the second session, and no pointer move happened without input in that session. The desktop was in use during three runs and untouched during three. The page gives the setup steps, the prompt, the data and scripts, what the runs don&#x27;t show, and when to use something else.</p>
+<h2><a href="background-computer-use-windows-without-vm/">Background computer use on Windows without a VM: Codex, Orca and a separate Windows session</a></h2>
+<p>Checked 19 November 2026. For Codex and Orca users on Windows: by OpenAI&#x27;s docs, Codex&#x27;s computer use on Windows can&#x27;t work in the background and they suggest a Windows virtual machine; Orca&#x27;s works on your own desktop and needs the window in front for mouse and keyboard actions; and the design docs of Microsoft&#x27;s session containers (MXC) say synthetic input is blocked inside them, while Agent Workspace is still a private preview. None of them was run by us. The page shows how to register Anode with Codex, reuses the six measured runs of 15 November (driven by Claude Code), and says when a VM, Windows Sandbox or a tool in your own session is the better choice.</p>
 <h2><a href="https://github.com/skulitom/Anode/blob/main/docs/COMPARISON.md">When to use Anode, and when to use something else</a></h2>
 <p>A document in Anode&#x27;s repository on GitHub; facts read on 8 October 2026 (Windows-MCP&#x27;s stars and supported Windows versions re-read on 16 October 2026). How Anode differs from Windows-MCP, Cua Driver, Desktop Commander and Windows 365 for Agents, and which to pick for which job.</p>
 <h2>Comparisons for our other tools</h2>

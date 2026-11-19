@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Background computer use on Windows without a VM: for Codex and Orca users</title>
+<meta name="description" content="Read 19 Nov 2026: Codex's Windows computer use takes the foreground and OpenAI suggests a VM; Orca's needs the window in front for mouse and keyboard; MXC session containers block synthetic input. A second Windows session is the other way, measured with Anode 0.11.4.">
+<link rel="canonical" href="https://skulitom.github.io/Anode/compare/background-computer-use-windows-without-vm/">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "Background computer use on Windows without a VM: Codex, Orca and a separate Windows session",
+  "description": "For Codex and Orca users on Windows who want an agent to test GUI apps without taking over their mouse, keyboard and screen and without a virtual machine: what Codex, Orca, Microsoft's MXC session containers, Agent Workspace and Windows Sandbox do, from their own docs read on 19 November 2026, how to register Anode with Codex, and what Anode's separate Windows session did in six measured runs on 15 November 2026.",
+  "datePublished": "2026-11-19",
+  "dateModified": "2026-11-19",
+  "inLanguage": "en",
+  "url": "https://skulitom.github.io/Anode/compare/background-computer-use-windows-without-vm/",
+  "author": {"@type": "Organization", "name": "Anode maintainers", "url": "https://github.com/skulitom/Anode"},
+  "about": [
+    {"@type": "SoftwareApplication", "name": "Anode", "url": "https://github.com/skulitom/Anode", "operatingSystem": "Windows", "softwareVersion": "0.11.4"},
+    {"@type": "SoftwareApplication", "name": "Codex", "url": "https://learn.chatgpt.com/docs/computer-use"},
+    {"@type": "SoftwareApplication", "name": "Orca", "url": "https://github.com/stablyai/orca", "softwareVersion": "1.4.264"},
+    {"@type": "SoftwareApplication", "name": "Microsoft Execution Containers (MXC)", "url": "https://github.com/microsoft/mxc", "softwareVersion": "1.1.0"}
+  ]
+}
+</script>
+<style>
+:root { --bg: #ffffff; --fg: #1d1d1f; --muted: #5b5b66; --link: #0b57d0; --rule: #d9d9e0; --head: #f3f3f6; --note: #fff8e1; }
+@media (prefers-color-scheme: dark) { :root { --bg: #16171a; --fg: #e8e8ec; --muted: #a2a2ad; --link: #8ab4f8; --rule: #33343a; --head: #202126; --note: #2a2618; } }
+body { background: var(--bg); color: var(--fg); font: 17px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; }
+main { max-width: 52rem; margin: 0 auto; padding: 2rem 16px 4rem; }
+a { color: var(--link); }
+h1 { font-size: 1.65rem; line-height: 1.25; margin: 0 0 1rem; }
+h2 { font-size: 1.25rem; margin: 2.2rem 0 0.6rem; }
+h3 { font-size: 1.05rem; margin: 1.6rem 0 0.4rem; }
+.lead { font-size: 1.08rem; }
+.meta, .muted { color: var(--muted); font-size: 0.92rem; }
+.note { background: var(--note); border: 1px solid var(--rule); border-radius: 6px; padding: 0.6rem 0.9rem; }
+.wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 1rem 0; }
+table { border-collapse: collapse; font-size: 0.92rem; }
+th, td { border: 1px solid var(--rule); padding: 0.45rem 0.55rem; text-align: left; vertical-align: top; }
+thead th { background: var(--head); }
+tbody th { background: var(--head); font-weight: 600; }
+code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 0.88em; overflow-wrap: anywhere; }
+pre { background: var(--head); border: 1px solid var(--rule); border-radius: 6px; padding: 0.7rem; overflow-x: auto; font-size: 0.85rem; }
+pre code { overflow-wrap: normal; }
+li { margin: 0.25rem 0; }
+footer { border-top: 1px solid var(--rule); margin-top: 3rem; padding-top: 1rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>Background computer use on Windows without a VM: Codex, Orca and a separate Windows session</h1>
+
+<p class="lead"><strong>An agent can test a Windows app without a virtual machine and without taking your mouse, keyboard
+or screen if it gets a second Windows session: in our six runs on 15 November 2026 with Anode 0.11.4's MCP server, driven by
+Claude Code, the agent built, tested and fixed the app in 5 of 6 runs, and in 8,491 samples over 437 s on the PC's own desktop the app
+never had a window there and neither it nor Anode ever had the foreground.</strong> Codex's own computer use can't do
+that on Windows: by OpenAI's docs, read on 19 November 2026, it "can’t operate in the background while you keep using the
+same Windows session" and they suggest a Windows virtual machine. Orca's works on your own desktop and needs the target
+window in front for mouse and keyboard actions (its UI Automation element actions don't), and the design docs of
+Microsoft's new session containers (MXC) say synthetic input is blocked inside them. We have not yet run Codex or Orca with
+Anode.</p>
+
+<p class="note"><strong>We make Anode.</strong> Codex is OpenAI's, Orca is Stably AI's and MXC, Agent Workspace and
+Windows Sandbox are Microsoft's; we are not affiliated with any of them. Everything about them below comes from their own
+docs, posts and issues, read on 19 November 2026 and linked, and we ran none of those features. Our numbers come from
+the six recorded runs published with our <a href="../claude-code-background-computer-use-windows/">Claude Code
+guide</a>, where the data and the commands to repeat them are. If we got something wrong,
+<a href="https://github.com/skulitom/Anode/issues/new">open an issue</a> and we will correct it.</p>
+
+<p class="meta">Last checked: 19 November 2026 (runs: 15 November) · Anode 0.11.4 · Orca 1.4.264 · MXC 1.1.0 (docs
+of 18 November) · Windows 11 Pro 25H2 (build 26200) · Next check by 19 December 2026, or sooner when Codex, Orca, MXC
+or Agent Workspace changes how agents use a Windows desktop.</p>
+
+<h2 id="short-answer">The short answer</h2>
+<ul>
+<li><strong>To have it now, on Windows 10 or 11 Pro, Enterprise or Education (x64), or Windows Server with a Remote
+Desktop host:</strong> install Anode, run
+<code>anode configure codex</code> and ask Codex to test the app with Anode's seat tools (<a href="#codex">steps below</a>).
+Anode's seat is, in its README's words, "a Windows child session running as your user", with its own screen, pointer and
+keyboard focus.</li>
+<li><strong>If you need a security boundary:</strong> keep the virtual machine, or use Windows Sandbox. Anode's seat
+runs as you, with your files, saved sign-ins and network.</li>
+<li><strong>On Windows Home:</strong> Anode doesn't run there, and neither does Windows Sandbox. A virtual machine or a
+second device (OpenAI's suggestion for Codex) remain, as do the tools below that work in your own session or on a
+hidden desktop in it.</li>
+<li><strong>If you use Orca:</strong> Orca's own computer use acts on windows on your desktop. Element clicks and values
+go through UI Automation without moving your pointer, but coordinate clicks, drags and keyboard input are refused unless
+you allow it to bring the window to the front (<a href="#orca">details</a>).</li>
+<li><strong>If you are waiting for Windows to do it:</strong> Agent Workspace, a separate session for agents, is still a
+private preview for Windows Insiders, and Microsoft's Ignite posts of 17 November don't mention it. MXC is generally
+available, but its session-container backend calls a preview Windows API behind an internal feature flag, and its design
+docs describe a session whose windows can't be seen from yours and where synthetic input is denied
+(<a href="#microsoft">details</a>).</li>
+</ul>
+
+<h2 id="compared">Each option, from its own docs</h2>
+<p class="muted">Read on 19 November 2026; we ran none of these except Anode.</p>
+<div class="wrap">
+<table>
+<thead>
+<tr><th scope="col">Option</th><th scope="col">Where the app runs</th><th scope="col">Your pointer, keyboard and foreground</th><th scope="col">Can the agent click and type?</th><th scope="col">Needs</th></tr>
+</thead>
+<tbody>
+<tr><th scope="row">Codex's computer use</th><td>Your active desktop</td><td>Taken: it will "move the pointer, type, and take over the foreground while the task runs"</td><td>Yes</td><td>ChatGPT desktop app, a supported region, ChatGPT Work or Codex</td></tr>
+<tr><th scope="row">Codex's computer use in a Windows VM</th><td>The VM's desktop</td><td>Yours stay free: OpenAI says computer use then "takes over the VM instead of your main desktop"</td><td>Yes, inside the VM</td><td>A VM with Windows and the ChatGPT app installed in it</td></tr>
+<tr><th scope="row">Orca's computer use (Windows, beta)</th><td>Your desktop</td><td>Kept for element actions through UI Automation; the window comes forward for coordinate clicks, drags and keys, and some apps (WPF) come forward on their own</td><td>Yes; mouse and keys only with <code>--restore-window</code></td><td>Orca (its docs of 15 November; 1.4.264 is current)</td></tr>
+<tr><th scope="row">MXC session container</th><td>A separate session under a fresh Windows account</td><td>Not touched, by its docs</td><td>Not by synthetic input: its design docs say <code>SendInput</code> returns <code>ERROR_ACCESS_DENIED</code> there</td><td>Windows 11; its OS API is "gated on an internal Windows feature flag"</td></tr>
+<tr><th scope="row">Agent Workspace</th><td>A separate session under an agent account</td><td>Not touched, by its docs (its own desktop)</td><td>Yes: Microsoft says agents there "interact with software, just like people"; the feature it names as using it is Copilot Actions</td><td>A private preview for Windows Insiders (support page of December 2025)</td></tr>
+<tr><th scope="row">Windows Sandbox</th><td>A disposable VM</td><td>Yours stay free</td><td>Yes, inside it</td><td>Pro, Enterprise or Education; your installed software isn't inside it</td></tr>
+<tr><th scope="row">Anode's seat</th><td>A child session running as you</td><td>Not touched in our runs (<a href="#measured">measured</a>)</td><td>Yes, through Anode's tools: UI Automation, clicks, typing and screenshots</td><td>Windows 10/11 Pro, Enterprise or Education, x64; not Home</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="codex">Set it up with Codex</h2>
+<p>From Anode 0.11.4's README and
+<a href="https://github.com/skulitom/Anode/blob/v0.11.4/docs/CONNECTING-AGENTS.md#2-codex-cli">connecting Codex</a>; we
+didn't run these steps with Codex for this page.</p>
+<ol>
+<li><strong>Install and set up Anode</strong> with the install commands in its
+<a href="https://github.com/skulitom/Anode#readme">README</a> (its installer checks the release archive's SHA-256), then run <code>anode setup</code> once and approve its
+administrator prompt. It turns on Remote Desktop and child sessions, and can restart Remote Desktop Services.</li>
+<li><strong>Register it with the Codex CLI:</strong> <code>anode configure codex | Out-Host</code>. By hand, it is
+<pre><code>codex mcp add anode -- "$env:LOCALAPPDATA\Programs\Anode\anode.exe" mcp</code></pre>
+plus <code>tool_timeout_sec = 420</code> in the <code>[mcp_servers.anode]</code> table of
+<code>~/.codex/config.toml</code>: Codex's default tool timeout is 60 seconds, shorter than Anode's startup wait.
+<code>anode start --hidden</code> before the first request avoids that wait too. <code>codex mcp remove anode</code>
+removes the registration.</li>
+<li><strong>Ask for the test,</strong> and name the seat, so Codex doesn't reach for its own computer use. The request
+our runs used is <a href="../claude-code-background-computer-use-windows/data/prompt.txt">prompt.txt</a>: build the
+app, start it "in Anode's background seat, not on my desktop", type the spec's example, fix what's wrong and check
+again.</li>
+</ol>
+<p>Anode does not change Codex's built-in computer use; it adds its own tools (<code>seat_lease</code>,
+<code>seat_run</code>, <code>seat_observe</code>, <code>seat_click</code>, <code>seat_type</code>,
+<code>seat_screenshot</code> and others) that act only in the seat.</p>
+
+<h2 id="orca">With Orca</h2>
+<p>Orca (129,549 stars on 19 November; 1.4.264 the same day) runs Claude Code, Codex and other agent CLIs it finds on the
+PC, with your existing logins unless you add separate accounts, and lists MCP servers under its settings' integrations
+(<a href="https://github.com/stablyai/orca/blob/c097acc/docs/site/content/docs/settings.mdx">settings docs</a>). We
+haven't checked whether an agent started from Orca loads the MCP servers you registered with that CLI.</p>
+<p>Its own computer use on Windows, which its
+<a href="https://github.com/stablyai/orca/blob/b6173ef/docs/site/content/docs/cli/computer-use.mdx">computer-use
+docs</a> (15 November) label beta:</p>
+<ul>
+<li>Its <code>launch-app</code> asks Windows to start an app in the background; some apps still come forward on their
+own.</li>
+<li>Element clicks, set-value, scrolls and secondary actions (Invoke, Toggle, Select, Expand and others) go through UI
+Automation when the control supports them, "without moving the pointer or sending keys", and typing into a text box by
+its element index works too.</li>
+<li>"Some apps still bring their own window forward when driven this way (WPF apps do for most of these)".</li>
+<li>Coordinate clicks, right-clicks and drags are refused unless you pass <code>--restore-window</code>; then the target
+window comes forward and the pointer goes back where it was. Keyboard input without an element is refused the same way
+while the window isn't in front.</li>
+</ul>
+<p>Two open issues show where it rubs: <a href="https://github.com/stablyai/orca/issues/34364">#34364</a> (27 October,
+about macOS and Orca 1.4.242) is titled "Prefer provider-native background computer use": it reports that Claude and
+Codex sessions picked Orca's own skill, whose foreground actions "interfere with the user's mouse and ongoing work" (the
+issue says it hasn't measured how often agents pick it; Orca's docs now say its macOS actions run in the background), and <a href="https://github.com/stablyai/orca/issues/43335">#43335</a> (17 November,
+Windows 11 Pro) reports Microsoft Defender's AMSI blocking Orca's Windows computer-use script as
+"HackTool:PowerShell/EmpireGetScreenshot.C" on 1.4.261.</p>
+
+<h2 id="measured">What we measured</h2>
+<p>Six runs on 15 November 2026, on Windows 11 Pro 25H2 (build 26200) with Anode 0.11.4. Headless Claude Code 2.1.325
+(Sonnet 5.5 in four runs, Haiku 5.5 in two) built a small Windows Forms app with a planted bug, started it in Anode's
+seat, typed the spec's example, found the wrong total, fixed the source, rebuilt and checked again.</p>
+<ul>
+<li><strong>The task:</strong> 5 of 6 runs finished the whole loop and left the app showing the right total (Total:
+92.00). The other one (run 4, Haiku) was refused Anode's window-closing tool by our own permission list, didn't close
+the app another way, and its rebuild then failed on the running app's locked exe; the Sonnet runs with the same list
+closed the app with its Close button.</li>
+<li><strong>The PC's own desktop,</strong> sampled about every 50 ms by a watcher in that session: 8,491 samples over
+437 s. The app and Anode had the foreground in 0 of them; the app had 0 windows there, and its process ran in the seat's
+session only. No pointer move happened without input in that session, though someone was using that desktop during three
+of the runs (182 bursts of input).</li>
+<li><strong>Repeat it:</strong> the app, the request, the watcher and each run's calls are in the guide's
+<a href="../claude-code-background-computer-use-windows/#method">Method</a> and
+<a href="../claude-code-background-computer-use-windows/data/results.json">results.json</a>.</li>
+</ul>
+
+<h2 id="not-shown">What this doesn't show</h2>
+<ul>
+<li><strong>Codex or Orca driving Anode.</strong> Our runs used Claude Code. Anode's tools are the same MCP server for
+any client, but a different model may choose different tools; we haven't measured that.</li>
+<li><strong>Codex's own computer use inside Anode's seat,</strong> or in a VM. We didn't run either.</li>
+<li><strong>MXC or Agent Workspace.</strong> We read their docs; we couldn't run them (one is gated, the other a private
+preview).</li>
+<li><strong>Speed or cost against a VM.</strong> Not measured.</li>
+<li><strong>Other apps and PCs.</strong> One small app on one PC, Windows 11 Pro.</li>
+</ul>
+
+<h2 id="microsoft">What Windows itself offers agents</h2>
+<h3>MXC session containers</h3>
+<p>Microsoft's post of 7 October calls a session container a way to run an agent "in a separate, OS-isolated session",
+"under a distinct Windows account and session", for "Long-running agents and automation that need a desktop or stronger
+separation from the interactive user", on Windows 11 only (<a href="https://blogs.windows.com/windowsdeveloper/2026/10/07/microsoft-execution-containers-policy-driven-containment-for-ai-agents/">Windows
+Developer Blog</a>). Its Ignite post of 17 November says MXC "has been generally available on Windows 11 since October"
+and that "OpenAI has turned MXC on by default in Codex"
+(<a href="https://blogs.windows.com/windowsexperience/2026/11/17/microsoft-ignite-2026-building-windows-for-the-next-era-of-work/">Windows
+Experience Blog</a>). Neither post says which of MXC's backends Codex uses, and we haven't read OpenAI's own guidance on enabling it, which
+Microsoft's 17 November developer post points Codex users to.</p>
+<p>MXC is open source (<a href="https://github.com/microsoft/mxc">microsoft/mxc</a>, MIT, 1.1.0 of 15 November). Its
+default Windows backend is the process container; the session container is the <code>isolation_session</code> backend.
+Its design docs for that backend, written for MXC's developers (as of commit <code>e6960f7</code>, 18 November), say:</p>
+<ul>
+<li>it calls the OS API <code>Windows.AI.IsolationSession.Preview</code>, which "is gated on an internal Windows feature
+flag" (<a href="https://github.com/microsoft/mxc/blob/e6960f7/docs/development/architecture/backends/isolation-session/oneshot.md">oneshot.md</a>);</li>
+<li>its one-shot runner gives each run "a fresh per-execution Windows agent user account", and doesn't support GUI
+applications: "No display server inside the session; only stdout/stderr captured" (the same file);</li>
+<li>the newer doc for its state-aware lifecycle puts it differently: inside a live session, "window creation, GDI, and the session's own clipboard all work; only input injection is
+blocked", and <code>SendInput</code> returns <code>ERROR_ACCESS_DENIED</code>
+(<a href="https://github.com/microsoft/mxc/blob/e6960f7/docs/development/architecture/backends/isolation-session/state-aware-rust.md">state-aware-rust.md</a>),
+while the session's windows are "unreachable and invisible" from yours;</li>
+<li>this backend rejects every filesystem and UI policy field, and requires the network to be left fully open (the same
+docs).</li>
+</ul>
+<p><strong>So, from the documents:</strong> a session container gives an agent's commands what Anode's seat doesn't, a
+fresh Windows account that can't reach your per-user data (though, by those docs, with no filesystem or UI policy and the
+network open). Anode's seat gives what a
+session container's docs say it doesn't: a desktop the agent can see in screenshots and drive with clicks and typing.</p>
+
+<h3>Agent Workspace</h3>
+<p>Microsoft's support page (last updated 5 December 2025, read today) says agent workspace "runs in a separate Windows
+session", that "Each agent operates using its own account", and that it is "available in a private preview for Windows
+Insiders in a release coming soon"; the page hasn't changed since. It also says agent connectors running in the workspace are "now available on preview
+builds 26100.7344+". It names Copilot Actions as the feature that uses
+it, and we found no doc on running your own Codex or Orca agent there (<a href="https://support.microsoft.com/en-us/windows/ai/ai-features/experimental-agentic-features">Experimental
+agentic features</a>). Microsoft announced it at Ignite 2025 as an environment where "agents can interact with software,
+just like people"
+(<a href="https://blogs.windows.com/windowsdeveloper/2025/11/18/ignite-2025-furthering-windows-as-the-premier-platform-for-developers-governed-by-security/">Windows
+Developer Blog, 18 November 2025</a>). Its three Ignite posts of 17 November 2026 on the Windows blogs don't mention it,
+and those blogs had no later post by 19 November.</p>
+
+<h2 id="other-options">When to use something else</h2>
+<h3>A virtual machine or Windows Sandbox</h3>
+<p>When the agent's work must not reach your files, accounts or network. Windows Sandbox is a disposable VM that comes
+with Pro, Enterprise and Education, not Home; closing it deletes everything in it, software installed on your PC isn't
+inside it, networking is on by default and only one runs at a time
+(<a href="https://learn.microsoft.com/en-us/windows/security/application-security/application-isolation/windows-sandbox/">Microsoft</a>).
+OpenAI's advice for Codex's own computer use is a Windows virtual machine; we haven't checked whether the ChatGPT app
+runs in Windows Sandbox.</p>
+<h3>Codex's computer use, while you watch</h3>
+<p>When you're happy to hand over the PC for the task, or the target is an app you already have open: OpenAI's docs say
+to keep the target app visible on the active desktop and to "use a secondary device, a VM, or stop the task before using
+that desktop yourself" (<a href="https://learn.chatgpt.com/docs/computer-use">Computer Use</a>). Locked, background use is
+for macOS.</p>
+<h3>Tools that act on windows in your own session</h3>
+<p>When the agent must work with windows you already have open. Orca (above) and
+<a href="https://cua.ai/docs/explanation/the-no-foreground-contract">Cua Driver</a> send UI Automation calls or window
+messages to one app's window on your desktop; Cua's docs list foreground input as "Needed for games, canvas apps such as
+Blender, and focus-polling apps". Our <a href="../windows-computer-use-in-the-background/">comparison of background
+computer use on Windows</a> covers them, agent-desktop and GitHub Copilot's app in more detail.</p>
+<h3>A hidden desktop in your own session</h3>
+<p>Windows can also give a program a second, hidden desktop inside your session (<code>CreateDesktop</code>).
+<a href="https://github.com/LippInc/offstage-windows">offstage-windows</a> (npm 0.1.2, MIT) runs Electron and Playwright
+test sessions there; its README says real OS input (<code>SendInput</code>) and the cursor don't reach the app, while
+Playwright's and CDP's input do, and that some endpoint-protection products may flag it. Use it when your tests already
+drive the app through Playwright or CDP. <a href="https://github.com/agentlabs-at/agentfenster-mcp">agentfenster</a>, a
+commercial, closed-source app, says its MCP server works "on a second Win32 desktop inside your session" and "never takes
+your foreground, mouse or keyboard" (its README, 8 August).</p>
+<h3>Headless tests</h3>
+<p>When the check needs no desktop at all: an API call, a shell command or a headless browser test is simpler, as
+Anode's own README says.</p>
+
+<h2 id="limits">Where Anode doesn't help</h2>
+<ul>
+<li><strong>Windows Home, macOS and Linux;</strong> ARM64 is not validated.</li>
+<li><strong>Not a sandbox:</strong> the seat signs in as you, with your files, saved sign-ins and network, and your
+startup programs run there too.</li>
+<li><strong>Your open windows:</strong> the agent works only on windows in the seat. Apps that refuse to run twice won't
+run in both sessions at once.</li>
+<li><strong>One seat,</strong> shared by agents in turn; it runs unelevated.</li>
+</ul>
+<p class="muted">The full list, with sources, is in the guide's
+<a href="../claude-code-background-computer-use-windows/#limits">Where Anode doesn't help</a> and Anode's
+<a href="https://github.com/skulitom/Anode/blob/v0.11.4/docs/USAGE.md#limits-honestly">USAGE.md</a> (startup programs
+in the seat) and <a href="https://github.com/skulitom/Anode/blob/v0.11.4/docs/SECURITY.md">SECURITY.md</a> ("The seat
+runs unelevated").</p>
+
+<h2 id="searches">Searches this page answers</h2>
+<p>We ran these on 19 November 2026 with a web search tool built on Brave's index
+(<a href="data/searches-2026-11-19.txt">what ranked</a>):</p>
+<ul>
+<li>Codex computer use Windows background without taking over mouse</li>
+<li>computer use on Windows without a VM separate session AI agent</li>
+<li>Orca computer use Windows background foreground</li>
+<li>AI agent hidden Windows desktop session GUI testing keep using my PC</li>
+<li>MXC session container computer use agent GUI Windows</li>
+</ul>
+<p>Our site ranked in none of them. A third-party listing of Anode's skill ranked fifth in the fourth.</p>
+
+<footer class="muted">
+<p>Last checked 19 November 2026. A plain static page: no scripts that run, no trackers, no cookies.
+<a href="https://skulitom.github.io/Anode/">Anode</a> ·
+<a href="../">All comparisons</a> ·
+<a href="https://github.com/skulitom/Anode">GitHub</a> ·
+<a href="https://github.com/skulitom/Anode/issues/new">Report a mistake</a></p>
+</footer>
+</main>
+</body>
+</html>
