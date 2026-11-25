@@ -290,6 +290,21 @@ try {
         Check ($plugin.version -ceq $version) ".claude-plugin/plugin.json version is $version" "found $($plugin.version)"
         if ($plugin.mcpServers) { Check ('mcp' -cin @($plugin.mcpServers.anode.args)) '.claude-plugin/plugin.json runs anode mcp' }
     }
+    # The Agent Plugins 1.0.0 package (Codex, Copilot CLI, VS Code): a closed manifest and mcp.json at the root.
+    $agentPlugin = Read-Manifest 'plugin.json'
+    if ($agentPlugin) {
+        Check ($agentPlugin.'$schema' -ceq 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json') 'plugin.json declares Agent Plugins 1.0.0'
+        Test-SameSet @($agentPlugin.PSObject.Properties.Name | Where-Object { $_ -cnotin @('$schema', 'name', 'version', 'description', 'author', 'homepage', 'repository', 'license', 'keywords') }) @() 'plugin.json has only Agent Plugins 1.0.0 fields'
+        Check ($agentPlugin.name -ceq 'anode') 'plugin.json name is anode'
+        Check ($agentPlugin.version -ceq $version) "plugin.json version is $version" "found $($agentPlugin.version)"
+        if ($plugin) { Check ($agentPlugin.description -ceq $plugin.description) 'plugin.json description equals .claude-plugin/plugin.json' }
+    }
+    $agentMcp = Read-Manifest 'mcp.json'
+    if ($agentMcp) {
+        Check ($agentMcp.'$schema' -ceq 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json') 'mcp.json declares Agent Plugins 1.0.0'
+        $server = $agentMcp.mcpServers.anode
+        Check ($server.type -ceq 'stdio' -and $server.command -ceq 'anode' -and 'mcp' -cin @($server.args)) 'mcp.json runs anode mcp over stdio'
+    }
     $marketplace = Read-Manifest '.claude-plugin\marketplace.json'
     if ($marketplace) {
         Check ($marketplace.name -ceq 'anode' -and @($marketplace.plugins | Where-Object { $_.name -ceq 'anode' }).Count -eq 1) '.claude-plugin/marketplace.json offers the anode plugin from the anode marketplace'

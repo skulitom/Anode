@@ -22,6 +22,10 @@
   opens with "Background computer use on Windows". The MCPB bundle's long description also says
   that the seat needs your Windows password, again at every Reconnect, if you sign in to Windows
   only with a PIN or Windows Hello. No change in behaviour.
+- **An Agent Plugins 1.0.0 package.** A root `plugin.json` and `mcp.json` (`anode mcp` over stdio)
+  let clients that read that standard, such as Codex and GitHub Copilot CLI, install Anode as a
+  plugin from this repository; `scripts	est-distribution.ps1` checks both. The Claude Code plugin
+  in `.claude-plugin/` is unchanged. No change in behaviour.
 
 ## 0.11.4 — 2026-10-23
 

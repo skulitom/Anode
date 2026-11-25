@@ -82,14 +82,16 @@ live check) in CI and on any PC.
   Scoop and winget now reads "Background computer use on Windows for AI agents: GUI automation,
   screenshots and app testing."; the README's top, `llms.txt` and the skill's description use the
   same words, and `docs/CONNECTING-AGENTS.md` gains a paragraph on headless Claude Code runs; no
-  change in behaviour);
+  change in behaviour), and the Agent Plugins 1.0.0 package (a root `plugin.json` and `mcp.json`
+  that run `anode mcp` over stdio, with checks in `scripts	est-distribution.ps1`; no change in
+  behaviour);
 - one fix: `seat_run` starts programs on a thread of its own and answers `"pending": true` after
   10 seconds (or at the request's deadline) when Windows hasn't started the program, for example
   behind "Open File - Security Warning" for a downloaded file, instead of holding the seat host and
   every later desktop tool until the host was ended (Compass B-059, seen 2026-11-14).
 
 No tools or commands were added; the tool count stays 41. No features: 0.11.5 ships the runtime's
-security update, the `seat_run` fix and the new listing text.
+security update, the `seat_run` fix, the new listing text and the Agent Plugins package.
 
 ### Live validation
 
