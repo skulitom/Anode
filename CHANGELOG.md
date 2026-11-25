@@ -24,10 +24,11 @@
   only with a PIN or Windows Hello. No change in behaviour.
 - **An Agent Plugins 1.0.0 package.** A root `plugin.json` and `mcp.json` (`anode mcp` over stdio)
   let clients that read that standard, such as Codex and GitHub Copilot CLI, install Anode as a
-  plugin from this repository (#109); `scripts/test-distribution.ps1` checks both. The Claude Code
+  plugin from this repository; `scripts/test-distribution.ps1` checks both. The Claude Code
   plugin in `.claude-plugin/` is unchanged. The format has no tool timeout, so a client that
   installs this package uses its own default (60 seconds in Codex); start the seat with
-  `anode start --hidden` first, or use `anode configure codex`, which sets 420 seconds
+  `anode start --hidden` first, or register with `anode configure codex` instead of the
+  plugin, which sets 420 seconds
   ([Connecting agents](docs/CONNECTING-AGENTS.md#2-codex-cli)).
 
 ## 0.11.4 — 2026-10-23
