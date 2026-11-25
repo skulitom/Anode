@@ -19,6 +19,11 @@ listings now say what Anode is for. Anode's tools and commands are unchanged; th
   "Background computer use on Windows for AI agents: GUI automation, screenshots and app testing.",
   and the skill's description opens with "Background computer use on Windows". Anode works as
   before.
+- **An Agent Plugins 1.0.0 package.** The repository's root `plugin.json` and `mcp.json` let
+  clients that read that standard, such as Codex and GitHub Copilot CLI, install Anode as a
+  plugin. The Claude Code plugin is unchanged. The format has no tool timeout: start the seat
+  with `anode start --hidden` before the first call, or register Anode with
+  `anode configure codex` instead of the plugin, which sets 420 seconds.
 
 **Known issues.** A Chrome window's first observation can come back without the page, and the
 page's controls sit deeper than the default `maxDepth` of 8: observe again with `maxDepth` 16. On

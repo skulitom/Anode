@@ -171,7 +171,7 @@ function Test-Link([string]$Document, [int]$Line, [string]$Target) {
 
 # Distribution manifests quote documentation URLs, tool names and counts as well.
 $documents = @(@('README.md', 'CHANGELOG.md', 'CONTRIBUTING.md', 'AGENTS.md', 'CLAUDE.md', 'llms.txt', 'skills\anode-desktop\SKILL.md',
-    'packaging\mcpb\manifest.json', 'server.json', '.claude-plugin\plugin.json', '.claude-plugin\marketplace.json',
+    'packaging\mcpb\manifest.json', 'server.json', 'plugin.json', '.claude-plugin\plugin.json', '.claude-plugin\marketplace.json',
     '.codex-plugin\plugin.json', '.agents\plugins\marketplace.json', 'glama.json', 'bucket\anode.json') |
     ForEach-Object { Join-Path $root $_ } | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })
 $documents += @(Get-ChildItem -LiteralPath (Join-Path $root 'docs') -Filter '*.md' -File | ForEach-Object { $_.FullName })

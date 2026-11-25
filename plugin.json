@@ -1,0 +1,24 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "anode",
+  "version": "0.11.5",
+  "description": "Background computer use on Windows for AI agents: GUI automation, screenshots and app testing.",
+  "author": {
+    "name": "skulitom",
+    "url": "https://github.com/skulitom"
+  },
+  "homepage": "https://github.com/skulitom/Anode#readme",
+  "repository": "https://github.com/skulitom/Anode",
+  "license": "MIT",
+  "keywords": [
+    "windows",
+    "desktop-automation",
+    "ui-automation",
+    "gui-testing",
+    "screenshots",
+    "computer-use",
+    "background-computer-use",
+    "background-desktop",
+    "mcp"
+  ]
+}

@@ -85,8 +85,8 @@ release, update to the current supported patch, and rebuild and test the package
    `docs/PROTOCOL.md`, the PROTOCOL.md tool mapping, `llms.txt`, the instructions in
    `src/Anode/Mcp/AgentGuide.cs`, the [command reference](docs/USAGE.md#command-reference) and the
    release notes in line with the code.
-4. Set the new version in `server.json`, `.claude-plugin/plugin.json` and
-   `packaging/mcpb/manifest.json`. Where a listing repeats the one-line description, keep it
+4. Set the new version in `server.json`, `.claude-plugin/plugin.json`, the root
+   `plugin.json` (Agent Plugins 1.0.0) and `packaging/mcpb/manifest.json`. Where a listing repeats the one-line description, keep it
    identical: "Background computer use on Windows for AI agents: GUI automation, screenshots and
    app testing."
 5. Run the checks above plus `scripts\test-distribution.ps1` and `scripts\check-docs.ps1`, push the

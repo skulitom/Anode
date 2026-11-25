@@ -6,7 +6,7 @@
     Checks the packaged executable's version, metadata and MCP tool list; SHA256SUMS; archive entry
     names and payload; anode-windows-x64.mcpb and server.registry.json when built; and each
     distribution manifest that exists: packaging/mcpb/manifest.json, server.json, .claude-plugin, .codex-plugin, .agents/plugins,
-    glama.json, bucket/anode.json and packaging/winget. Runs only 'anode version' and 'anode mcp'
+    the root plugin.json and mcp.json (Agent Plugins 1.0.0), glama.json, bucket/anode.json and packaging/winget. Runs only 'anode version' and 'anode mcp'
     (initialize and tools/list), and never starts a seat. -Release also requires release notes and a
     CHANGELOG section for the version, and repository links in the MCPB manifest to resolve.
 .EXAMPLE
@@ -289,6 +289,25 @@ try {
         Check ($plugin.name -ceq 'anode') '.claude-plugin/plugin.json name is anode'
         Check ($plugin.version -ceq $version) ".claude-plugin/plugin.json version is $version" "found $($plugin.version)"
         if ($plugin.mcpServers) { Check ('mcp' -cin @($plugin.mcpServers.anode.args)) '.claude-plugin/plugin.json runs anode mcp' }
+    }
+    # The Agent Plugins 1.0.0 package (Codex, Copilot CLI, VS Code): a closed manifest and mcp.json at the root.
+    # Clients skip a server entry, or reject the whole plugin, that carries a field the 1.0.0 schemas don't allow.
+    $agentPlugin = Read-Manifest 'plugin.json'
+    if ($agentPlugin) {
+        Check ($agentPlugin.'$schema' -ceq 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json') 'plugin.json declares Agent Plugins 1.0.0'
+        Test-SameSet @($agentPlugin.PSObject.Properties.Name | Where-Object { $_ -cnotin @('$schema', 'name', 'version', 'description', 'author', 'homepage', 'repository', 'license', 'keywords', 'extensions') }) @() 'plugin.json has only Agent Plugins 1.0.0 fields'
+        if ($agentPlugin.author) { Test-SameSet @($agentPlugin.author.PSObject.Properties.Name | Where-Object { $_ -cnotin @('name', 'email', 'url') }) @() 'plugin.json author has only name, email and url' }
+        Check ($agentPlugin.name -ceq 'anode') 'plugin.json name is anode'
+        Check ($agentPlugin.version -ceq $version) "plugin.json version is $version" "found $($agentPlugin.version)"
+        if ($plugin) { Check ($agentPlugin.description -ceq $plugin.description) 'plugin.json description equals .claude-plugin/plugin.json' }
+    }
+    $agentMcp = Read-Manifest 'mcp.json'
+    if ($agentMcp) {
+        Check ($agentMcp.'$schema' -ceq 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json') 'mcp.json declares Agent Plugins 1.0.0'
+        Test-SameSet @($agentMcp.PSObject.Properties.Name | Where-Object { $_ -cnotin @('$schema', 'mcpServers') }) @() 'mcp.json has only $schema and mcpServers'
+        $agentServer = $agentMcp.mcpServers.anode
+        Check ($agentServer.type -ceq 'stdio' -and $agentServer.command -ceq 'anode' -and 'mcp' -cin @($agentServer.args)) 'mcp.json runs anode mcp over stdio'
+        if ($agentServer) { Test-SameSet @($agentServer.PSObject.Properties.Name | Where-Object { $_ -cnotin @('type', 'command', 'args', 'env', 'cwd') }) @() 'mcp.json anode server has only stdio fields (no timeout field exists)' }
     }
     $marketplace = Read-Manifest '.claude-plugin\marketplace.json'
     if ($marketplace) {

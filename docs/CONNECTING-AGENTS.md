@@ -136,6 +136,11 @@ Codex's default tool timeout is 60 seconds, shorter than Anode's startup wait. S
 Starting the seat with `anode start --hidden` before connecting the agent also avoids that
 first-call wait.
 
+Codex can also install Anode as a plugin from this repository, whose root `plugin.json` and
+`mcp.json` follow the Agent Plugins 1.0.0 format. That format has no tool timeout, so a plugin
+install keeps Codex's 60-second default: start the seat with `anode start --hidden` before the
+first call. Use one route, the plugin or `[mcp_servers.anode]`, not both.
+
 You can equally write the entry by hand. Check it:
 
 ```powershell
