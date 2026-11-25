@@ -83,8 +83,8 @@ live check) in CI and on any PC.
   screenshots and app testing."; the README's top, `llms.txt` and the skill's description use the
   same words, and `docs/CONNECTING-AGENTS.md` gains a paragraph on headless Claude Code runs; no
   change in behaviour), and the Agent Plugins 1.0.0 package (a root `plugin.json` and `mcp.json`
-  that run `anode mcp` over stdio, with checks in `scripts	est-distribution.ps1`; no change in
-  behaviour);
+  that run `anode mcp` over stdio, with checks in `scripts/test-distribution.ps1`; #109; no
+  change in Anode's behaviour);
 - one fix: `seat_run` starts programs on a thread of its own and answers `"pending": true` after
   10 seconds (or at the request's deadline) when Windows hasn't started the program, for example
   behind "Open File - Security Warning" for a downloaded file, instead of holding the seat host and
